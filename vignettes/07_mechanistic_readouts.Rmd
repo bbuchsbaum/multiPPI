@@ -1,0 +1,182 @@
+---
+title: "Mechanistic Readouts in multiPPI"
+author: "multiPPI package"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Mechanistic Readouts in multiPPI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+if (!requireNamespace("multiPPI", quietly = TRUE)) {
+  stop("multiPPI must be installed to build this vignette.")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  knitr::knit_exit()
+}
+library(multiPPI)
+library(ggplot2)
+```
+
+## 1. Why mechanistic readouts?
+
+Matrix-PPI provides multiple ways to summarize how an experimental context
+modulates network interactions. Beyond the raw interaction matrix \(M_k\),
+mechanistic readouts condense these effects into interpretable dimensions:
+
+- **Gain** — does the interaction amplify or attenuate the intrinsic covariance
+  structure?
+- **Routing** — is the modulation stronger for forward vs. backward lags,
+  implying dominant directionality?
+- **Communication modes** — what low-dimensional patterns summarize the change?
+- **Precision gating** — how does the condition reshape direct (precision-domain)
+  connections?
+
+This vignette walks through these readouts on a small simulated rest-like data
+set so you can link the summary numbers to concrete changes in connectivity.
+
+## 2. Simulated example
+
+We simulate latent component activity with three contexts (`ctxA`, `ctxB`,
+`ctxC`) that drive distinct coupling templates. The observed data are low-rank
+projections of these latent components with modest observation noise.
+
+```{r simulate}
+set.seed(2025)
+sim <- mppi_sim_rest_dataset(T = 180, V = 25, r = 6,
+                             contexts = c("ctxA", "ctxB", "ctxC"),
+                             amp = c(0.45, 0.30, 0.20),
+                             freq = c(0.015, 0.030, 0.045),
+                             obs_noise = 0.05)
+
+fit <- mppi_rest(sim$Y,
+                 modulators = sim$modulators,
+                 basis = list(type = "pca", r = 10L),
+                 domain = "bold",
+                 prewhiten = FALSE,
+                 attach_pk = TRUE,
+                 lags = -2:2)
+
+fit
+```
+
+The rest wrapper stores the residual basis time-series (`fit$Z`), the
+condition-specific interaction matrices (`fit$Delta`), and various derived
+quantities that the mechanistic helpers reuse.
+
+## 3. Gain vs. routing (mppi_axes)
+
+`mppi_axes()` decomposes each interaction into a *gain* component (alignment
+with the baseline covariance eigenvector \(v_1\)) and a *routing* component
+(difference between positive and negative lag energies). High gain indicates a
+condition strengthens the dominant connectivity pattern, while routing captures
+whether information flow is biased toward leading or lagging the psychological
+modulator.
+
+```{r axes, fig.height=4, fig.alt='Scatterplot of routing (x-axis) versus gain (y-axis) for contexts ctxA, ctxB, ctxC'}
+axes_df <- mppi_axes(fit, lags = -2:2)
+axes_df
+
+ggplot(axes_df, aes(routing, gain, label = condition)) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, colour = "grey70", linetype = "dashed") +
+  geom_vline(xintercept = 0, colour = "grey70", linetype = "dashed") +
+  geom_text(vjust = -1, size = 4) +
+  labs(title = "Gain vs. routing", x = "Routing (forward minus backward energy)",
+       y = "Gain (alignment with baseline mode)") +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+  theme_minimal(base_size = 12)
+```
+
+In this simulation `ctxA` shows both high gain and positive routing, reflecting
+strong amplification aligned with the leading covariance mode and a preference
+for positive lags. `ctxC` produces a mild, slightly negative routing effect.
+
+## 4. Lagged directionality (mppi_lagged)
+
+For a closer look at routing, use `mppi_lagged()` to inspect energy per lag. The
+function returns lagged interaction matrices and aggregate positive/negative
+energies.
+
+```{r lagged}
+lag_ctxA <- mppi_lagged(fit, "ctxA", lags = -2:2)
+lag_ctxA$R
+
+lag_df <- data.frame(lag = as.integer(names(lag_ctxA$M_lag)),
+                     energy = vapply(lag_ctxA$M_lag, function(M) sqrt(sum(M^2, na.rm = TRUE)), 0))
+lag_df
+```
+
+In this example, lag \(+1\) dominates, which explains the positive routing value
+seen earlier.
+
+## 5. Communication modes (mppi_modes)
+
+`mppi_modes()` aggregates all condition matrices to extract a low-dimensional
+communication subspace. Eigenvalues indicate how much interaction energy each
+mode carries.
+
+```{r modes, fig.height=4, fig.alt='Bar plot of leading communication mode eigenvalues'}
+modes_out <- mppi_modes(fit, r = 5)
+mode_df <- data.frame(mode = factor(seq_along(modes_out$values)),
+                      value = modes_out$values)
+mode_df
+
+ggplot(mode_df, aes(mode, value)) +
+  geom_col(fill = "#6BAED6") +
+  labs(title = "Leading communication modes",
+       x = "Mode", y = "Eigenvalue") +
+  theme_minimal(base_size = 12)
+```
+
+Mode 1 captures most of the interaction energy. Projecting each condition onto
+this shared basis (`modes_out$projected`) reveals whether contexts modulate
+similar or complementary subspaces.
+
+## 6. Precision gating (mppi_precision_gate)
+
+Precision gating translates \(M_k\) into precision-domain perturbations
+\(\Delta \Theta_k = -\Theta_0 M_k \Theta_0\) to highlight direct connections.
+Large off-diagonal ratios indicate focused coupling changes rather than changes
+in marginal variance.
+
+```{r precision}
+prec <- mppi_precision_gate(fit, mode = "normalized")
+prec$summary
+```
+
+Here `ctxA` produces the strongest precision perturbation, consistent with its
+high gain. Because the simulator injects symmetric templates, the off-diagonal
+ratios are close to 1.
+
+## 7. Putting it together (mppi_mechanism_report)
+
+For a compact summary, `mppi_mechanism_report()` collates gain, routing, lagged
+energy, precision gating, and optional hierarchy/template projections.
+
+```{r report}
+report <- mppi_mechanism_report(fit, k = "ctxA", lag_fits = list(pos = lag_ctxA))
+report
+```
+
+The report shows that `ctxA` amplifies the baseline pattern (gain \> 0), is
+routing-forward (positive routing and lag energy skew), and generates a sizable
+precision perturbation.
+
+## 8. Where to go next
+
+- Pair these readouts with task designs (see the encode/recall vignette) to link
+  mechanistic changes to behaviour.
+- Use `mppi_classify()` for automated gain vs routing categorization when you
+  have many regressors.
+- Combine `mppi_axes()` outputs across subjects and embed them in second-level
+  models to test mechanistic hypotheses.
+
+Mechanistic readouts make it easier to communicate *how* connectivity changes in
+response to psychological contexts. Their tight coupling to the closed-form
+estimator keeps them fast and reproducible.

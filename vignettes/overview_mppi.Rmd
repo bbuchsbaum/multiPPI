@@ -219,6 +219,9 @@ deconvolution.
 
 ## Mechanistic summaries (gain, routing, templates)
 
+The vignette *Mechanistic Readouts in multiPPI* provides a deeper walk-through of
+these helpers and how to interpret them in practice.
+
 Mechanistic helpers run entirely in the fitted space, so they remain cheap even
 with large voxel sets:
 
