@@ -9,3 +9,15 @@ mppi_deconv_map <- function(Y, h, lambda) {
     .Call(`_multiPPI_mppi_deconv_map`, Y, h, lambda)
 }
 
+ppi_batch_cpp <- function(U, G, lags, blocklens = integer()) {
+    .Call(`_multiPPI_ppi_batch_cpp`, U, G, lags, blocklens)
+}
+
+ridge_precision_cpp <- function(S, lambda) {
+    .Call(`_multiPPI_ridge_precision_cpp`, S, lambda)
+}
+
+precision_gate_cpp <- function(Theta0, M) {
+    .Call(`_multiPPI_precision_gate_cpp`, Theta0, M)
+}
+

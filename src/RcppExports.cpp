@@ -43,10 +43,51 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// ppi_batch_cpp
+SEXP ppi_batch_cpp(const arma::mat& U, const arma::mat& G, const IntegerVector& lags, const IntegerVector& blocklens);
+RcppExport SEXP _multiPPI_ppi_batch_cpp(SEXP USEXP, SEXP GSEXP, SEXP lagsSEXP, SEXP blocklensSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type U(USEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type lags(lagsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type blocklens(blocklensSEXP);
+    rcpp_result_gen = Rcpp::wrap(ppi_batch_cpp(U, G, lags, blocklens));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ridge_precision_cpp
+arma::mat ridge_precision_cpp(const arma::mat& S, double lambda);
+RcppExport SEXP _multiPPI_ridge_precision_cpp(SEXP SSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(ridge_precision_cpp(S, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
+// precision_gate_cpp
+arma::cube precision_gate_cpp(const arma::mat& Theta0, const arma::cube& M);
+RcppExport SEXP _multiPPI_precision_gate_cpp(SEXP Theta0SEXP, SEXP MSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Theta0(Theta0SEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M(MSEXP);
+    rcpp_result_gen = Rcpp::wrap(precision_gate_cpp(Theta0, M));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_multiPPI_deconv_dct_multi", (DL_FUNC) &_multiPPI_deconv_dct_multi, 9},
     {"_multiPPI_mppi_deconv_map", (DL_FUNC) &_multiPPI_mppi_deconv_map, 3},
+    {"_multiPPI_ppi_batch_cpp", (DL_FUNC) &_multiPPI_ppi_batch_cpp, 4},
+    {"_multiPPI_ridge_precision_cpp", (DL_FUNC) &_multiPPI_ridge_precision_cpp, 2},
+    {"_multiPPI_precision_gate_cpp", (DL_FUNC) &_multiPPI_precision_gate_cpp, 2},
     {NULL, NULL, 0}
 };
 
