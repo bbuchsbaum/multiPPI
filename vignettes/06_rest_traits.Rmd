@@ -117,7 +117,7 @@ Cross-validated $R^2$ quantifies how much variance in the trait is explained by
 our normalized coupling features. We can visualize predicted vs observed trait
 values:
 
-```{r trait-plot, fig.height=4}
+```{r trait-plot, fig.height=4, fig.alt='Scatterplot comparing observed and cross-validated predicted trait values'}
 pred_df <- data.frame(
   subj = as.integer(names(cv_out$pred)),
   observed = cv_out$observed,
@@ -150,7 +150,7 @@ The high correlation indicates that multiPPI recovers the context-conditioned
 interaction pattern in the low-rank space. We can also visualize the heatmap for
 one subject:
 
-```{r heatmap, fig.height=4}
+```{r heatmap, fig.height=4, fig.alt='Heatmap of recovered ctx1 interaction matrix for a representative subject'}
 mat_df <- as.data.frame(as.table(recovered_ctx1))
 colnames(mat_df) <- c("row", "col", "value")
 

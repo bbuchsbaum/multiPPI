@@ -101,7 +101,7 @@ fit_basis <- mppi(ev, Y = Y_matrix, base = base,
                   backend = "chunked", chunk_size = 4096L,
                   project_backend = "chunked", project_chunk_cols = 1024L)
 
-# fit_basis$Delta[[k]] is now r x r component-space interaction slope
+# fit_basis$Delta[[k]] is now an r × r component-space interaction slope
 M_k <- mppi_get_M(fit_basis, "hrf(condA)")
 
 # On-demand reconstruction for a ROI subset
@@ -112,14 +112,14 @@ Delta_roi <- mppi_reconstruct_delta(fit_basis, "hrf(condA)", idx = roi_idx)
 Key points:
 
 - During fitting we compute `Z = R %*% V_r` (with chunking if requested) and
-  store only the `r x r` matrices `M_k`.
+  store only the `r × r` matrices `M_k`.
 - The basis metadata is carried with the fit object, enabling `mppi_edge`
   (recover a single edge) and `mppi_reconstruct_delta` (recover submatrices).
 - Frobenius norms satisfy `||Delta||_F == ||M||_F` when `V_r` is orthonormal,
   so global energy tests are basis-invariant.
 
 This pattern extends to group level: with a shared basis, each subject
-provides aligned `M_k` matrices, so group statistics operate on r×r edges
+provides aligned `M_k` matrices, so group statistics operate on r × r edges
 instead of V×V. If using subject-specific PCA, standardizing to a reference
 basis (orthogonal Procrustes) yields aligned `M_k` as well.
 
