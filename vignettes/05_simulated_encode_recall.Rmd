@@ -331,6 +331,8 @@ fit_sum$AIC_total <- fit$AIC_total[valid]
 if (!is.null(fit$BIC_total)) fit_sum$BIC_total <- fit$BIC_total[valid]
 fit_sum$evidence <- fit$evidence
 
+```
+
 ### Gain and routing decomposition with mppi_axes()
 
 **mppi_axes()** decomposes connectivity changes along two orthogonal dimensions
@@ -361,8 +363,10 @@ negative gain indicates attenuation. Positive routing suggests feedforward
 processing; negative routing suggests feedback processing.
 
 # Gain vs routing summaries (condition rows only) -------------------------
+```{r gain-routing}
 axes <- mppi_axes(fit_sum, lags = -2:2)
 head(subset(axes, grepl("^cond_cond.enc_vid", condition)))
+```
 
 ### Communication mode extraction with mppi_modes()
 
@@ -396,8 +400,10 @@ communication patterns, while dissimilar projections indicate distinct
 network configurations.
 
 # Communication modes spanning the normalized interaction energy ---------
+```{r communication-modes}
 modes <- mppi_modes(fit_sum, r = 6)
 colnames(modes$vectors)
+```
 
 ### Neural reinstatement analysis with mppi_reinstatement()
 
@@ -427,10 +433,12 @@ reconfigure similarly during encoding and recall of the same content, supporting
 theories of memory as reactivation of encoding-related neural states.
 
 # Encode vs recall reinstatement (exclude parametric terms via pattern) ---
+```{r reinstatement}
 reinstate <- mppi_reinstatement(fit_sum,
                                 enc_pattern = "^cond_cond.enc_vid",
                                 rec_pattern = "^cond_cond.rec_vid[0-9]{2}$")
 reinstate$stat
+```
 
 ### State-dependent connectivity with mppi_sdppi()
 
@@ -465,9 +473,11 @@ are strongly influenced by ongoing brain dynamics, while low accuracy indicates
 more stimulus-driven, state-independent connectivity changes.
 
 # Trial-level state-dependent PPI metrics (recall conditions) -------------
+```{r sdppi}
 sd_recall <- mppi_sdppi(fit, design_base, select = "^cond_cond.rec_vid",
                         pre_window = 8L, lags = -2:2)
 head(sd_recall)
+```
 
 ### Precision domain analysis with mppi_precision_gate()
 
@@ -505,8 +515,10 @@ unchanged, providing insights into the targeted nature of cognitive control and
 attention mechanisms.
 
 # Precision gating summaries ---------------------------------------------
+```{r precision-gate}
 prec_gate <- mppi_precision_gate(fit_sum)
 head(prec_gate$summary)
+```
 
 ### Model evidence with mppi_evidence()
 
