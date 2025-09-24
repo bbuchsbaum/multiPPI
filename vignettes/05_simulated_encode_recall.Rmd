@@ -152,7 +152,7 @@ sufficient temporal separation to avoid overlap while maintaining realistic even
 density for cognitive experiments.
 
 **Latent dimensionality**: Neural activity is generated in a 10-dimensional latent
-space (`r = 10`), which is then projected to 80 voxels. This reflects the assumption
+space ($r = 10$), which is then projected to 80 voxels. This reflects the assumption
 that high-dimensional neural data arise from lower-dimensional coordinated patterns.
 
 **Noise characteristics**:
