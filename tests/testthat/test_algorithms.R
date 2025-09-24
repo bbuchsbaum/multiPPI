@@ -13,7 +13,7 @@ test_that("mppi_fit reproduces closed-form covariance regression", {
   pk_manual <- multiPPI:::`.mppi_residualize_vec`(X[, 3], Q)
   Delta_manual <- multiPPI:::`.mppi_wcp`(R_manual, pk_manual) / sum(pk_manual^2)
 
-  expect_equal(fit$Delta[[1]], Delta_manual, tolerance = 1e-10)
+  expect_equal(mppi_get_M_scaled(fit, 1L, mode = "raw"), Delta_manual, tolerance = 1e-10)
   expect_equal(fit$R, R_manual, tolerance = 1e-10)
   expect_equal(fit$pk[[1]], pk_manual, tolerance = 1e-10)
 })
@@ -53,7 +53,8 @@ test_that("accumulate backend matches blas backend", {
   X <- cbind(Intercept = 1, task = rnorm(Tn))
   fit_blas <- mppi_fit(Y, X, psych_idx = 2L, backend = "blas")
   fit_acc  <- mppi_fit(Y, X, psych_idx = 2L, backend = "accumulate")
-  expect_equal(fit_blas$Delta[[1]], fit_acc$Delta[[1]], tolerance = 1e-10)
+  expect_equal(mppi_get_M_scaled(fit_blas, 1L, mode = "normalized"),
+               mppi_get_M_scaled(fit_acc, 1L, mode = "normalized"), tolerance = 1e-10)
 })
 
 test_that("chunked backend matches blas backend", {
@@ -63,7 +64,8 @@ test_that("chunked backend matches blas backend", {
   X <- cbind(Intercept = 1, task = rnorm(Tn))
   fit_blas <- mppi_fit(Y, X, psych_idx = 2L, backend = "blas")
   fit_chunk <- mppi_fit(Y, X, psych_idx = 2L, backend = "chunked", chunk_size = 16L)
-  expect_equal(fit_blas$Delta[[1]], fit_chunk$Delta[[1]], tolerance = 1e-8)
+  expect_equal(mppi_get_M_scaled(fit_blas, 1L, mode = "normalized"),
+               mppi_get_M_scaled(fit_chunk, 1L, mode = "normalized"), tolerance = 1e-8)
 })
 
 test_that("chunked basis projection matches blas projection", {
@@ -77,7 +79,8 @@ test_that("chunked basis projection matches blas projection", {
   fit_chunk <- mppi_fit(Y, X, psych_idx = 2L, basis = basis,
                         backend = "chunked", chunk_size = 16L,
                         project_backend = "chunked", project_chunk_cols = 2L)
-  expect_equal(mppi_get_M(fit_blas, 1L), mppi_get_M(fit_chunk, 1L), tolerance = 1e-8)
+  expect_equal(mppi_get_M_scaled(fit_blas, 1L, mode = "normalized"),
+               mppi_get_M_scaled(fit_chunk, 1L, mode = "normalized"), tolerance = 1e-8)
 })
 
 test_that("variance decomposition and partial outputs present for cov scale", {
@@ -104,7 +107,7 @@ test_that("packed option stores upper triangle", {
   expect_true(all(c("values","dim") %in% names(packed_entry)))
   fit_full <- mppi_fit(Y, X, psych_idx = 2L, packed = FALSE)
   unpacked <- multiPPI:::`.mppi_unpack_upper`(packed_entry)
-  expect_equal(unpacked, fit_full$Delta[[1]], tolerance = 1e-10)
+  expect_equal(unpacked, mppi_get_M_scaled(fit_full, 1L, mode = "normalized"), tolerance = 1e-10)
   # round trip pack -> unpack -> pack
   repacked <- multiPPI:::`.mppi_pack_upper`(unpacked)
   expect_equal(repacked$values, packed_entry$values)
@@ -132,8 +135,8 @@ test_that("basis projection matches full-space Δ", {
   fit_basis <- mppi_fit(Y, X, psych_idx = pidx, basis = Vbasis,
                         backend = "chunked", chunk_size = 16L,
                         project_backend = "chunked", project_chunk_cols = 4L)
-  M <- mppi_get_M(fit_basis, 1L)
-  Delta_full <- mppi_get_M(full, 1L)
+  M <- mppi_get_M_scaled(fit_basis, 1L, mode = "normalized")
+  Delta_full <- mppi_get_M_scaled(full, 1L, mode = "normalized")
   recon <- Vbasis$V %*% M %*% t(Vbasis$V)
   diag(recon) <- 0
   diag(Delta_full) <- 0

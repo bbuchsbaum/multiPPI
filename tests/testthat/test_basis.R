@@ -32,7 +32,8 @@ test_that("chunked projection matches blas projection", {
   fit_chunk <- mppi_fit(Y, X, psych_idx = 2L, basis = basis,
                         backend = "chunked", chunk_size = 16L,
                         project_backend = "chunked", project_chunk_cols = 3L)
-  expect_equal(mppi_get_M(fit_chunk, 1L), mppi_get_M(fit_blas, 1L), tolerance = 1e-8)
+  expect_equal(mppi_get_M_scaled(fit_chunk, 1L, mode = "normalized"),
+               mppi_get_M_scaled(fit_blas, 1L, mode = "normalized"), tolerance = 1e-8)
 })
 
 test_that("neural domain matches direct conversion", {
@@ -49,7 +50,8 @@ test_that("neural domain matches direct conversion", {
   fit_bold <- mppi_fit(Y, X, psych_idx = 2L, runs = runs,
                         basis = basis, domain = "bold")
   conv <- mppi_neural_from_fit(fit_bold, X, psych_idx = 2L, h = h, K = 32)
-  expect_equal(mppi_get_M(fit_neural, 1L), mppi_get_M(conv, 1L), tolerance = 1e-6)
+  expect_equal(mppi_get_M_scaled(fit_neural, 1L, mode = "raw"),
+               mppi_get_M_scaled(conv, 1L, mode = "raw"), tolerance = 1e-6)
   expect_equal(fit_neural$deconv$hrf, h)
 })
 

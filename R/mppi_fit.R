@@ -96,7 +96,7 @@
 #' @param lag_blocklens Optional run lengths for lagged computations when `runs` is unavailable.
 #' @return list with contemporaneous and lagged slope matrices plus residual metadata.
 mppi_fit <- function(Y, X, psych_idx, runs = NULL,
-                     zero_diag = TRUE, scale = c("cov","corr"),
+                     zero_diag = TRUE, scale = c("normalized","cov","corr"),
                      center_by = c("none","run"), na_action = c("omit_tr","error"),
                      backend = c("blas","accumulate","chunked"), packed = FALSE,
                      chunk_size = NULL, basis = NULL,
@@ -104,7 +104,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                      domain = c("bold","neural","innovations"), deconv = NULL,
                      lags = 0L, lag_blocklens = NULL) {
   stopifnot(is.matrix(Y), is.matrix(X))
-  scale <- match.arg(scale)
+  scale_choice <- match.arg(scale)
   center_by <- match.arg(center_by)
   na_action_choice <- match.arg(na_action)
   backend <- match.arg(backend)
@@ -299,15 +299,51 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 
   sigma_unscaled <- matrixStats::colSds(R_work)
 
-  if (scale == "corr") {
-    s <- matrixStats::colSds(R_work)
-    s[s == 0] <- 1
-    R_work <- sweep(R_work, 2, s, "/")
-  }
-
   out  <- vector("list", n_psych)
   pks  <- vector("list", n_psych)
   denoms <- numeric(n_psych)
+  raw_list <- vector("list", n_psych)
+  amp_list <- vector("list", n_psych)
+  norm_list <- vector("list", n_psych)
+
+  compute_entry <- function(pk_vec, idx, name) {
+    if (center_by == "run" && !is.null(runs)) {
+      pk_vec <- .mppi_center_by_run(pk_vec, runs)
+    }
+    denom <- sum(pk_vec^2)
+    denoms[idx] <<- denom
+    if (denom < .Machine$double.eps) {
+      denom_warn(name)
+      raw <- matrix(NA_real_, ncol(R_work), ncol(R_work))
+    } else {
+      raw <- .mppi_crossprod(R_work, pk_vec, backend = backend, chunk_size = chunk_size) / denom
+      if (zero_diag && !all(is.na(raw))) diag(raw) <- 0
+    }
+    amp <- if (all(is.na(raw))) raw else .mppi_scale_matrix(raw, sigma_unscaled, "amplitude")
+    norm <- if (all(is.na(raw))) raw else .mppi_scale_matrix(raw, sigma_unscaled, "normalized")
+    raw_list[[idx]] <<- raw
+    amp_list[[idx]] <<- amp
+    norm_list[[idx]] <<- norm
+    pks[[idx]] <<- pk_vec
+
+    chosen <- switch(scale_choice,
+                     normalized = norm,
+                     cov = raw,
+                     corr = norm)
+    attr(chosen, "raw") <- raw
+    attr(chosen, "amplitude") <- amp
+    attr(chosen, "normalized") <- norm
+
+    if (packed) {
+      pack_obj <- .mppi_pack_upper(chosen)
+      attr(pack_obj, "raw") <- raw
+      attr(pack_obj, "amplitude") <- amp
+      attr(pack_obj, "normalized") <- norm
+      out[[idx]] <<- pack_obj
+    } else {
+      out[[idx]] <<- chosen
+    }
+  }
 
   if (isTRUE(deconv_cfg$active)) {
     idx_seq <- seq_len(n_psych)
@@ -315,51 +351,15 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       sk <- deconv_psych[, ii]
       S_neural <- cbind(X[, base_idx, drop = FALSE],
                         if (n_psych > 1) deconv_psych[, setdiff(idx_seq, ii), drop = FALSE] else NULL)
-      if (is.null(S_neural) || ncol(S_neural) == 0) {
-        pk <- sk
-      } else {
-        pk <- .mppi_residualize_vec(sk, as.matrix(S_neural))
-      }
-      if (center_by == "run" && !is.null(runs)) {
-        pk <- .mppi_center_by_run(pk, runs)
-      }
-      denom <- sum(pk^2)
-      denoms[ii] <- denom
-      if (denom < .Machine$double.eps) {
-        denom_warn(pNms[ii])
-        mat_dim <- if (is.null(basis_info)) ncol(Y) else basis_info$r
-        naMat <- matrix(NA_real_, mat_dim, mat_dim)
-        Dk <- if (packed) .mppi_pack_upper(naMat) else naMat
-      } else {
-        Dfull <- .mppi_crossprod(R_work, pk, backend = backend, chunk_size = chunk_size) / denom
-        if (zero_diag) diag(Dfull) <- 0
-        Dk <- if (packed) .mppi_pack_upper(Dfull) else Dfull
-      }
-      out[[ii]] <- Dk
-      pks[[ii]] <- pk
+      pk_vec <- if (is.null(S_neural) || ncol(S_neural) == 0) sk else .mppi_residualize_vec(sk, as.matrix(S_neural))
+      compute_entry(pk_vec, ii, pNms[ii])
     }
   } else {
     for (ii in seq_len(n_psych)) {
       k  <- p_idx[ii]
       Q  <- X[, c(base_idx, setdiff(p_idx, k)), drop = FALSE]
-      pk <- .mppi_residualize_vec(X[, k], Q)
-      if (center_by == "run" && !is.null(runs)) {
-        pk <- .mppi_center_by_run(pk, runs)
-      }
-      denom <- sum(pk^2)
-      denoms[ii] <- denom
-      if (denom < .Machine$double.eps) {
-        denom_warn(pNms[ii])
-        mat_dim <- if (is.null(basis_info)) ncol(Y) else basis_info$r
-        naMat <- matrix(NA_real_, mat_dim, mat_dim)
-        Dk <- if (packed) .mppi_pack_upper(naMat) else naMat
-      } else {
-        Dfull <- .mppi_crossprod(R_work, pk, backend = backend, chunk_size = chunk_size) / denom
-        if (zero_diag) diag(Dfull) <- 0
-        Dk <- if (packed) .mppi_pack_upper(Dfull) else Dfull
-      }
-      out[[ii]] <- Dk
-      pks[[ii]] <- pk
+      pk_vec <- .mppi_residualize_vec(X[, k], Q)
+      compute_entry(pk_vec, ii, pNms[ii])
     }
   }
   names(out) <- pNms
@@ -391,32 +391,47 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
     BIC_base_total = sum(bic_base_vec)
   )
   lag_store <- setNames(vector("list", length(out)), pNms)
-  nonzero_lags <- setdiff(lags, 0L)
-  for (ii in seq_along(out)) {
-    lag_list <- list()
-    lag_list[["0"]] <- out[[ii]]
-    if (length(nonzero_lags)) {
-      pk_vec <- pks[[ii]]
-      for (lg in nonzero_lags) {
-        Mk_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
-                                         blocklens = lag_blocklens,
-                                         backend = backend, chunk_size = chunk_size)
-        if (!all(is.na(Mk_lag))) {
-          if (zero_diag) diag(Mk_lag) <- 0
-        }
-        Mk_obj <- if (packed) .mppi_pack_upper(Mk_lag) else Mk_lag
-        lag_list[[as.character(lg)]] <- Mk_obj
+  zero_idx <- match(0L, lags)
+  for (ii in seq_len(n_psych)) {
+    lag_list <- vector("list", length(lags))
+    names(lag_list) <- as.character(lags)
+    if (!is.na(zero_idx)) lag_list[[zero_idx]] <- out[[ii]]
+    pk_vec <- pks[[ii]]
+    for (li in seq_along(lags)) {
+      lg <- lags[li]
+      if (!is.na(zero_idx) && li == zero_idx) next
+      raw_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
+                                        blocklens = lag_blocklens,
+                                        backend = backend, chunk_size = chunk_size)
+      if (!all(is.na(raw_lag)) && zero_diag) diag(raw_lag) <- 0
+      amp_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "amplitude")
+      norm_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "normalized")
+      chosen_lag <- switch(scale_choice,
+                           normalized = norm_lag,
+                           cov = raw_lag,
+                           corr = norm_lag)
+      attr(chosen_lag, "raw") <- raw_lag
+      attr(chosen_lag, "amplitude") <- amp_lag
+      attr(chosen_lag, "normalized") <- norm_lag
+      if (packed) {
+        pack_lag <- .mppi_pack_upper(chosen_lag)
+        attr(pack_lag, "raw") <- raw_lag
+        attr(pack_lag, "amplitude") <- amp_lag
+        attr(pack_lag, "normalized") <- norm_lag
+        lag_list[[li]] <- pack_lag
+      } else {
+        lag_list[[li]] <- chosen_lag
       }
     }
     lag_store[[ii]] <- lag_list
   }
-  cov_matrix_source <- if (scale == "corr" || identical(deconv_cfg$domain, "innovations")) R_work else R_unscaled
+  cov_matrix_source <- if (identical(deconv_cfg$domain, "innovations")) R_work else R_unscaled
   Sigma0 <- crossprod(cov_matrix_source) / nrow(cov_matrix_source)
   partial_lambda <- 1e-3
   var_list <- NULL
   partial_list <- NULL
   Theta0 <- NULL
-  if (scale == "cov") {
+  if (scale_choice == "cov") {
     Theta0 <- solve(Sigma0 + partial_lambda * diag(ncol(Sigma0)))
     var_list <- vector("list", length(out))
     partial_list <- vector("list", length(out))
@@ -441,8 +456,9 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
     basis_info$project_chunk_cols <- project_chunk_cols
   }
   res <- list(Delta = out, names = pNms, R = R_work, R_raw = R_unscaled,
+              Delta_raw = raw_list, Delta_amplitude = amp_list, Delta_normalized = norm_list,
               sigma = sigma_unscaled, pk = pks,
-              scale = scale, dropped = inputs$dropped, center_by = center_by,
+              scale = scale_choice, dropped = inputs$dropped, center_by = center_by,
               runs = runs, denom = denoms, backend = backend,
               n_used = nrow(R_work), Sigma0 = Sigma0, partial_lambda = partial_lambda,
               Theta0 = Theta0, variance = var_list, partial = partial_list,
@@ -466,13 +482,13 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 #' @param fmodel fmri_model (from fmrireg)
 #' @param dataset fmrireg dataset supplying Y
 #' @param psych regex patterns or indices
-#' @param scale "cov" or "corr"
-mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("cov","corr"), zero_diag = TRUE,
+#' @param scale "normalized", "cov", or "corr"
+mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("normalized","cov","corr"), zero_diag = TRUE,
                                   runs = NULL, center_by = c("none","run"), na_action = c("omit_tr","error"),
                                   backend = c("blas","accumulate","chunked"), chunk_size = NULL,
                                   packed = FALSE, basis = NULL,
                                   project_backend = c("blas","chunked"), project_chunk_cols = NULL,
-                                  domain = c("bold","neural","innovations"), deconv = NULL,
+                                  domain = c("neural","bold","innovations"), deconv = NULL,
                                   lags = 0L, lag_blocklens = NULL) {
   if (!requireNamespace("fmrireg", quietly = TRUE)) {
     stop("fmrireg not available. Install via remotes::install_github('bbuchsbaum/fmrireg').")
@@ -481,7 +497,8 @@ mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("cov","corr"
   if (is.null(colnames(X)) && is.character(psych)) stop("Design has no column names; supply indices for 'psych'.")
   pidx <- if (is.numeric(psych)) psych else mppi_select_psych(X, patterns = psych)
   Y <- fmrireg::get_data_matrix(dataset)
-  mppi_fit(Y, X, pidx, runs = runs, zero_diag = zero_diag, scale = match.arg(scale),
+  scale_choice <- match.arg(scale)
+  mppi_fit(Y, X, pidx, runs = runs, zero_diag = zero_diag, scale = scale_choice,
            center_by = match.arg(center_by), na_action = match.arg(na_action),
            backend = match.arg(backend), packed = packed, chunk_size = chunk_size,
            basis = basis, project_backend = match.arg(project_backend),

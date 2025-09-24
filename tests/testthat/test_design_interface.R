@@ -52,16 +52,19 @@ test_that("mppi() handles fmridesign and fmri_dataset inputs", {
   X_task <- mppi_task(design)
   Y <- matrix(rnorm(Tn * V), Tn, V)
 
-  manual <- mppi_fit(Y = Y, X = X_task, psych_idx = 1:2, runs = runs_vec)
+  manual <- mppi_fit(Y = Y, X = X_task, psych_idx = 1:2, runs = runs_vec, domain = "bold")
   via_design <- mppi(design, Y = Y, domain = "bold")
 
-  expect_equal(via_design$Delta, manual$Delta)
+  manual_raw <- lapply(seq_along(manual$Delta), function(i) mppi_get_M_scaled(manual, i, mode = "raw"))
+  design_raw <- lapply(seq_along(via_design$Delta), function(i) mppi_get_M_scaled(via_design, i, mode = "raw"))
+  expect_equal(design_raw, manual_raw)
   expect_equal(via_design$pk, manual$pk)
 
   ds <- fmridataset::matrix_dataset(datamat = Y, TR = 1.5, run_length = c(Tn))
   via_ds <- mppi(ds, design, domain = "bold", basis = "roi")
 
-  expect_equal(via_ds$Delta, manual$Delta)
+  ds_raw <- lapply(seq_along(via_ds$Delta), function(i) mppi_get_M_scaled(via_ds, i, mode = "raw"))
+  expect_equal(ds_raw, manual_raw)
   expect_equal(via_ds$pk, manual$pk)
 
   via_ds_pca <- mppi(ds, design, domain = "bold")

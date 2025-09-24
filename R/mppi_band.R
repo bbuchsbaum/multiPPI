@@ -39,11 +39,12 @@ mppi_bandpass <- function(x, low = NULL, high = 0.1, order = 2L) {
 #' Fit ΔΣ per frequency band and optionally combine
 #' @param bands list of lists: each with low, high, name
 mppi_fit_multi_band <- function(Y, X, psych_idx, bands,
-                                zero_diag = TRUE, scale = c("cov","corr")) {
+                                zero_diag = TRUE, scale = c("normalized","cov","corr")) {
+  scale_choice <- match.arg(scale)
   res <- list()
   for (bd in bands) {
     Yb <- mppi_bandpass(Y, low = bd$low, high = bd$high)
-    fit <- mppi_fit(Yb, X, psych_idx, zero_diag = zero_diag, scale = scale)
+    fit <- mppi_fit(Yb, X, psych_idx, zero_diag = zero_diag, scale = scale_choice)
     res[[bd$name]] <- fit
   }
   res
