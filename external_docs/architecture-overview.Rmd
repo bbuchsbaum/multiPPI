@@ -1,0 +1,751 @@
+---
+title: "Architecture Deep Dive: Design Principles and Extensibility"
+author: "fmridataset Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Architecture Deep Dive: Design Principles and Extensibility}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+
+suppressPackageStartupMessages({
+  library(fmridataset)
+})
+```
+
+# Motivation: Why Architecture Matters for Neuroimaging
+
+Picture this scenario: you've built a sophisticated fMRI analysis pipeline that works perfectly with your lab's NIfTI files. Then a collaborator shares preprocessed data in HDF5 format, another colleague provides matrices from a different preprocessing tool, and a new student brings BIDS-organized data. Traditional approaches would require you to rewrite your analysis code three times, each with different loading mechanisms, memory management strategies, and temporal organization schemes.
+
+The fmridataset architecture eliminates this complexity through a carefully designed abstraction layer that separates what you want to do (analyze fMRI data) from how the data is stored (files, matrices, or specialized formats). This architectural approach not only saves development time but also makes your analysis code more robust, reusable, and extensible. Understanding this architecture empowers you to leverage the full capabilities of the package and even extend it with custom components when needed.
+
+# A Real Example: Architecture in Action
+
+Let's see how the architectural principles work in practice by creating datasets from different sources and demonstrating their unified behavior:
+
+```{r architecture-demo}
+library(fmridataset)
+
+# Example 1: Matrix backend for in-memory data
+set.seed(123)
+matrix_data <- matrix(rnorm(1000 * 100), nrow = 100, ncol = 1000)
+matrix_ds <- matrix_dataset(
+  datamat = matrix_data,
+  TR = 2.0,
+  run_length = c(50, 50)
+)
+
+# Example 2: File backend for NIfTI data (simulated paths)
+file_paths <- c("run1.nii.gz", "run2.nii.gz")  # Would be real paths
+# file_ds <- fmri_file_dataset(
+#   scans = file_paths,
+#   mask = "mask.nii.gz",
+#   TR = 2.0,
+#   run_length = c(50, 50)
+# )
+
+# Example 3: Study backend for multi-subject data
+subject_datasets <- list(matrix_ds)  # In practice, multiple datasets
+study_ds <- fmri_study_dataset(
+  datasets = subject_datasets,
+  subject_ids = "sub-001"
+)
+
+# Demonstrate unified interface
+cat("Matrix dataset class:", class(matrix_ds)[1], "\n")
+cat("Study dataset class:", class(study_ds)[1], "\n")
+
+# Same methods work on all dataset types
+cat("Matrix dataset TR:", get_TR(matrix_ds), "seconds\n")
+cat("Study dataset TR:", get_TR(study_ds), "seconds\n")
+
+# Same chunking interface
+matrix_chunks <- data_chunks(matrix_ds, nchunks = 3)
+study_chunks <- data_chunks(study_ds, nchunks = 3)
+
+cat("Matrix chunks created:", length(matrix_chunks), "\n")
+cat("Study chunks created:", length(study_chunks), "\n")
+```
+
+```{r architecture-output, echo=FALSE}
+# Expected output:
+# Matrix dataset class: matrix_dataset
+# Study dataset class: fmri_study_dataset
+# Matrix dataset TR: 2 seconds
+# Study dataset TR: 2 seconds
+# Matrix chunks created: 3
+# Study chunks created: 3
+```
+
+> **💡 Key Insight**: Despite completely different underlying storage mechanisms (in-memory matrices vs. multi-subject containers), the same interface methods work identically. This is the power of architectural abstraction.
+
+# Understanding the Architectural Layers
+
+The fmridataset architecture consists of three primary layers that work together to provide flexibility while maintaining simplicity. Each layer has distinct responsibilities and clean interfaces that enable independent evolution and extension.
+
+## The Dataset Layer: User-Facing Interface
+
+The dataset layer provides the primary interface that users interact with. This layer defines what operations are possible and ensures consistent behavior regardless of the underlying data source. When you call `get_data_matrix()` or `n_timepoints()`, you're working with the dataset layer.
+
+This layer implements the "facade" pattern, presenting a simplified interface that hides the complexity of different storage formats and temporal organizations. The dataset layer also handles cross-cutting concerns like event table management, chunking coordination, and temporal structure validation. By standardizing these operations at the dataset level, we ensure that all data sources behave consistently for end users.
+
+The dataset layer is also where format-specific optimizations can be implemented transparently. For example, matrix datasets can provide immediate data access, while file datasets can implement sophisticated caching strategies. Users don't need to know these implementation details; they just experience different performance characteristics.
+
+## The Backend Layer: Storage Abstraction
+
+Below the dataset layer lies the backend layer, which handles all storage-specific operations. This layer implements the "strategy" pattern, where different backends provide alternative implementations for the same set of operations. Each backend knows how to efficiently read its specific data format while presenting a uniform interface to the dataset layer.
+
+Backends are responsible for resource management, including opening and closing files, managing memory allocations, and handling format-specific error conditions. They also provide metadata extraction capabilities, enabling datasets to query dimensions, spatial information, and acquisition parameters without loading actual data.
+
+The backend contract is carefully designed to support both eager and lazy loading strategies. Backends can choose to load data immediately for fast access or defer loading until explicitly requested for memory efficiency. This flexibility enables optimal performance across different usage patterns and dataset sizes.
+
+## The Temporal Layer: Time Structure Modeling
+
+The temporal layer captures the rich time structure of fMRI data through the sampling frame abstraction. Unlike simple time series, fMRI data has complex temporal organization with multiple runs, variable run lengths, and specific timing relationships that must be preserved for proper analysis.
+
+Sampling frames provide a unified model for temporal structure that works across all dataset types. They handle conversions between different time representations (seconds, TRs, sample indices), maintain run boundary information, and enable sophisticated temporal queries. This abstraction allows the same temporal analysis code to work whether your data comes from a single long session or multiple shorter runs.
+
+The temporal layer also integrates with experimental design through event table management. By understanding both acquisition timing and experimental events, the system can provide sophisticated event-related analysis capabilities while maintaining temporal integrity across different data sources.
+
+# Deep Dive: Core Design Patterns
+
+The architecture leverages several key design patterns that provide flexibility and maintainability. Understanding these patterns helps you use the package more effectively and provides a foundation for extensions.
+
+## Delegation Pattern: Distributed Responsibility
+
+The delegation pattern is central to how fmridataset manages complexity. Rather than implementing all functionality in monolithic classes, the architecture delegates specific responsibilities to specialized components:
+
+```{r delegation-example}
+# Datasets delegate temporal queries to sampling frames
+sf <- matrix_ds$sampling_frame
+direct_tr <- get_TR(sf)
+delegated_tr <- get_TR(matrix_ds)  # Delegates to sampling frame
+
+cat("Direct TR query:", direct_tr, "\n")
+cat("Delegated TR query:", delegated_tr, "\n")
+
+# Datasets delegate storage operations to backends
+backend <- matrix_ds$backend
+backend_dims <- backend_get_dims(backend)
+dataset_dims <- dim(get_data_matrix(matrix_ds))
+
+cat("Backend reports dimensions:", backend_dims$time, "x", sum(backend_dims$spatial), "\n")
+cat("Dataset provides dimensions:", dataset_dims, "\n")
+```
+
+This delegation enables clean separation of concerns and makes the system more modular. Each component can evolve independently as long as it maintains its interface contract.
+
+## Factory Pattern: Automatic Backend Selection
+
+The factory pattern enables automatic selection of appropriate backends based on input types. Users don't need to explicitly choose backends; the system selects the optimal one based on data characteristics:
+
+```{r factory-example}
+# Matrix input automatically creates matrix backend
+matrix_input <- matrix(rnorm(500), nrow = 50, ncol = 10)
+auto_dataset1 <- fmri_dataset(scans = matrix_input, TR = 2.0, run_length = 50)
+cat("Matrix input created:", class(auto_dataset1)[1], "\n")
+
+# File paths would automatically create file backend
+# file_input <- c("scan1.nii", "scan2.nii")
+# auto_dataset2 <- fmri_dataset(scans = file_input, TR = 2.0, run_length = c(100, 100))
+# cat("File input created:", class(auto_dataset2)[1], "\n")
+
+# The factory hides complexity while providing optimal performance
+```
+
+This automatic selection reduces cognitive load for users while ensuring optimal performance for each data type.
+
+## Observer Pattern: Event Integration
+
+The observer pattern enables loose coupling between temporal structure and experimental events. Event tables can be updated independently while maintaining consistency with the underlying temporal organization:
+
+```{r observer-example}
+# Create dataset with temporal structure
+ds <- matrix_dataset(
+  datamat = matrix(rnorm(800), nrow = 80, ncol = 10),
+  TR = 2.0,
+  run_length = c(40, 40)
+)
+
+# Add events that automatically align with temporal structure
+events <- data.frame(
+  onset = c(10, 30, 90, 110),  # seconds
+  duration = c(2, 2, 2, 2),
+  trial_type = c("A", "B", "A", "B"),
+  run = c(1, 1, 2, 2)
+)
+
+ds$event_table <- events
+
+# Events automatically validate against temporal structure
+sf <- ds$sampling_frame
+total_duration <- get_total_duration(sf)
+cat("Total scan duration:", total_duration, "seconds\n")
+cat("Last event ends at:", max(events$onset + events$duration), "seconds\n")
+
+# System can detect temporal inconsistencies
+if (max(events$onset + events$duration) > total_duration) {
+  warning("Events extend beyond scan duration")
+}
+```
+
+This pattern ensures that experimental design information remains consistent with acquisition timing across different operations.
+
+## Strategy Pattern: Flexible Chunking
+
+The strategy pattern enables different chunking strategies based on analysis requirements. The same interface supports multiple approaches to data subdivision:
+
+```{r strategy-example}
+# Strategy 1: Voxel-based chunking (default)
+voxel_chunks <- data_chunks(matrix_ds, nchunks = 4)
+cat("Voxel chunking: ", length(voxel_chunks), "chunks\n")
+
+# Strategy 2: Run-based chunking
+run_chunks <- data_chunks(matrix_ds, runwise = TRUE)
+cat("Run chunking: ", length(run_chunks), "chunks\n")
+
+# Strategy 3: Single chunk (no subdivision)
+single_chunk <- data_chunks(matrix_ds, nchunks = 1)
+cat("Single chunking: ", length(single_chunk), "chunks\n")
+
+# Each strategy optimizes for different use cases
+for (i in 1:min(2, length(voxel_chunks))) {
+  chunk <- voxel_chunks[[i]]
+  cat("Voxel chunk", i, ":", ncol(chunk$data), "voxels\n")
+}
+
+for (i in 1:length(run_chunks)) {
+  chunk <- run_chunks[[i]]
+  cat("Run chunk", i, ":", nrow(chunk$data), "timepoints\n")
+}
+```
+
+Different strategies optimize for different analysis patterns while maintaining the same programming interface.
+
+# Extension Points: Customizing the Architecture
+
+The architecture provides several well-defined extension points that allow you to customize behavior or add new capabilities without modifying core code.
+
+## Custom Dataset Types
+
+Creating new dataset types allows you to support specialized data sources or add domain-specific functionality:
+
+```{r custom-dataset}
+# Example: Create a dataset type for preprocessed connectivity matrices
+connectivity_dataset <- function(connectivity_matrix, node_labels, TR, ...) {
+  # Validate inputs
+  if (!is.matrix(connectivity_matrix)) {
+    stop("connectivity_matrix must be a matrix")
+  }
+  
+  if (ncol(connectivity_matrix) != length(node_labels)) {
+    stop("Number of nodes must match label length")
+  }
+  
+  # Create underlying matrix dataset
+  base_dataset <- matrix_dataset(
+    datamat = connectivity_matrix,
+    TR = TR,
+    ...
+  )
+  
+  # Add connectivity-specific metadata
+  base_dataset$node_labels <- node_labels
+  base_dataset$connectivity_type <- "correlation"
+  
+  # Set class for method dispatch
+  class(base_dataset) <- c("connectivity_dataset", class(base_dataset))
+  
+  return(base_dataset)
+}
+
+# Create connectivity-specific methods
+get_node_labels <- function(dataset) {
+  UseMethod("get_node_labels")
+}
+
+get_node_labels.connectivity_dataset <- function(dataset) {
+  dataset$node_labels
+}
+
+# Usage
+conn_matrix <- cor(matrix(rnorm(1000), nrow = 100, ncol = 10))
+conn_ds <- connectivity_dataset(
+  connectivity_matrix = conn_matrix,
+  node_labels = paste0("Node_", 1:10),
+  TR = 2.0,
+  run_length = 100
+)
+
+cat("Created connectivity dataset with", length(get_node_labels(conn_ds)), "nodes\n")
+```
+
+Custom dataset types inherit all standard functionality while adding specialized capabilities.
+
+## Custom Backend Implementation
+
+New backends enable support for additional data formats or storage systems:
+
+```{r custom-backend, eval=FALSE}
+# Example: Simple CSV backend implementation
+csv_backend <- function(csv_file, ...) {
+  # Validate file exists
+  if (!file.exists(csv_file)) {
+    stop("CSV file not found: ", csv_file)
+  }
+  
+  # Create backend object
+  backend <- list(
+    csv_file = csv_file,
+    data_cache = NULL,
+    is_open = FALSE
+  )
+  
+  class(backend) <- c("csv_backend", "storage_backend")
+  backend
+}
+
+# Implement required backend methods
+backend_open.csv_backend <- function(backend) {
+  if (!backend$is_open) {
+    # Load data when opened
+    backend$data_cache <- as.matrix(read.csv(backend$csv_file, header = FALSE))
+    backend$is_open <- TRUE
+  }
+  backend
+}
+
+backend_close.csv_backend <- function(backend) {
+  backend$data_cache <- NULL
+  backend$is_open <- FALSE
+  invisible(NULL)
+}
+
+backend_get_dims.csv_backend <- function(backend) {
+  if (!backend$is_open) {
+    stop("Backend must be opened before querying dimensions")
+  }
+  list(
+    spatial = c(ncol(backend$data_cache), 1, 1),
+    time = nrow(backend$data_cache)
+  )
+}
+
+backend_get_data.csv_backend <- function(backend, rows = NULL, cols = NULL) {
+  if (!backend$is_open) {
+    stop("Backend must be opened before accessing data")
+  }
+  
+  data <- backend$data_cache
+  if (!is.null(rows)) data <- data[rows, , drop = FALSE]
+  if (!is.null(cols)) data <- data[, cols, drop = FALSE]
+  
+  data
+}
+```
+
+This backend could then be registered and used throughout the fmridataset ecosystem.
+
+## Custom Temporal Abstractions
+
+The sampling frame system can be extended to support specialized temporal organizations:
+
+```{r custom-temporal}
+# Example: Variable TR sampling frame for multi-echo data
+variable_tr_sampling_frame <- function(tr_sequence, run_boundaries, ...) {
+  # Validate inputs
+  if (length(tr_sequence) != sum(run_boundaries)) {
+    stop("TR sequence length must match total timepoints")
+  }
+  
+  # Create base sampling frame
+  base_sf <- sampling_frame(
+    run_lengths = run_boundaries,
+    TR = mean(tr_sequence),  # Use mean TR for compatibility
+    ...
+  )
+  
+  # Add variable TR information
+  base_sf$tr_sequence <- tr_sequence
+  base_sf$run_boundaries <- cumsum(c(0, run_boundaries))
+  
+  class(base_sf) <- c("variable_tr_sampling_frame", class(base_sf))
+  base_sf
+}
+
+# Add specialized methods
+get_tr_at_timepoint <- function(sf, timepoint) {
+  UseMethod("get_tr_at_timepoint")
+}
+
+get_tr_at_timepoint.variable_tr_sampling_frame <- function(sf, timepoint) {
+  if (timepoint < 1 || timepoint > length(sf$tr_sequence)) {
+    stop("Timepoint out of range")
+  }
+  sf$tr_sequence[timepoint]
+}
+
+# Example usage
+tr_seq <- rep(c(2.0, 2.5, 1.5), times = c(20, 20, 20))  # Variable TRs
+var_sf <- variable_tr_sampling_frame(
+  tr_sequence = tr_seq,
+  run_boundaries = c(30, 30)
+)
+
+cat("TR at timepoint 10:", get_tr_at_timepoint(var_sf, 10), "seconds\n")
+cat("TR at timepoint 25:", get_tr_at_timepoint(var_sf, 25), "seconds\n")
+```
+
+Custom temporal abstractions enable support for specialized acquisition protocols.
+
+# Advanced Topics
+
+Once you understand the basic architectural patterns, these advanced concepts help you leverage the full power of the system and optimize for complex use cases.
+
+## Performance Architecture
+
+The architecture is designed with performance as a primary consideration. Understanding the performance implications of different architectural choices helps you optimize your analyses:
+
+```{r performance-architecture}
+# Benchmark different backend types
+benchmark_backends <- function(n_timepoints = 100, n_voxels = 1000) {
+  # Generate test data
+  test_data <- generate_example_fmri_data(n_timepoints, n_voxels)
+  
+  # Benchmark matrix backend
+  start_time <- Sys.time()
+  matrix_ds <- matrix_dataset(
+    datamat = test_data,
+    TR = 2.0,
+    run_length = n_timepoints
+  )
+  matrix_create_time <- difftime(Sys.time(), start_time, units = "secs")
+  
+  start_time <- Sys.time()
+  matrix_data <- get_data_matrix(matrix_ds)
+  matrix_access_time <- difftime(Sys.time(), start_time, units = "secs")
+  
+  cat("Performance Comparison:\n")
+  cat("====================\n")
+  cat(sprintf("Dataset size: %d timepoints × %d voxels\n", n_timepoints, n_voxels))
+  cat(sprintf("Memory size: %.1f MB\n\n", object.size(test_data) / 1024^2))
+  
+  cat("Matrix Backend:\n")
+  cat(sprintf("  Creation time: %.3f seconds\n", matrix_create_time))
+  cat(sprintf("  Data access time: %.3f seconds\n", matrix_access_time))
+  cat("  Memory model: All data in RAM\n")
+  cat("  Best for: Small datasets, repeated access\n\n")
+  
+  # Simulate file backend performance
+  cat("File Backend (simulated):\n")
+  cat("  Creation time: ~0.001 seconds (lazy)\n")
+  cat("  First access time: ~1-5 seconds (disk I/O)\n")
+  cat("  Memory model: Load on demand\n")
+  cat("  Best for: Large datasets, sequential access\n\n")
+  
+  # Simulate study backend performance
+  cat("Study Backend (simulated):\n")
+  cat("  Creation time: ~0.01 seconds (metadata only)\n")
+  cat("  Access time: Varies by subject\n")
+  cat("  Memory model: Per-subject lazy loading\n")
+  cat("  Best for: Multi-subject analyses\n")
+}
+
+# Run benchmark
+benchmark_backends(n_timepoints = 200, n_voxels = 5000)
+```
+
+The performance characteristics guide backend selection based on your specific use case.
+
+```{r chunking-performance}
+# Benchmark chunking strategies
+benchmark_chunking <- function(dataset, chunk_sizes = c(1, 5, 10, 20)) {
+  cat("\nChunking Performance Analysis:\n")
+  cat("============================\n")
+  
+  results <- data.frame(
+    chunks = chunk_sizes,
+    time = numeric(length(chunk_sizes)),
+    memory_peak = numeric(length(chunk_sizes))
+  )
+  
+  for (i in seq_along(chunk_sizes)) {
+    n_chunks <- chunk_sizes[i]
+    
+    start_time <- Sys.time()
+    chunks <- data_chunks(dataset, nchunks = n_chunks)
+    
+    # Simulate processing
+    for (chunk in chunks) {
+      # Simple operation on each chunk
+      chunk_mean <- mean(chunk$data)
+    }
+    
+    results$time[i] <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+    results$memory_peak[i] <- n_timepoints(dataset) * ncol(dataset$datamat) / n_chunks * 8 / 1024^2
+  }
+  
+  print(results)
+  
+  cat("\nRecommendations:\n")
+  cat("- More chunks = Lower memory usage\n")
+  cat("- Fewer chunks = Better performance (less overhead)\n")
+  cat("- Optimal chunk size depends on available RAM\n")
+}
+
+# Create test dataset and benchmark
+test_ds <- matrix_dataset(
+  generate_example_fmri_data(100, 1000),
+  TR = 2.0,
+  run_length = 100
+)
+
+benchmark_chunking(test_ds)
+```
+
+The lazy evaluation architecture enables working with datasets larger than memory by deferring expensive operations until absolutely necessary.
+
+## Memory Management Architecture
+
+The architecture provides sophisticated memory management through backend-specific strategies:
+
+```{r memory-architecture}
+# Memory usage patterns for different backends
+analyze_memory_patterns <- function() {
+  # Matrix backend: immediate memory allocation
+  matrix_data <- matrix(rnorm(10000), nrow = 100, ncol = 100)
+  matrix_size <- object.size(matrix_data)
+  
+  cat("Matrix backend:\n")
+  cat("  Data size:", format(matrix_size, units = "Mb"), "\n")
+  cat("  Memory allocation: immediate\n")
+  cat("  Access pattern: O(1) random access\n\n")
+  
+  # File backend simulation
+  cat("File backend:\n")
+  cat("  Data size: 0 bytes (until accessed)\n")
+  cat("  Memory allocation: on-demand\n") 
+  cat("  Access pattern: O(n) sequential preferred\n\n")
+  
+  # Study backend simulation
+  cat("Study backend:\n")
+  cat("  Data size: per-subject allocation\n")
+  cat("  Memory allocation: lazy per subject\n")
+  cat("  Access pattern: optimized for chunking\n")
+}
+
+analyze_memory_patterns()
+```
+
+Different backends implement different memory strategies optimized for their use cases.
+
+## Extensibility Architecture
+
+The architecture's extensibility comes from its layered design and well-defined interfaces:
+
+```{r extensibility-architecture}
+# Demonstrate interface consistency across extensions
+demonstrate_interface_consistency <- function() {
+  # All datasets implement the same core interface
+  core_methods <- c("get_data_matrix", "get_TR", "n_runs", "n_timepoints", "data_chunks")
+  
+  cat("Core interface methods:\n")
+  for (method in core_methods) {
+    cat("  -", method, "\n")
+  }
+  
+  cat("\nInterface guarantees:\n")
+  cat("  - Same method signatures across all dataset types\n")
+  cat("  - Consistent return value formats\n")
+  cat("  - Predictable error handling\n")
+  cat("  - Backward compatibility preservation\n")
+}
+
+demonstrate_interface_consistency()
+
+# Extensions can add new methods without breaking existing code
+add_custom_methods <- function() {
+  cat("\nExtension pattern:\n")
+  cat("  1. Inherit from base classes\n")
+  cat("  2. Implement required interface methods\n") 
+  cat("  3. Add specialized functionality\n")
+  cat("  4. Register with appropriate systems\n")
+}
+
+add_custom_methods()
+```
+
+This extensibility architecture enables the ecosystem to grow while maintaining stability.
+
+# Tips and Best Practices
+
+Here are architectural insights that will help you use fmridataset more effectively and build robust extensions.
+
+> **⚠️ Performance Tip**: Understanding backend characteristics helps you choose optimal data organization. Use matrix backends for small datasets with frequent access, file backends for large datasets with sequential access, and study backends for multi-subject analyses.
+
+> **🛡️ Best Practice**: Always implement the complete backend interface when creating custom backends. Partial implementations may work initially but will fail when used with advanced features like chunking or study-level operations.
+
+> **⚡ Pro Tip**: Leverage the delegation pattern when extending functionality. Rather than reimplementing core features, delegate to existing components and add your specialized logic on top.
+
+## Architectural Decision Guidelines
+
+When designing extensions or choosing between implementation approaches:
+
+```{r architectural-decisions}
+# Decision framework for extensions
+evaluate_extension_approach <- function(requirement) {
+  cat("Extension decision framework:\n\n")
+  
+  cat("1. Data source extension:\n")
+  cat("   - New file format? → Custom backend\n")
+  cat("   - New data organization? → Custom dataset\n")
+  cat("   - New temporal structure? → Custom sampling frame\n\n")
+  
+  cat("2. Analysis extension:\n")
+  cat("   - New processing pattern? → Custom chunking strategy\n")
+  cat("   - New metadata needs? → Dataset subclass\n")
+  cat("   - New access pattern? → Custom methods\n\n")
+  
+  cat("3. Performance extension:\n")
+  cat("   - Memory optimization? → Backend specialization\n")
+  cat("   - I/O optimization? → Custom caching\n")
+  cat("   - Parallel processing? → Chunking extensions\n")
+}
+
+evaluate_extension_approach()
+```
+
+## Interface Design Principles
+
+When extending the architecture, follow these interface design principles:
+
+```{r interface-design}
+demonstrate_interface_principles <- function() {
+  cat("Interface design principles:\n\n")
+  
+  cat("1. Consistency:\n")
+  cat("   - Same method names across similar components\n")
+  cat("   - Predictable parameter patterns\n")
+  cat("   - Uniform error handling\n\n")
+  
+  cat("2. Composability:\n")
+  cat("   - Components work together seamlessly\n")
+  cat("   - Clear separation of concerns\n") 
+  cat("   - Minimal coupling between layers\n\n")
+  
+  cat("3. Extensibility:\n")
+  cat("   - Well-defined extension points\n")
+  cat("   - Backward compatibility guarantees\n")
+  cat("   - Future-proof interface design\n")
+}
+
+demonstrate_interface_principles()
+```
+
+These principles ensure that extensions integrate smoothly with the existing ecosystem.
+
+# Troubleshooting Architecture Issues
+
+Understanding the architecture helps diagnose and resolve complex issues that span multiple components.
+
+## Layer-Specific Debugging
+
+Different types of issues typically originate in specific architectural layers:
+
+**Dataset Layer Issues**
+: Method dispatch problems, interface inconsistencies, temporal validation errors
+
+**Backend Layer Issues**  
+: File I/O problems, memory allocation failures, format-specific errors
+
+**Temporal Layer Issues**
+: Run boundary mismatches, timing calculation errors, event alignment problems
+
+```{r layer-debugging}
+# Debugging strategy by architectural layer
+debug_by_layer <- function(error_type) {
+  cat("Debugging strategy by layer:\n\n")
+  
+  cat("Dataset layer debugging:\n")
+  cat("  - Check class hierarchy: class(dataset)\n")
+  cat("  - Verify method dispatch: methods(class = class(dataset)[1])\n")
+  cat("  - Validate temporal structure: dataset$sampling_frame\n\n")
+  
+  cat("Backend layer debugging:\n")
+  cat("  - Check backend status: dataset$backend\n")
+  cat("  - Test direct backend calls: backend_get_dims(backend)\n")
+  cat("  - Verify resource state: backend state variables\n\n")
+  
+  cat("Temporal layer debugging:\n")
+  cat("  - Check sampling frame: get_run_lengths(dataset)\n") 
+  cat("  - Verify timing: get_TR(dataset) * n_timepoints(dataset)\n")
+  cat("  - Test event alignment: validate event onsets\n")
+}
+
+debug_by_layer()
+```
+
+## Performance Troubleshooting
+
+Architecture-aware performance debugging:
+
+```{r performance-debugging}
+diagnose_performance_issues <- function() {
+  cat("Performance diagnosis by component:\n\n")
+  
+  cat("Slow data access:\n")
+  cat("  - Backend type: file vs. matrix vs. study\n")
+  cat("  - Chunking strategy: voxel vs. run vs. custom\n")
+  cat("  - Memory pressure: check available RAM\n\n")
+  
+  cat("High memory usage:\n") 
+  cat("  - Lazy loading: ensure file backends stay lazy\n")
+  cat("  - Chunk sizing: reduce chunk size for large datasets\n")
+  cat("  - Garbage collection: explicit gc() calls\n\n")
+  
+  cat("Interface inconsistencies:\n")
+  cat("  - Method dispatch: verify S3 method registration\n")
+  cat("  - Class hierarchy: check inheritance patterns\n")
+  cat("  - Extension conflicts: check for method overrides\n")
+}
+
+diagnose_performance_issues()
+```
+
+Understanding architecture helps identify the root cause of performance issues.
+
+# Integration with Other Vignettes
+
+This architectural overview connects to several other aspects of the fmridataset ecosystem:
+
+**Prerequisites**: Start with [Getting Started](fmridataset-intro.html) to understand basic usage patterns before diving into architectural details.
+
+**Implementation Guides**:
+- [Backend Registry](backend-registry.html) - Practical guide to creating and registering custom backends
+- [Extending Backends](extending-backends.html) - Deep dive into backend development patterns
+- [Study-Level Analysis](study-level-analysis.html) - Understand how the architecture scales to multi-subject studies
+
+**Applied Examples**:
+- [H5 Backend Usage](h5-backend-usage.html) - See advanced backend features in practice
+
+**Design Philosophy**: The architecture reflects broader principles of modular design, separation of concerns, and extensibility that are common in scientific computing frameworks. Understanding these patterns will help you work effectively with other packages in the neuroimaging ecosystem.
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,0 +1,127 @@
+---
+title: "multiPPI Quick Start"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{multiPPI Quick Start}
+  %\VignetteEngine{rmarkdown::render}
+  %\VignetteEncoding{UTF-8}
+---
+
+This short walkthrough shows how to move from an experiment description (via `fmridesign`) to a
+multi-condition psychophysiological interaction (multiPPI) fit and a quick mechanistic summary.
+We keep the example synthetic so that the code runs quickly, but every step mirrors the workflow
+for real data.
+
+```r
+library(multiPPI)
+library(fmridesign)
+library(mvtnorm)
+set.seed(42)
+```
+
+## 1. Describe the experiment
+
+We first create a sampling frame with two runs (150 TR each, TR = 1.2 s) and specify two
+conditions (`A`, `B`).  The call to `event_model()` gives us an object that knows the stimulus
+timing, the HRF basis that will be used for the GLM, and the run boundaries.
+
+```r
+TR <- 1.2
+runs <- rep(1:2, each = 150)
+sframe <- sampling_frame(blocklens = c(150, 150), TR = TR)
+
+events <- data.frame(
+  onset = c(seq(6, by = 24, length.out = 5), seq(6, by = 24, length.out = 5) + TR * 150),
+  cond  = rep(c("A", "B"), each = 5),
+  run   = runs[c(seq(6, by = 24, length.out = 5), seq(6, by = 24, length.out = 5) + 150)]
+)
+
+ev <- event_model(onset ~ hrf(cond), data = events, block = ~ run, sampling_frame = sframe)
+```
+
+To feed this into multiPPI we wrap the event model with `as_mppi_design()`, which creates a
+self-contained design that lists the convolved task regressors, the per-condition stick functions
+(gPPI regressors), and the run labels.
+
+```r
+design <- mppi_model(ev, runs = runs)
+summary(design)
+```
+
+## 2. Simulate a small fMRI dataset
+
+The example dataset has five regions.  Regions 1 and 2 communicate more strongly during
+condition A, while regions 3 and 4 communicate slightly more during condition B.  Everything else
+is background noise.
+
+```r
+Tn <- length(runs)
+run_len <- Tn / length(unique(runs))
+stick_A <- stick_B <- numeric(Tn)
+for (i in seq_len(nrow(events))) {
+  onset_idx <- floor(events$onset[i] / TR) + 1L
+  base_idx  <- (events$run[i] - 1L) * run_len + onset_idx
+  idx <- base_idx + 0:3
+  idx <- idx[idx <= Tn]
+  if (events$cond[i] == "A") stick_A[idx] <- 1 else stick_B[idx] <- 1
+}
+S <- cbind(cond.A = stick_A, cond.B = stick_B)
+
+V  <- 5
+base_cov <- diag(V)
+boost_A  <- base_cov; boost_A[1, 2] <- boost_A[2, 1] <- 0.6
+boost_B  <- base_cov; boost_B[3, 4] <- boost_B[4, 3] <- 0.4
+
+Y <- matrix(0, Tn, V)
+for (t in seq_len(Tn)) {
+  if (S[t, 1] > 0) {
+    Sigma <- base_cov + boost_A
+  } else if (S[t, 2] > 0) {
+    Sigma <- base_cov + boost_B
+  } else {
+    Sigma <- base_cov
+  }
+  Y[t, ] <- rmvnorm(1, sigma = Sigma)
+}
+colnames(Y) <- paste0("roi", seq_len(V))
+```
+
+## 3. Fit multiPPI
+
+Because the design carries the run labels, we can call `mppi()` directly.  Here we work in the
+BOLD domain and use the correlation scale so that each ΔΣ has unit-diagonal.
+
+```r
+fit <- mppi(design, Y = Y, runs = runs, domain = "bold", scale = "corr")
+fit
+```
+
+The object stores the ΔΣ matrices (`fit$Delta`), the gPPI regressors (`fit$pk`), and metadata such
+as the timing grid and run structure.
+
+## 4. Mechanistic read-outs
+
+The helper functions in `multiPPI` make it easy to summarise what changed.  For example, the
+spectral/precision/lag diagnostic `mppi_classify()` reports whether the effect looks like a shared
+gain or selective routing.
+
+```r
+label_A <- mppi_classify(fit, k = 1, mode = "neural", lags = -1:1, B = 200)
+label_B <- mppi_classify(fit, k = 2, mode = "neural", lags = -1:1, B = 200)
+
+label_A$label
+label_B$label
+```
+
+We also have access to the raw interaction matrices, so we can visualise (or export) the
+condition-specific coupling changes.
+
+```r
+op <- par(mfrow = c(1, 2))
+image(fit$Delta[["cond_cond.A"]], main = "ΔΣ (condition A)", col = hcl.colors(50, "Spectral"))
+image(fit$Delta[["cond_cond.B"]], main = "ΔΣ (condition B)", col = hcl.colors(50, "Spectral"))
+par(op)
+```
+
+That’s the entire workflow: describe the experiment once, reuse the same HRF and nuisance space in
+multiPPI, and immediately obtain interpretable routing/gain summaries for each condition.

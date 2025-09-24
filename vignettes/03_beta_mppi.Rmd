@@ -1,0 +1,61 @@
+---
+title: "β-mPPI: beta-series multiPPI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{β-mPPI: beta-series multiPPI}
+  %\VignetteEngine{rmarkdown::render}
+  %\VignetteEncoding{UTF-8}
+---
+
+Beta-series mPPI operates on trial-wise response estimates instead of continuous time series.  It is
+particularly handy when you already have a trial-by-trial GLM (for example, from an LSS/LSA fit) and
+want to measure how the covariance of those beta estimates changes across conditions.
+
+Here we assemble a tiny synthetic example with six trials per condition.  The data matrix `B`
+contains one column per region and one row per trial.
+
+```r
+library(multiPPI)
+set.seed(101)
+
+n_trials <- 12
+V <- 5
+conditions <- rep(c("Left", "Right"), each = n_trials / 2)
+runs <- rep(1:3, length.out = n_trials)
+
+# Simulate beta-series: regions 1-2 co-fluctuate more during "Left" trials
+Sigma_base <- diag(V)
+Sigma_left <- Sigma_base; Sigma_left[1, 2] <- Sigma_left[2, 1] <- 0.6
+Sigma_right <- Sigma_base; Sigma_right[4, 5] <- Sigma_right[5, 4] <- 0.4
+
+B <- matrix(0, n_trials, V)
+for (i in seq_len(n_trials)) {
+  Sigma <- if (conditions[i] == "Left") Sigma_left else Sigma_right
+  B[i, ] <- mvtnorm::rmvnorm(1, sigma = Sigma)
+}
+colnames(B) <- paste0("roi", seq_len(V))
+```
+
+We encode the psychological design with a trial-by-condition model matrix and include run indicators
+as covariates.
+
+```r
+Pbeta <- model.matrix(~ 0 + conditions)
+Cbeta <- model.matrix(~ 0 + factor(runs))
+colnames(Pbeta) <- levels(factor(conditions))
+```
+
+Now we can run the beta-series pipeline.  `mppi_fit_beta()` returns ΔΣ matrices for each condition,
+while `mppi_beta_permute()` performs a permutation test (shuffling trials within runs).
+
+```r
+fit_beta <- mppi_fit_beta(B, Pbeta, Cbeta, scale = "corr")
+perm_beta <- mppi_beta_permute(B, Pbeta, Cbeta, run_trial = runs, Bperm = 199)
+
+names(fit_beta$Delta)
+image(fit_beta$Delta[["conditionsLeft"]], main = "ΔΣ (Left trials)", col = hcl.colors(50, "Spectral"))
+image(fit_beta$Delta[["conditionsRight"]], main = "ΔΣ (Right trials)", col = hcl.colors(50, "Spectral"))
+```
+
+The permutation output contains condition-wise omnibus statistics and empirical p-values, allowing
+you to report whether the beta-series covariance modulates significantly across the trial types.

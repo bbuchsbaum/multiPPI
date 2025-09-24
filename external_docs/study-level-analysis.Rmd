@@ -1,0 +1,939 @@
+---
+title: "Scaling to Study-Level Analysis: From Single Subjects to Group Studies"
+author: "fmridataset Team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Scaling to Study-Level Analysis: From Single Subjects to Group Studies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+
+suppressPackageStartupMessages({
+  library(fmridataset)
+})
+```
+
+# Motivation: The Multi-Subject Challenge
+
+Imagine you've developed a sophisticated single-subject fMRI analysis pipeline that works beautifully for individual participants. You can load their data, extract time series from regions of interest, perform connectivity analyses, and generate comprehensive reports. Now your PI asks you to scale this to a 50-subject study with data from three different sites, each using slightly different acquisition protocols. Some subjects have missing runs, others have different numbers of sessions, and the file organization varies between sites.
+
+Traditional approaches would require you to write complex loops, manage inconsistent data structures, handle missing data scenarios, and carefully orchestrate memory usage to avoid loading all subjects simultaneously. The fmridataset study-level analysis capabilities eliminate this complexity by providing a unified interface that scales seamlessly from single subjects to large multi-site studies while preserving all the memory efficiency and chunking capabilities you rely on for individual analyses.
+
+# A Real Example: Building a Study Dataset
+
+Let's demonstrate how to transition from single-subject to study-level analysis with a concrete example that shows the power of unified scaling:
+
+```{r study-example}
+library(fmridataset)
+
+# Step 1: Create individual subject datasets (simulating realistic scenarios)
+create_subject_data <- function(subject_id, n_runs = 2, n_timepoints_per_run = 100) {
+  set.seed(as.numeric(gsub("sub-", "", subject_id)))  # Reproducible per subject
+  
+  # Simulate subject-specific characteristics
+  n_voxels <- sample(800:1200, 1)  # Different brain sizes
+  
+  # Create realistic fMRI data with some subject-specific signal
+  data_matrices <- list()
+  for (run in 1:n_runs) {
+    run_data <- matrix(rnorm(n_timepoints_per_run * n_voxels, 
+                            mean = 0, sd = 1), 
+                      nrow = n_timepoints_per_run, ncol = n_voxels)
+    
+    # Add subject-specific activation pattern
+    if (subject_id %in% c("sub-001", "sub-003", "sub-005")) {
+      # "High responders" - stronger activation in first 100 voxels
+      activation_timepoints <- sample(1:n_timepoints_per_run, 20)
+      run_data[activation_timepoints, 1:100] <- 
+        run_data[activation_timepoints, 1:100] + 1.5
+    }
+    
+    data_matrices[[run]] <- run_data
+  }
+  
+  # Combine runs into single matrix
+  combined_data <- do.call(rbind, data_matrices)
+  
+  # Create subject dataset
+  dataset <- matrix_dataset(
+    datamat = combined_data,
+    TR = 2.0,
+    run_length = rep(n_timepoints_per_run, n_runs)
+  )
+  
+  return(dataset)
+}
+
+# Create multiple subject datasets
+subject_ids <- c("sub-001", "sub-002", "sub-003", "sub-004", "sub-005")
+subject_datasets <- list()
+
+for (subject_id in subject_ids) {
+  subject_datasets[[subject_id]] <- create_subject_data(subject_id)
+  cat("Created dataset for", subject_id, "\n")
+}
+
+# Step 2: Combine into study-level dataset
+study_dataset <- fmri_study_dataset(
+  datasets = subject_datasets,
+  subject_ids = subject_ids
+)
+
+cat("Study dataset created with", length(subject_ids), "subjects\n")
+print(study_dataset)
+```
+
+```{r study-output, echo=FALSE}
+# Expected output:
+# Created dataset for sub-001
+# Created dataset for sub-002
+# Created dataset for sub-003
+# Created dataset for sub-004
+# Created dataset for sub-005
+# Study dataset created with 5 subjects
+# fMRI Study Dataset
+# Subjects: 5 (sub-001, sub-002, sub-003, sub-004, sub-005)
+# Data organization: Delayed evaluation across subjects
+# Total timepoints per subject: 200
+# Memory efficiency: Lazy loading enabled
+```
+
+Now let's see the unified interface in action:
+
+```{r study-interface}
+# Same methods work at study level
+cat("Study TR:", get_TR(study_dataset), "seconds\n")
+cat("Study runs per subject:", n_runs(study_dataset), "\n")
+cat("Study timepoints per subject:", n_timepoints(study_dataset), "\n")
+
+# Access subject-specific information
+subject_list <- subject_ids(study_dataset)
+cat("Subject IDs:", paste(subject_list, collapse = ", "), "\n")
+
+# Demonstrate memory-efficient subject iteration
+for (i in 1:min(3, length(subject_list))) {
+  subject_id <- subject_list[i]
+  cat("Subject", subject_id, "available for analysis\n")
+}
+```
+
+```{r interface-output, echo=FALSE}
+# Expected output:
+# Study TR: 2 seconds
+# Study runs per subject: 2
+# Study timepoints per subject: 200
+# Subject IDs: sub-001, sub-002, sub-003, sub-004, sub-005
+# Subject sub-001 available for analysis
+# Subject sub-002 available for analysis
+# Subject sub-003 available for analysis
+```
+
+> **💡 Key Insight**: The study dataset provides the same interface as individual datasets while enabling efficient analysis across multiple subjects. This unified scaling means your single-subject analysis code works unchanged at the study level.
+
+# Understanding Study-Level Architecture
+
+The study-level analysis capabilities in fmridataset are built on sophisticated architectural principles that enable efficient scaling while preserving all the capabilities you rely on for single-subject analyses.
+
+## Lazy Evaluation: Memory Efficiency at Scale
+
+The most important concept for study-level analysis is lazy evaluation, which ensures that subject data is loaded only when actually needed. This architectural choice enables analysis of arbitrarily large studies without exhausting system memory. When you create a study dataset, you're creating a smart container that knows about all your subjects but doesn't immediately load their data.
+
+This lazy approach means you can work with studies containing hundreds of subjects on modest hardware. The system maintains metadata about each subject's temporal structure, spatial organization, and experimental design while keeping the actual neuroimaging data on disk until specific analyses require it. This design pattern is essential for modern neuroimaging research where studies routinely exceed the memory capacity of individual workstations.
+
+## Unified Interface Scaling
+
+The study dataset implements the same interface as individual datasets, enabling seamless scaling of analysis code. When you call `get_TR()` on a study dataset, it returns the common TR across all subjects. When you request data chunks, the system automatically coordinates chunking across subjects while maintaining the same programming interface you use for single subjects.
+
+This unified scaling means you can develop and test analysis pipelines on single subjects, then deploy them unchanged to full studies. The system handles the complexity of coordinating operations across multiple subjects while preserving the simple, intuitive interface you're already familiar with. This design significantly reduces the cognitive load of scaling analyses and eliminates many sources of bugs that arise when translating between single-subject and group-level code.
+
+## Subject-Aware Chunking
+
+The chunking system extends naturally to study-level datasets by becoming subject-aware. Rather than just dividing voxels across chunks, the system can create chunks that respect subject boundaries, enabling parallel processing strategies that work efficiently with multi-subject data. This subject-aware chunking is crucial for analyses that need to maintain subject identity throughout processing.
+
+The chunking system also enables sophisticated memory management strategies for large studies. You can choose to process subjects individually to minimize memory usage, or group multiple subjects per chunk when your analysis benefits from cross-subject operations. This flexibility enables optimal performance for different analysis patterns while maintaining the same simple chunking interface.
+
+# Deep Dive: Study-Level Operations
+
+With the architectural foundations clear, let's explore the full range of capabilities available for study-level analysis and see how to use them effectively.
+
+## Creating Study Datasets from Different Sources
+
+### From Individual Dataset Objects
+
+The most straightforward approach is combining existing dataset objects:
+
+```{r study-creation-objects}
+# Create individual datasets with realistic variation
+subject_data <- list()
+
+# Subject 1: Standard 2-run acquisition
+subject_data[["sub-001"]] <- matrix_dataset(
+  datamat = matrix(rnorm(20000), nrow = 200, ncol = 100),
+  TR = 2.0,
+  run_length = c(100, 100)
+)
+
+# Subject 2: Different number of runs (3 runs)
+subject_data[["sub-002"]] <- matrix_dataset(
+  datamat = matrix(rnorm(21000), nrow = 210, ncol = 100),
+  TR = 2.0,
+  run_length = c(70, 70, 70)
+)
+
+# Subject 3: Different voxel count (different preprocessing)
+subject_data[["sub-003"]] <- matrix_dataset(
+  datamat = matrix(rnorm(24000), nrow = 200, ncol = 120),
+  TR = 2.0,
+  run_length = c(100, 100)
+)
+
+# Combine into study dataset
+study_ds <- fmri_study_dataset(
+  datasets = subject_data,
+  subject_ids = names(subject_data)
+)
+
+cat("Created study with", length(subject_data), "subjects\n")
+cat("Run structure varies across subjects\n")
+```
+
+This approach provides maximum flexibility for handling heterogeneous study designs.
+
+### From File Paths with BIDS-like Organization
+
+For studies organized with consistent file structures:
+
+```{r study-creation-files}
+# Simulate BIDS-like file organization
+study_root <- "/path/to/study"
+subject_files <- list()
+
+# Generate file paths for each subject
+for (subj in c("001", "002", "003")) {
+  subject_files[[paste0("sub-", subj)]] <- list(
+    scans = c(
+      file.path(study_root, paste0("sub-", subj), "func", paste0("sub-", subj, "_task-rest_run-1_bold.nii.gz")),
+      file.path(study_root, paste0("sub-", subj), "func", paste0("sub-", subj, "_task-rest_run-2_bold.nii.gz"))
+    ),
+    mask = file.path(study_root, paste0("sub-", subj), "func", paste0("sub-", subj, "_space-MNI152_desc-brain_mask.nii.gz"))
+  )
+}
+
+# Create study dataset from file structure (would work with real files)
+# study_from_files <- fmri_study_dataset_from_files(
+#   subject_files = subject_files,
+#   TR = 2.0,
+#   run_length = c(180, 180)  # Common across subjects
+# )
+
+cat("File-based study dataset structure prepared\n")
+cat("Supports heterogeneous file organization patterns\n")
+```
+
+This approach works well for studies with consistent organization schemes.
+
+## Memory-Efficient Data Access Patterns
+
+### Subject-by-Subject Processing
+
+The most memory-efficient approach processes one subject at a time:
+
+```{r subject-by-subject}
+# Process subjects individually to minimize memory usage
+analyze_subject_individually <- function(study_dataset) {
+  subject_list <- subject_ids(study_dataset)
+  subject_results <- list()
+  
+  for (subj_id in subject_list) {
+    cat("Processing subject", subj_id, "\n")
+    
+    # Extract data for this subject only
+    subj_data <- get_data_matrix(study_dataset, subject_id = subj_id)
+    
+    # Perform subject-specific analysis
+    subj_result <- list(
+      subject_id = subj_id,
+      n_timepoints = nrow(subj_data),
+      n_voxels = ncol(subj_data),
+      mean_signal = mean(subj_data),
+      signal_variance = var(as.vector(subj_data))
+    )
+    
+    subject_results[[subj_id]] <- subj_result
+    
+    # Explicit memory cleanup
+    rm(subj_data)
+    gc()
+  }
+  
+  return(subject_results)
+}
+
+# Apply individual processing
+individual_results <- analyze_subject_individually(study_dataset)
+
+# Summarize results
+for (result in individual_results) {
+  cat("Subject", result$subject_id, ":", 
+      result$n_timepoints, "timepoints,", 
+      result$n_voxels, "voxels,",
+      "mean signal =", round(result$mean_signal, 3), "\n")
+}
+```
+
+This pattern minimizes memory usage and enables processing of arbitrarily large studies.
+
+### Chunked Cross-Subject Processing
+
+For analyses that benefit from cross-subject operations:
+
+```{r cross-subject-chunks}
+# Process data in chunks that span subjects
+analyze_cross_subject_chunks <- function(study_dataset, nchunks = 3) {
+  # Create study-level chunks
+  study_chunks <- data_chunks(study_dataset, nchunks = nchunks)
+  
+  chunk_results <- list()
+  for (chunk in study_chunks) {
+    cat("Processing chunk", chunk$chunk_num, 
+        "with", ncol(chunk$data), "voxels across subjects\n")
+    
+    # Chunk data includes information about which subjects contributed
+    chunk_analysis <- list(
+      chunk_id = chunk$chunk_num,
+      total_voxels = ncol(chunk$data),
+      total_timepoints = nrow(chunk$data),
+      cross_subject_correlation = mean(cor(chunk$data)),
+      voxel_indices = chunk$voxel_indices  # Which voxels this chunk contains
+    )
+    
+    chunk_results[[chunk$chunk_num]] <- chunk_analysis
+  }
+  
+  return(chunk_results)
+}
+
+# Apply cross-subject chunked processing
+chunk_results <- analyze_cross_subject_chunks(study_dataset)
+
+# Summarize chunk-based results
+for (result in chunk_results) {
+  cat("Chunk", result$chunk_id, ":",
+      result$total_voxels, "voxels,",
+      "mean correlation =", round(result$cross_subject_correlation, 3), "\n")
+}
+```
+
+This approach enables efficient cross-subject analyses while maintaining memory control.
+
+## Advanced Study-Level Features
+
+### fmri_series: Flexible Subject and Voxel Selection
+
+The `fmri_series` function provides sophisticated access to study data with flexible selection criteria:
+
+```{r fmri-series-study}
+# Extract time series from specific voxels and subjects
+series_subset <- fmri_series(
+  study_dataset,
+  selector = 1:10,           # First 10 voxels
+  subject_ids = c("sub-001", "sub-003"),  # Specific subjects
+  timepoints = 1:50          # First 50 timepoints
+)
+
+cat("Extracted series from", ncol(series_subset), "voxels\n")
+cat("Time series length:", nrow(series_subset), "timepoints\n")
+
+# Convert to tibble for advanced analysis
+if (requireNamespace("dplyr", quietly = TRUE)) {
+  series_tibble <- as_tibble(series_subset)
+  
+  # Group by subject for subject-specific analysis
+  subject_summary <- series_tibble %>%
+    dplyr::group_by(subject_id) %>%
+    dplyr::summarise(
+      mean_signal = mean(signal, na.rm = TRUE),
+      signal_sd = sd(signal, na.rm = TRUE),
+      n_observations = dplyr::n(),
+      .groups = "drop"
+    )
+  
+  print(subject_summary)
+}
+```
+
+The `fmri_series` approach provides maximum flexibility for exploratory analyses.
+
+### Handling Heterogeneous Study Designs
+
+Study datasets can accommodate subjects with different run structures and temporal organizations:
+
+```{r heterogeneous-studies}
+# Create subjects with different temporal structures
+heterogeneous_subjects <- list()
+
+# Subject A: 2 runs, 100 timepoints each
+heterogeneous_subjects[["sub-A"]] <- matrix_dataset(
+  datamat = matrix(rnorm(20000), nrow = 200, ncol = 100),
+  TR = 2.0,
+  run_length = c(100, 100)
+)
+
+# Subject B: 3 runs, 80 timepoints each  
+heterogeneous_subjects[["sub-B"]] <- matrix_dataset(
+  datamat = matrix(rnorm(24000), nrow = 240, ncol = 100),
+  TR = 2.0,
+  run_length = c(80, 80, 80)
+)
+
+# Subject C: 1 long run, 200 timepoints
+heterogeneous_subjects[["sub-C"]] <- matrix_dataset(
+  datamat = matrix(rnorm(20000), nrow = 200, ncol = 100),
+  TR = 2.0,
+  run_length = 200
+)
+
+# Combine into heterogeneous study
+hetero_study <- fmri_study_dataset(
+  datasets = heterogeneous_subjects,
+  subject_ids = names(heterogeneous_subjects)
+)
+
+# Study-level operations work despite heterogeneity
+cat("Heterogeneous study TR:", get_TR(hetero_study), "seconds\n")
+
+# Subject-specific operations preserve individual structure
+for (subj_id in subject_ids(hetero_study)) {
+  subj_runs <- n_runs(hetero_study, subject_id = subj_id)
+  cat("Subject", subj_id, "has", subj_runs, "runs\n")
+}
+```
+
+This flexibility enables analysis of real-world studies with complex designs.
+
+# Advanced Topics
+
+Once you're comfortable with basic study-level operations, these advanced techniques help you handle complex scenarios and optimize performance for large studies.
+
+## Performance Optimization for Large Studies
+
+### Memory Monitoring and Management
+
+Understanding memory usage patterns helps optimize large study analyses:
+
+```{r memory-optimization}
+# Monitor memory usage during study operations
+monitor_study_memory <- function(study_dataset) {
+  if (requireNamespace("pryr", quietly = TRUE)) {
+    start_memory <- pryr::mem_used()
+    cat("Starting memory usage:", format(start_memory, units = "Mb"), "\n")
+    
+    # Simulate loading one subject
+    subj_data <- get_data_matrix(study_dataset, subject_id = subject_ids(study_dataset)[1])
+    single_subj_memory <- pryr::mem_used()
+    cat("After loading one subject:", format(single_subj_memory, units = "Mb"), "\n")
+    
+    # Calculate memory per subject
+    memory_per_subject <- single_subj_memory - start_memory
+    cat("Memory per subject:", format(memory_per_subject, units = "Mb"), "\n")
+    
+    # Estimate memory for full study
+    n_subjects <- length(subject_ids(study_dataset))
+    estimated_full_memory <- start_memory + (memory_per_subject * n_subjects)
+    cat("Estimated memory for", n_subjects, "subjects:", 
+        format(estimated_full_memory, units = "Mb"), "\n")
+    
+    # Cleanup
+    rm(subj_data)
+    gc()
+    
+    return(list(
+      memory_per_subject = memory_per_subject,
+      estimated_full_study = estimated_full_memory
+    ))
+  }
+}
+
+# memory_stats <- monitor_study_memory(study_dataset)
+```
+
+This monitoring helps you choose appropriate chunking strategies.
+
+### Parallel Processing Strategies
+
+Study datasets enable sophisticated parallel processing approaches:
+
+```{r parallel-processing}
+# Parallel subject processing
+process_subjects_parallel <- function(study_dataset, analysis_func) {
+  if (requireNamespace("parallel", quietly = TRUE)) {
+    # Detect cores
+    n_cores <- min(parallel::detectCores() - 1, length(subject_ids(study_dataset)))
+    cat("Using", n_cores, "cores for parallel processing\n")
+    
+    # Create cluster
+    cl <- parallel::makeCluster(n_cores)
+    
+    # Export necessary objects
+    parallel::clusterEvalQ(cl, library(fmridataset))
+    parallel::clusterExport(cl, c("study_dataset", "analysis_func"))
+    
+    # Process subjects in parallel
+    subject_list <- subject_ids(study_dataset)
+    results <- parallel::parLapply(cl, subject_list, function(subj_id) {
+      # Extract data for this subject
+      subj_data <- get_data_matrix(study_dataset, subject_id = subj_id)
+      
+      # Apply analysis function
+      result <- analysis_func(subj_data)
+      result$subject_id <- subj_id
+      
+      return(result)
+    })
+    
+    # Cleanup
+    parallel::stopCluster(cl)
+    
+    return(results)
+  } else {
+    cat("parallel package not available, using sequential processing\n")
+    # Fallback to sequential processing
+    return(process_subjects_sequential(study_dataset, analysis_func))
+  }
+}
+
+# Example analysis function
+simple_analysis <- function(data_matrix) {
+  list(
+    mean_signal = mean(data_matrix),
+    n_timepoints = nrow(data_matrix),
+    n_voxels = ncol(data_matrix)
+  )
+}
+
+# Apply parallel processing (commented out for vignette)
+# parallel_results <- process_subjects_parallel(study_dataset, simple_analysis)
+```
+
+Parallel processing can significantly accelerate large study analyses.
+
+## Quality Control and Validation
+
+### Study-Level Quality Metrics
+
+Implement comprehensive quality control across the entire study:
+
+```{r quality-control}
+# Comprehensive study quality assessment
+assess_study_quality <- function(study_dataset) {
+  subject_list <- subject_ids(study_dataset)
+  quality_metrics <- list()
+  
+  for (subj_id in subject_list) {
+    cat("Assessing quality for", subj_id, "\n")
+    
+    # Get subject data
+    subj_data <- get_data_matrix(study_dataset, subject_id = subj_id)
+    
+    # Calculate quality metrics
+    metrics <- list(
+      subject_id = subj_id,
+      n_timepoints = nrow(subj_data),
+      n_voxels = ncol(subj_data),
+      mean_signal = mean(subj_data),
+      signal_range = diff(range(subj_data)),
+      zero_voxels = sum(colSums(subj_data == 0) == nrow(subj_data)),
+      outlier_timepoints = sum(abs(scale(rowMeans(subj_data))) > 3),
+      temporal_snr = mean(subj_data) / sd(rowMeans(subj_data))
+    )
+    
+    quality_metrics[[subj_id]] <- metrics
+    
+    # Memory cleanup
+    rm(subj_data)
+  }
+  
+  return(quality_metrics)
+}
+
+# Run quality assessment
+quality_results <- assess_study_quality(study_dataset)
+
+# Summarize quality across study
+quality_summary <- data.frame(
+  subject_id = sapply(quality_results, function(x) x$subject_id),
+  n_timepoints = sapply(quality_results, function(x) x$n_timepoints),
+  n_voxels = sapply(quality_results, function(x) x$n_voxels),
+  temporal_snr = sapply(quality_results, function(x) x$temporal_snr),
+  outlier_timepoints = sapply(quality_results, function(x) x$outlier_timepoints)
+)
+
+cat("Study Quality Summary:\n")
+print(quality_summary)
+
+# Identify potential issues
+problematic_subjects <- quality_summary$subject_id[quality_summary$outlier_timepoints > 5]
+if (length(problematic_subjects) > 0) {
+  cat("Subjects with potential quality issues:", paste(problematic_subjects, collapse = ", "), "\n")
+}
+```
+
+Systematic quality control helps ensure reliable study results.
+
+### Data Consistency Validation
+
+Verify consistency across subjects in the study:
+
+```{r consistency-validation}
+# Validate study consistency
+validate_study_consistency <- function(study_dataset) {
+  subject_list <- subject_ids(study_dataset)
+  consistency_report <- list()
+  
+  # Check temporal structure consistency
+  tr_values <- sapply(subject_list, function(subj_id) {
+    get_TR(study_dataset, subject_id = subj_id)
+  })
+  
+  consistency_report$tr_consistent <- length(unique(tr_values)) == 1
+  consistency_report$tr_range <- range(tr_values)
+  
+  # Check run structure patterns
+  run_counts <- sapply(subject_list, function(subj_id) {
+    n_runs(study_dataset, subject_id = subj_id)
+  })
+  
+  consistency_report$run_count_consistent <- length(unique(run_counts)) <= 2  # Allow some variation
+  consistency_report$run_count_distribution <- table(run_counts)
+  
+  # Check data dimensions
+  voxel_counts <- sapply(subject_list, function(subj_id) {
+    subj_data <- get_data_matrix(study_dataset, subject_id = subj_id)
+    ncol(subj_data)
+  })
+  
+  consistency_report$voxel_count_consistent <- length(unique(voxel_counts)) <= 3  # Allow preprocessing variation
+  consistency_report$voxel_count_range <- range(voxel_counts)
+  
+  return(consistency_report)
+}
+
+# Run consistency validation
+consistency_results <- validate_study_consistency(study_dataset)
+
+cat("Study Consistency Report:\n")
+cat("TR consistent:", consistency_results$tr_consistent, "\n")
+cat("Run counts:", paste(names(consistency_results$run_count_distribution), 
+                        consistency_results$run_count_distribution, 
+                        sep = ":", collapse = ", "), "\n")
+cat("Voxel count range:", consistency_results$voxel_count_range, "\n")
+
+# Report potential issues
+if (!consistency_results$tr_consistent) {
+  warning("TR values vary across subjects: ", paste(consistency_results$tr_range, collapse = "-"))
+}
+
+if (!consistency_results$voxel_count_consistent) {
+  warning("Voxel counts vary significantly across subjects")
+}
+```
+
+Consistency validation helps identify data preprocessing issues early.
+
+# Tips and Best Practices
+
+Here are practical guidelines learned from analyzing large neuroimaging studies that will help you work effectively with study-level datasets.
+
+> **⚠️ Performance Tip**: Always process subjects individually or in small groups rather than loading entire studies into memory. Use `get_data_matrix(study_dataset, subject_id = "sub-001")` instead of `get_data_matrix(study_dataset)` for large studies.
+
+> **🛡️ Best Practice**: Implement comprehensive quality control before proceeding with group analyses. Outlier subjects can severely impact group-level results, and it's much easier to identify issues during initial data exploration.
+
+> **⚡ Pro Tip**: Use the `fmri_series` function for exploratory analyses and hypothesis generation, then switch to chunked processing for computationally intensive analyses across the full study.
+
+## Memory Management Strategies
+
+Effective memory management is crucial for large study analyses:
+
+```{r memory-strategies}
+# Memory-efficient study analysis patterns
+memory_efficient_patterns <- function() {
+  cat("Memory-efficient study analysis patterns:\n\n")
+  
+  cat("1. Subject-by-subject processing:\n")
+  cat("   - Load one subject at a time\n")
+  cat("   - Explicit cleanup with rm() and gc()\n")
+  cat("   - Monitor memory usage throughout\n\n")
+  
+  cat("2. Chunked processing:\n")
+  cat("   - Use study-level chunking for cross-subject operations\n")
+  cat("   - Choose chunk sizes based on available RAM\n")
+  cat("   - Consider subject boundaries in chunking strategy\n\n")
+  
+  cat("3. Lazy evaluation:\n")
+  cat("   - Keep study datasets lazy until analysis needed\n")
+  cat("   - Use metadata queries before loading data\n")
+  cat("   - Avoid unnecessary data conversions\n\n")
+  
+  cat("4. Parallel processing:\n")
+  cat("   - Process subjects in parallel when possible\n")
+  cat("   - Monitor total memory usage across cores\n")
+  cat("   - Use appropriate chunk sizes for parallel work\n")
+}
+
+memory_efficient_patterns()
+```
+
+## Study Design Considerations
+
+Design your study analysis workflow to handle real-world complexities:
+
+```{r study-design}
+# Study design best practices
+study_design_guidelines <- function() {
+  cat("Study design considerations:\n\n")
+  
+  cat("1. Heterogeneity planning:\n")
+  cat("   - Expect different run structures across subjects\n")
+  cat("   - Plan for missing data scenarios\n")
+  cat("   - Design analyses robust to preprocessing differences\n\n")
+  
+  cat("2. Quality control integration:\n")
+  cat("   - Implement QC at multiple stages\n")
+  cat("   - Use automated outlier detection\n")
+  cat("   - Document exclusion criteria clearly\n\n")
+  
+  cat("3. Reproducibility measures:\n")
+  cat("   - Document study dataset creation parameters\n")
+  cat("   - Version control analysis scripts\n")
+  cat("   - Save intermediate results for validation\n\n")
+  
+  cat("4. Scalability planning:\n")
+  cat("   - Test analysis pipelines on subsets first\n")
+  cat("   - Plan for computational resource requirements\n")
+  cat("   - Design modular analysis components\n")
+}
+
+study_design_guidelines()
+```
+
+## Error Handling and Robustness
+
+Build robust analysis pipelines that handle real-world data issues:
+
+```{r error-handling}
+# Robust study analysis with error handling
+robust_subject_analysis <- function(study_dataset, analysis_func) {
+  subject_list <- subject_ids(study_dataset)
+  successful_results <- list()
+  failed_subjects <- character()
+  
+  for (subj_id in subject_list) {
+    cat("Processing", subj_id, "... ")
+    
+    tryCatch({
+      # Attempt to load and analyze subject data
+      subj_data <- get_data_matrix(study_dataset, subject_id = subj_id)
+      
+      # Basic data validation
+      if (nrow(subj_data) == 0 || ncol(subj_data) == 0) {
+        stop("Empty data matrix")
+      }
+      
+      if (any(is.na(subj_data)) && mean(is.na(subj_data)) > 0.1) {
+        warning("High proportion of missing values (", 
+                round(mean(is.na(subj_data)) * 100, 1), "%)")
+      }
+      
+      # Apply analysis
+      result <- analysis_func(subj_data)
+      result$subject_id <- subj_id
+      result$analysis_successful <- TRUE
+      
+      successful_results[[subj_id]] <- result
+      cat("SUCCESS\n")
+      
+      # Cleanup
+      rm(subj_data)
+      
+    }, error = function(e) {
+      cat("FAILED -", conditionMessage(e), "\n")
+      failed_subjects <- c(failed_subjects, subj_id)
+      
+      # Store failure information
+      successful_results[[subj_id]] <- list(
+        subject_id = subj_id,
+        analysis_successful = FALSE,
+        error_message = conditionMessage(e)
+      )
+    })
+  }
+  
+  # Summary report
+  cat("\nAnalysis Summary:\n")
+  cat("Successful subjects:", length(successful_results) - length(failed_subjects), "\n")
+  cat("Failed subjects:", length(failed_subjects), "\n")
+  
+  if (length(failed_subjects) > 0) {
+    cat("Failed subject IDs:", paste(failed_subjects, collapse = ", "), "\n")
+  }
+  
+  return(successful_results)
+}
+
+# Example usage with error handling
+safe_analysis <- function(data_matrix) {
+  # Simple analysis that might fail on problematic data
+  list(
+    mean_signal = mean(data_matrix, na.rm = TRUE),
+    signal_stability = sd(rowMeans(data_matrix, na.rm = TRUE)),
+    data_quality_score = 1 - mean(is.na(data_matrix))
+  )
+}
+
+# robust_results <- robust_subject_analysis(study_dataset, safe_analysis)
+```
+
+Robust error handling ensures that individual subject issues don't derail entire study analyses.
+
+# Troubleshooting Study-Level Issues
+
+When working with study-level datasets, certain issues are common and can be systematically diagnosed and resolved.
+
+## Memory-Related Problems
+
+**"Error: cannot allocate vector of size X Gb"**
+: This indicates you're trying to load too much data simultaneously. Switch to subject-by-subject processing or reduce chunk sizes.
+
+**Slow performance with study operations**
+: Check if you're accidentally triggering full study data loading. Use subject-specific access patterns and monitor memory usage.
+
+```{r memory-troubleshooting}
+# Diagnose memory issues
+diagnose_memory_issues <- function(study_dataset) {
+  cat("Memory diagnostic for study dataset:\n\n")
+  
+  # Check study size
+  n_subjects <- length(subject_ids(study_dataset))
+  cat("Number of subjects:", n_subjects, "\n")
+  
+  # Estimate memory requirements
+  first_subject <- subject_ids(study_dataset)[1]
+  sample_data <- get_data_matrix(study_dataset, subject_id = first_subject)
+  sample_size <- object.size(sample_data)
+  
+  cat("Sample subject data size:", format(sample_size, units = "Mb"), "\n")
+  cat("Estimated full study size:", format(sample_size * n_subjects, units = "Gb"), "\n")
+  
+  # Memory recommendations
+  available_ram <- 8  # Assume 8GB system
+  recommended_chunks <- ceiling((sample_size * n_subjects) / (available_ram * 0.5 * 1e9))
+  
+  cat("Recommended processing approach:\n")
+  if (recommended_chunks <= 1) {
+    cat("  - Full study loading feasible\n")
+  } else if (recommended_chunks <= n_subjects) {
+    cat("  - Subject-by-subject processing recommended\n")
+  } else {
+    cat("  - Chunked processing within subjects required\n")
+  }
+  
+  rm(sample_data)
+  gc()
+}
+
+# diagnose_memory_issues(study_dataset)
+```
+
+## Subject Inconsistency Issues
+
+**Different temporal structures across subjects**
+: This is often normal for real studies. Use subject-specific access patterns and be explicit about which subjects you're analyzing.
+
+**Varying voxel counts across subjects**
+: Common due to different preprocessing pipelines. Plan analyses to handle this variation or standardize preprocessing.
+
+```{r inconsistency-troubleshooting}
+# Handle subject inconsistencies
+handle_subject_inconsistencies <- function(study_dataset) {
+  subject_list <- subject_ids(study_dataset)
+  
+  # Catalog inconsistencies
+  inconsistencies <- list()
+  
+  # Check temporal structure
+  temporal_info <- sapply(subject_list, function(subj_id) {
+    list(
+      TR = get_TR(study_dataset, subject_id = subj_id),
+      n_runs = n_runs(study_dataset, subject_id = subj_id),
+      n_timepoints = n_timepoints(study_dataset, subject_id = subj_id)
+    )
+  }, simplify = FALSE)
+  
+  # Identify outliers
+  tr_values <- sapply(temporal_info, function(x) x$TR)
+  run_counts <- sapply(temporal_info, function(x) x$n_runs)
+  timepoint_counts <- sapply(temporal_info, function(x) x$n_timepoints)
+  
+  # Report inconsistencies
+  if (length(unique(tr_values)) > 1) {
+    cat("TR inconsistency detected:\n")
+    for (i in seq_along(subject_list)) {
+      cat("  ", subject_list[i], ": TR =", tr_values[i], "\n")
+    }
+  }
+  
+  if (length(unique(run_counts)) > 1) {
+    cat("Run count inconsistency detected:\n")
+    for (i in seq_along(subject_list)) {
+      cat("  ", subject_list[i], ": runs =", run_counts[i], "\n")
+    }
+  }
+  
+  # Suggest handling strategies
+  cat("\nSuggested handling strategies:\n")
+  cat("- Use subject-specific processing for inconsistent parameters\n")
+  cat("- Consider subsetting to consistent subjects for group analyses\n")
+  cat("- Implement analysis methods robust to temporal differences\n")
+}
+
+# handle_subject_inconsistencies(study_dataset)
+```
+
+# Integration with Other Vignettes
+
+This study-level analysis guide connects to several other aspects of the fmridataset ecosystem:
+
+**Prerequisites**: Start with [Getting Started](fmridataset-intro.html) to understand single-subject dataset operations before scaling to studies.
+
+**Architecture Understanding**: The [Architecture Overview](architecture-overview.html) explains how study datasets leverage the same abstractions as single-subject datasets while enabling efficient scaling.
+
+**Advanced Backend Usage**:
+- [H5 Backend Usage](h5-backend-usage.html) - Efficient storage for large multi-subject studies
+- [Backend Registry](backend-registry.html) - Custom backends for specialized study organizations
+
+**Extension Development**: [Extending Backends](extending-backends.html) shows how to create study-aware custom backends.
+
+**Ecosystem Integration**: Study datasets work seamlessly with other neuroimaging packages:
+- **fmrireg**: Study-level regression modeling with temporal structure preservation
+- **DelayedArray**: Advanced array operations for memory-efficient cross-subject analyses
+- **BiocParallel**: Sophisticated parallel processing strategies for large studies
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

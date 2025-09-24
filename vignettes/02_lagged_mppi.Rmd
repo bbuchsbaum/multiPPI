@@ -1,0 +1,100 @@
+---
+title: "Lagged / Directed multiPPI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Lagged / Directed multiPPI}
+  %\VignetteEngine{rmarkdown::render}
+  %\VignetteEncoding{UTF-8}
+---
+
+The lagged mPPI utilities estimate how task-gated coupling unfolds with short delays.  They are
+useful when we suspect directed interactions (feed-forward vs feedback) or when the effect of
+interest is not instantaneous.  This vignette reuses the simulation from the quick-start guide and
+shows two complementary workflows:
+
+1. Selecting the dominant lag per condition via permutations, and
+2. Inspecting the full short-lag profile returned by `mppi_lagged()`.
+
+```r
+library(multiPPI)
+library(mvtnorm)
+set.seed(7)
+```
+
+## Simulate a toy dataset with delayed coupling
+
+We create two conditions.  During condition `Forward` region 1 drives region 2 with a +1 TR delay.
+During condition `Feedback` the drive runs in the opposite direction (region 2 → region 1).
+
+```r
+TR  <- 1
+Tn  <- 160
+runs <- rep(1:2, each = Tn / 2)
+cond_forward <- rep(c(rep(1, 8), rep(0, 8)), length.out = Tn)
+cond_feedback <- c(rep(0, 40), rep(c(rep(1, 8), rep(0, 8)), length.out = Tn - 40))
+S <- cbind(forward = cond_forward, feedback = cond_feedback)
+
+# Build a design matrix (task regressors = sticks convolved with a simple HRF)
+hrf <- fmrihrf::spm_hrf(TR)
+design_task <- cbind(
+  forward = as.numeric(stats::filter(S[, 1], hrf, sides = 1)),
+  feedback = as.numeric(stats::filter(S[, 2], hrf, sides = 1))
+)
+design_task[is.na(design_task)] <- 0
+X <- cbind(design_task)
+colnames(X) <- c("forward", "feedback")
+
+# Simulate 4 regions
+V <- 4
+Y <- matrix(0, Tn, V)
+colnames(Y) <- paste0("roi", seq_len(V))
+base_cov <- diag(V)
+lag1 <- base_cov; lag1[1, 2] <- 0.7
+lagm1 <- base_cov; lagm1[2, 1] <- 0.7
+
+for (t in seq_len(Tn)) {
+  if (S[t, 1] > 0 && t > 1) {
+    Y[t, ] <- 0.5 * Y[t - 1, ] + rmvnorm(1, sigma = lag1)
+  } else if (S[t, 2] > 0 && t > 1) {
+    Y[t, ] <- 0.5 * Y[t - 1, ] + rmvnorm(1, sigma = lagm1)
+  } else {
+    Y[t, ] <- rmvnorm(1, sigma = base_cov)
+  }
+}
+```
+
+## Fit the lagged model
+
+We start with the standard (τ = 0) fit, then ask for lags −2…+2.  The function returns the lagged
+ΔΣ matrices along with the routing-asymmetry index `R`.
+
+```r
+fit <- mppi_fit(Y, X, psych_idx = 1:2, runs = runs, lags = -2:2, scale = "corr")
+lag_forward <- mppi_lagged(fit, k = 1, lags = -2:2)
+lag_feedback <- mppi_lagged(fit, k = 2, lags = -2:2)
+
+lag_forward$R
+lag_feedback$R
+```
+
+The positive `R` for condition `forward` indicates dominant feed-forward (positive-lag) coupling,
+whereas the negative value in `feedback` indicates the opposite direction.
+
+## Permutation-based lag selection
+
+`mppi_lag_select()` chooses the lag that maximises the omnibus test statistic and assesses its
+significance via block permutations.  We request a small number of permutations to keep the vignette
+fast; increase `B` in real analyses.
+
+```r
+lag_search <- mppi_lag_select(Y, X, psych_idx = 1:2, lags = -2:2,
+                              blocklens = rle(runs)$lengths, B = 199)
+lag_search$best_lag
+lag_search$p
+```
+
+For condition `forward` the best lag is +1 TR; for `feedback` it is −1 TR, as designed.
+
+This pair of tools makes it straightforward to diagnose whether a task manipulates directed
+interactions over short delays, while staying inside the familiar linear-model framework that
+multiPPI uses for contemporaneous coupling.

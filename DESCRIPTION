@@ -1,0 +1,34 @@
+Package: multiPPI
+Type: Package
+Title: Seedless Task-Modulated Connectivity (Matrix-PPI) for fMRI
+Version: 0.1.0
+Authors@R: 
+    c(person(given="Johnny", family="", role=c("aut","cre"), email="johnny@example.org"))
+Description: Closed-form, seedless psychophysiological interactions (Matrix-PPI)
+    with fast per-regressor slope matrices, lagged/directed variants, HRF-adaptive
+    weights, permutation inference, partial connectivity updates, and bridges to
+    fmrireg/fmriAR/fmrilss design-building and trial-level fits.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1)
+Imports:
+    stats,
+    methods,
+    matrixStats,
+    Rcpp,
+    RcppArmadillo
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    fmrireg,
+    fmriAR,
+    fmrihrf,
+    fmrilss,
+    signal,
+    igraph,
+    limma,
+    knitr,
+    rmarkdown
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2.9000

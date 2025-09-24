@@ -1,0 +1,303 @@
+---
+title: "TEMPLATE: Your Vignette Title Here"
+author: "fmridataset Team"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{TEMPLATE: Your Vignette Title Here}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  eval = FALSE, # Set to TRUE when examples can be run
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load required packages
+suppressPackageStartupMessages({
+  library(fmridataset)
+  # Add other required packages here
+})
+```
+
+<!-- 
+VIGNETTE TEMPLATE GUIDELINES
+============================
+
+This template follows the improved structure for fmridataset vignettes.
+Each section serves a specific purpose in creating an engaging, tutorial-like experience.
+
+Structure:
+1. Motivation Hook (1 paragraph that draws readers in)
+2. Real-World Example (concrete use case with code + output)
+3. Core Concepts (narrative explanation, not bullet lists)
+4. Deep Dive (detailed implementation)
+5. Advanced Topics (power user features)
+6. Tips & Best Practices (practical guidance)
+7. Troubleshooting (common pitfalls)
+8. Further Reading (cross-links to other vignettes)
+
+Writing Guidelines:
+- Use active voice and flowing prose
+- Convert bullet lists to narrative paragraphs
+- Include code output in examples
+- Add callout boxes for tips/warnings
+- Show, don't just tell
+- Make neuroimaging concepts accessible
+- Use consistent terminology
+- Cross-reference other vignettes
+-->
+
+# Motivation: Why This Matters
+
+<!-- 
+Write a compelling 1-paragraph hook that explains:
+- A real neuroimaging challenge this solves
+- Why existing approaches fall short
+- What makes this solution elegant
+- Who benefits from learning this
+
+Example opening:
+"Imagine you're analyzing a multi-site fMRI study with 200 participants, where each site uses different acquisition protocols and file formats. Traditional approaches require you to write custom loading code for each format, manually validate data integrity, and develop separate preprocessing pipelines. The X feature in fmridataset eliminates this complexity by..."
+-->
+
+[Write your compelling motivation paragraph here - describe a real neuroimaging scenario where this topic solves a genuine problem]
+
+# A Real Example: Getting Started
+
+<!-- 
+Provide a concrete, working example that:
+- Uses realistic (but simple) data
+- Shows the complete workflow
+- Includes actual output
+- Demonstrates the core value proposition
+- Builds confidence before diving into details
+-->
+
+Let's jump into a concrete example that demonstrates the key concepts. We'll [describe what the example accomplishes]:
+
+```{r real-example, eval=FALSE}
+# Real-world example code here
+# Include setup, main operations, and results
+# Make this complete and runnable
+
+# Example structure:
+# 1. Load or create realistic data
+# 2. Demonstrate the main feature
+# 3. Show the results
+# 4. Highlight what this accomplishes
+```
+
+```{r real-example-output, echo=FALSE, eval=FALSE}
+# Expected output:
+# [Show what users should see when they run the above code]
+```
+
+> **💡 Key Insight**: [Highlight the main takeaway from this example - what makes this approach powerful or elegant]
+
+# Understanding the Concepts
+
+<!-- 
+Replace bullet lists with flowing narrative that explains:
+- What the main abstractions are
+- How they relate to neuroimaging workflows
+- Why the design choices make sense
+- When you'd use each approach
+
+Use subsections to break up long explanations.
+Write as if explaining to a colleague, not as reference documentation.
+-->
+
+Now that we've seen it in action, let's understand what's happening under the hood. [Write narrative explanation of the core concepts, avoiding bullet lists]
+
+## Core Abstraction: [Main Concept]
+
+[Explain the primary abstraction in prose, relating it to neuroimaging workflows]
+
+## How It Works: [Implementation Concept]
+
+[Describe the implementation approach, focusing on user-visible behavior rather than internal details]
+
+## Design Rationale: Why This Approach
+
+[Explain why this design was chosen, what alternatives exist, and when you'd choose each]
+
+# Deep Dive: Mastering the Details
+
+<!-- 
+Provide comprehensive coverage of:
+- All major functions and their parameters
+- Different usage patterns
+- Integration with other components
+- Performance characteristics
+- Common configuration options
+
+Organize with clear subsections.
+Include code examples with output for each major concept.
+-->
+
+With the fundamentals clear, let's explore the full capabilities and see how to use them effectively in different scenarios.
+
+## [Major Feature 1]
+
+[Detailed explanation with examples]
+
+```{r deep-dive-1, eval=FALSE}
+# Comprehensive example showing this feature
+```
+
+## [Major Feature 2]
+
+[Detailed explanation with examples]
+
+```{r deep-dive-2, eval=FALSE}
+# Comprehensive example showing this feature
+```
+
+## [Performance Characteristics]
+
+[Discussion of performance implications, memory usage, etc.]
+
+# Advanced Topics
+
+<!-- 
+Cover power-user features:
+- Customization options
+- Integration with other packages
+- Performance optimization
+- Edge cases and corner cases
+- Extension points
+-->
+
+Once you're comfortable with the basics, these advanced techniques can help you handle complex scenarios and optimize performance.
+
+## [Advanced Feature 1]
+
+[Explanation of sophisticated usage patterns]
+
+## [Advanced Feature 2]
+
+[Integration with other packages or advanced customization]
+
+# Tips and Best Practices
+
+<!-- 
+Practical guidance covering:
+- Performance optimization
+- Common pitfalls to avoid
+- Recommended workflows
+- Debugging strategies
+- Memory management
+- Error handling
+
+Use callout boxes for important tips.
+-->
+
+Here are practical guidelines learned from real-world usage that will help you avoid common pitfalls and work more effectively.
+
+> **⚠️ Performance Tip**: [Important performance consideration]
+
+> **🛡️ Best Practice**: [Recommended approach for common scenarios]
+
+> **⚡ Pro Tip**: [Advanced technique for power users]
+
+## Memory Management
+
+[Specific guidance on memory usage patterns]
+
+## Error Handling
+
+[How to handle common error scenarios]
+
+## Debugging Strategies
+
+[Approaches for troubleshooting issues]
+
+# Troubleshooting
+
+<!-- 
+Address common issues:
+- Error messages and their solutions
+- Performance problems
+- Compatibility issues
+- Data format problems
+- Configuration mistakes
+-->
+
+When things don't work as expected, these solutions address the most common issues encountered in real usage.
+
+## Common Error Messages
+
+**"Error: [Common Error]"**
+: [Explanation of what causes this and how to fix it]
+
+**"Warning: [Common Warning]"**
+: [Explanation of what this means and whether to worry]
+
+## Performance Issues
+
+[How to diagnose and address slow performance]
+
+## Compatibility Problems
+
+[Issues with different R versions, operating systems, or package versions]
+
+# Integration with Other Vignettes
+
+<!-- 
+Cross-reference related topics:
+- Link to prerequisite vignettes
+- Suggest follow-up reading
+- Mention related features covered elsewhere
+- Connect to the broader ecosystem
+-->
+
+This vignette connects to several other topics in the fmridataset ecosystem:
+
+**Prerequisites**: If you're new to fmridataset, start with the [Introduction](fmridataset-intro.html) to understand the basic concepts.
+
+**Next Steps**: 
+- [Architecture Overview](architecture-overview.html) - Learn about the underlying design principles
+- [Extending Backends](extending-backends.html) - Create custom storage formats
+- [Study-Level Analysis](study-level-analysis.html) - Scale to multi-subject studies
+
+**Related Topics**:
+- [Backend Registry](backend-registry.html) - Managing different data formats
+- [H5 Backend Usage](h5-backend-usage.html) - Working with HDF5 files
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```
+
+---
+
+<!-- 
+TEMPLATE CHECKLIST
+==================
+
+Before publishing, verify:
+- [ ] Compelling motivation paragraph
+- [ ] Complete working example with output
+- [ ] Narrative prose instead of bullet lists
+- [ ] Code examples include expected output
+- [ ] Callout boxes for important tips
+- [ ] Cross-links to other vignettes
+- [ ] Clear section hierarchy
+- [ ] Consistent terminology
+- [ ] Active voice throughout
+- [ ] Spell-checked content
+- [ ] Realistic examples that readers can relate to
+-->

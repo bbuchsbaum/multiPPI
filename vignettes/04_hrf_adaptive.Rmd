@@ -1,0 +1,47 @@
+---
+title: "HRF-adaptive multiPPI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{HRF-adaptive multiPPI}
+  %\VignetteEngine{rmarkdown::render}
+  %\VignetteEncoding{UTF-8}
+---
+
+When a condition is modelled with multiple HRF basis functions (canonical + derivatives, FLOBS,
+finite impulse response, …), we obtain one ΔΣ matrix per basis column.  `mppi_hrf_adapt()`
+computes the evidence-weighted combination of these matrices, rewarding bases whose corresponding
+psych regressors have more variance.
+
+The example below generates three mock ΔΣ matrices for a single condition and shows how to combine
+them.
+
+```r
+library(multiPPI)
+set.seed(202)
+
+V <- 4
+Delta1 <- matrix(0, V, V); Delta1[1, 2] <- Delta1[2, 1] <- 2.0
+Delta2 <- matrix(0, V, V); Delta2[3, 4] <- Delta2[4, 3] <- 0.4
+Delta3 <- matrix(0, V, V); Delta3[1, 3] <- Delta3[3, 1] <- -0.2
+
+deltas <- list(Delta1, Delta2, Delta3)
+# Example norms: the first basis column explained most of the variance
+pk_norms <- c(1.0, 0.3, 0.1)
+combo <- mppi_hrf_adapt(deltas, pk_norms = pk_norms)
+
+combo$weights
+image(combo$Delta, main = "HRF-adaptive ΔΣ", col = hcl.colors(50, "Spectral"))
+```
+
+In a real analysis the ingredients come directly from the fit object:
+
+```r
+# Suppose you fitted a model with three HRF columns for condition k
+# deltas <- fit$Delta_HRF[[k]]      # list of ΔΣ matrices per basis column
+# pk_norms <- vapply(fit$pk_HRF[[k]], function(pk) sum(pk^2), numeric(1))
+# combo <- mppi_hrf_adapt(deltas, pk_norms)
+```
+
+The weights returned by `mppi_hrf_adapt()` tell you which HRF basis contributed most to the effect,
+and `combo$Delta` gives a single, interpretable matrix that you can pass on to group analyses or to
+any of the mechanistic summaries.

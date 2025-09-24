@@ -1,0 +1,325 @@
+---
+title: "Matrix-PPI Overview"
+author: "multiPPI package"
+output:
+  rmarkdown::html_vignette: default
+vignette: >
+  %\VignetteIndexEntry{Matrix-PPI Overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+if (!requireNamespace("multiPPI", quietly = TRUE)) {
+  stop("multiPPI must be installed to build this vignette.")
+}
+if (!requireNamespace("fmridesign", quietly = TRUE) ||
+    !requireNamespace("fmrihrf", quietly = TRUE) ||
+    !requireNamespace("fmriAR", quietly = TRUE)) {
+  knitr::knit_exit()
+}
+```
+
+## Why Matrix-PPI?
+
+Task-modulated connectivity is traditionally estimated one seed at a time via
+PPI (psychophysiological interaction) regressions. Matrix-PPI (multiPPI)
+removes the seed loop entirely. For each psychological regressor \(p_k\) the
+interaction slope matrix is
+
+\[
+\Delta\Sigma_k = \frac{R^\top \operatorname{diag}(\tilde p_k)\, R}{\tilde p_k^\top \tilde p_k},
+\]
+
+where `R` is the residual design matrix (after removing main effects and
+confounds) and \(\tilde p_k\) is the residualized psychological regressor.
+The result is a symmetric matrix of edge slopes (or, in a subspace, a much
+smaller representation) for each regressor. The package exposes this closed
+form while keeping the API simple, orthogonal to the design toolkits you
+already use.
+
+The goal of this vignette is to show the *workflow* supported by multiPPI:
+
+1. Create designs (time-domain or trial-domain) using existing tools
+   (`fmridesign`, `fmrihrf`, `fmrilss`, ...).
+2. Fit Matrix-PPI once per subject via a single S3 entry point `mppi()`.
+3. Subspace (basis) estimation for large-V problems – avoid 50k x 50k matrices.
+4. Subject-level inference (omnibus / edgewise / lagged) with deterministic
+   permutations.
+5. Summaries for group analysis (rank selection, EB moderation, reconstruction).
+
+All of the heavy numerical lifting remains closed form (weighted crossproducts).
+The S3 front door and basis handling keep the user-facing contract elegant.
+
+## Quick start (time-domain, ROI-level)
+
+```{r quickstart, eval = FALSE}
+library(multiPPI)
+library(fmridesign)
+library(fmriAR)
+
+# 1. Build event/baseline designs
+sframe <- sampling_frame(blocklens = c(300, 300), TR = 2)
+ev <- event_model(onset ~ hrf(condA) + hrf(condB),
+                  data  = events_df,          # onsets + condition labels
+                  block = ~ run, sampling_frame = sframe)
+base <- baseline_model(basis = "bs", degree = 3, sframe = sframe,
+                       nuisance_list = list(motion_6 = motion_df))
+
+# 2. Fit Matrix-PPI (prewhitened, correlation scale)
+fit <- mppi(ev, Y = Y_matrix, base = base,
+            runs = run_labels, prewhiten = TRUE, scale = "corr")
+
+print(fit)                 # summary in ROI space
+omni <- mppi_omnibus(fit)  # omnibus energy per regressor
+pmat <- mppi_permute(fit)  # edgewise p-values (ROI x ROI)
+```
+
+This code builds the design using `fmridesign`, whitens the data via
+`fmriAR`, and returns a `mppi_fit` object containing residuals `R`, the
+per-regressor interaction matrices `Delta`, the residualized psychological
+regressors `pk`, and metadata (runtime options, denominators, etc.).
+
+## Basis (subspace) estimation for high-resolution data
+
+For voxel-level analyses (e.g. 50k time series), forming full \(V\times V\)
+mats per regressor is infeasible. Instead, we can project into a shared
+basis \(V_r\) (atlas, PCA, spherical harmonics, ...). multiPPI handles
+this with a `basis` argument containing an orthonormal matrix.
+
+```{r basis, eval = FALSE}
+# Suppose we computed a group PCA basis (V x r, orthonormal columns)
+basis <- as_mppi_basis(group_pca_loadings, name = "groupPCA200")
+
+fit_basis <- mppi(ev, Y = Y_matrix, base = base,
+                  runs = run_labels, prewhiten = TRUE,
+                  scale = "corr", basis = basis,
+                  backend = "chunked", chunk_size = 4096L,
+                  project_backend = "chunked", project_chunk_cols = 1024L)
+
+# fit_basis$Delta[[k]] is now r x r component-space interaction slope
+M_k <- mppi_get_M(fit_basis, "hrf(condA)")
+
+# On-demand reconstruction for a ROI subset
+roi_idx <- which(roi_labels %in% c("V1", "V2", "LO"))
+Delta_roi <- mppi_reconstruct_delta(fit_basis, "hrf(condA)", idx = roi_idx)
+```
+
+Key points:
+
+- During fitting we compute `Z = R %*% V_r` (with chunking if requested) and
+  store only the `r x r` matrices `M_k`.
+- The basis metadata is carried with the fit object, enabling `mppi_edge`
+  (recover a single edge) and `mppi_reconstruct_delta` (recover submatrices).
+- Frobenius norms satisfy `||Delta||_F == ||M||_F` when `V_r` is orthonormal,
+  so global energy tests are basis-invariant.
+
+This pattern extends to group level: with a shared basis, each subject
+provides aligned `M_k` matrices, so group statistics operate on r×r edges
+instead of V×V. If using subject-specific PCA, standardizing to a reference
+basis (orthogonal Procrustes) yields aligned `M_k` as well.
+
+## HRF bases and adaptive combination
+
+`fmridesign` + `fmrihrf` handle HRF modeling. If a condition is expanded into
+multiple basis columns (canonical, derivative, dispersion, etc.), multiPPI
+returns one `Delta` (or `M`) per basis column. The helper `mppi_hrf_adapt`
+computes the energy-maximizing linear combination within the basis to produce
+a single interpretable interaction matrix.
+
+```{r hrf, eval = FALSE}
+fit <- mppi(ev, Y = Y_matrix, base = base, runs = run_labels,
+            prewhiten = TRUE, scale = "corr")
+
+# group basis columns for condition A
+hrf_groups <- mppi_group_hrf_columns(as_mppi_design(ev, base))
+cols_A <- hrf_groups[["cond"]]  # canonical + derivative, etc.
+
+deltas_A <- fit$Delta[cols_A]
+pk_norms <- vapply(fit$pk[cols_A], function(pk) sum(pk^2), 0)
+consolidated <- mppi_hrf_adapt(deltas_A, pk_norms)
+Delta_condA <- consolidated$Delta
+```
+
+You can apply the same energy combination in the basis space, since the
+algebra is the same for `M_k`.
+
+## Neural- and innovations-domain fits
+
+Setting `domain = "neural"` deconvolves both the residual BOLD matrix and the
+psychological regressors before estimating interaction slopes. When no HRF is
+provided multiPPI falls back to the canonical double-gamma kernel from
+`mppi_default_hrf()`. HRF basis columns in the design are grouped automatically,
+so a single neural stick is formed per condition.
+
+```{r neural-fit, eval = FALSE}
+fit_neural <- mppi(ev, Y = Y_matrix, base = base,
+                   runs = run_labels, prewhiten = TRUE,
+                   scale = "corr", domain = "neural")
+
+# Inspect neural sticks (T x K*) and deconvolution metadata
+str(fit_neural$deconv)
+
+# Compare with a bold-domain fit
+fit_bold <- mppi(ev, Y = Y_matrix, base = base,
+                 runs = run_labels, prewhiten = TRUE,
+                 scale = "corr", domain = "bold")
+mppi_compare_models(fit_bold, fit_neural)
+
+# Mechanistic summaries in neural space
+gain_idx    <- mppi_gain(fit_neural, k = 1L)
+routing_idx <- mppi_routing_index(list("lag0" = fit_neural), k = 1L,
+                                  hierarchy = rep(1, ncol(Y_matrix)))
+```
+
+Need a custom HRF or precomputed neural sticks? Supply a `deconv` list:
+
+```{r neural-options, eval = FALSE}
+h <- mppi_default_hrf(tr = 0.8, duration = 28, oversample = 2)
+fit_custom <- mppi(ev, Y = Y_matrix, base = base,
+                   runs = run_labels, prewhiten = TRUE,
+                   scale = "cov", domain = "neural",
+                   deconv = list(hrf = h, K = 64, method = "fixed", lambda = 0.05))
+
+# Or retrofit your existing fit
+design <- as_mppi_design(ev, base)
+fit_neural_from_bold <- mppi_neural_from_fit(fit_bold, X = design$X,
+                                             psych_idx = design$psych_idx,
+                                             h = h)
+ensemble <- mppi_hrf_ensemble(list(fit_neural, fit_custom))
+```
+
+The neural helpers `mppi_psych_neural_from_X()`, `mppi_neural_from_fit()`,
+`mppi_compare_models()`, `mppi_hrf_ensemble()`, `mppi_gain()`, and
+`mppi_routing_index()` are exported for standalone analyses and share the same
+defaults as the core fitter.
+
+When HRF shape is uncertain or a rapid fallback is needed, set
+`domain = "innovations"` to whiten the residual time-series and
+psychological modulators via AR models (leveraging `fmriAR`). This produces
+HRF-agnostic interaction estimates similar to iPPI:
+
+```{r innovations-fit, eval = FALSE}
+fit_innov <- mppi(ev, Y = Y_matrix, base = base,
+                  runs = run_labels, prewhiten = TRUE,
+                  scale = "cov", domain = "innovations",
+                  deconv = list(protect = "lowK", ar_order = "auto", p = 6L))
+
+# Innovations metadata (AR order, protection band, etc.)
+str(fit_innov$deconv$innov)
+```
+
+Both neural and innovations domains keep the estimated low-rank series in
+`fit$U`, enabling downstream gain/routing analyses without recomputing the
+deconvolution.
+
+## Mechanistic summaries (gain, routing, templates)
+
+Mechanistic helpers run entirely in the fitted space, so they remain cheap even
+with large voxel sets:
+
+```{r mechanistic, eval = FALSE}
+# Gain / precision (component plus optional ROI back-projection)
+gain <- mppi_gain(fit_neural, k = 1L, lambda = 1e-3)
+
+# Routing asymmetry from lagged fits and a cortical hierarchy
+lagged <- list("-1" = fit_lag_minus1, "1" = fit_lag_plus1)
+hierarchy <- cortical_gradient$g1
+routing <- mppi_routing_index(lagged, k = 1L, hierarchy = hierarchy)
+
+# Template projections (e.g., within/between networks)
+templates <- mppi_templates_within_between(network_labels)
+weights <- mppi_project_templates(fit_neural, k = 1L, templates = templates)
+
+# All-in-one summary for reporting
+report <- mppi_mechanism_report(fit_neural, k = 1L,
+                                hierarchy = hierarchy,
+                                lag_fits = lagged,
+                                templates = templates)
+```
+
+Additional template helpers such as `mppi_templates_gradient()` make it easy to
+test hierarchy-aligned hypotheses or custom motifs; supply any r × r matrices
+to probe alternative mechanisms.
+
+## Inference (subject level)
+
+multiPPI offers several inference engines, all permutation-based:
+
+- **Omnibus (`mppi_omnibus`)** — Frobenius norm \(Q_k = ||\Delta\Sigma_k||_F^2\) or
+  \(||M_k||_F^2\) per regressor, with block sign-flips, phase randomization, or
+  Freedman–Lane permutations (`method` argument).
+- **Edgewise (`mppi_permute`)** — returns p-matrices (same dimensions as the
+  output) with optional studentization and deterministic seeding.
+- **Lag selection (`mppi_lag_select`)** — for directed effects, evaluate ±lags
+  around zero with permutations to pick the peak energy.
+- **β-series (`mppi_fit_beta`, `mppi_beta_permute`)** — trial-domain analogue
+  using LSS/LSA betas (works with fmrilss output).
+- **Model evidence (`mppi_evidence`)** — ΔAIC/ΔBIC improvements of the
+  full multiPPI GLM relative to the task-only baseline, computed without
+  re-running the fit.
+
+Example (omnibus + edgewise, seeded):
+
+```{r infer, eval = FALSE}
+set.seed(42)
+omni <- mppi_omnibus(fit, blksize = 10L, B = 999L, wild = "rademacher", seed = 42)
+omni[["hrf(condA)"]]$p_global
+
+pmat <- mppi_permute(fit, k = "hrf(condA)", B = 999L,
+                     studentize = TRUE, seed = 42)
+
+ev <- mppi_evidence(fit)
+ev$aggregate$delta_AIC
+```
+
+The `seed` argument restores the RNG state afterwards, making these permutation
+results reproducible.
+
+## Rank shrinkage, partial correlations, variance decomposition
+
+For interpretability and noise control, multiPPI offers:
+
+- `mppi_rank_cv()` — cross-validated rank selection with optional shrinkage;
+  apply it directly in the working space (e.g., use `fit$Z` and `mppi_get_M(fit, k)`
+  when operating in a shared basis).
+- `mppi_to_partial()` and `mppi_delta_partial()` — first-order precision update
+  to approximate partial-correlation changes using stored Σ₀ and λ.
+- `mppi_decompose_variance()` — splits ΔΣ into correlation-like and variance
+  contributions, aiding interpretation of increases vs. variance-driven effects.
+
+These functions integrate with the fit object (the results keep Σ₀, Θ₀, etc.).
+
+## Group analysis
+
+With shared basis fits (recommended for large V), group analyses run on the
+component matrices:
+
+- Global: use the scalar Q_k = ||M_k||_F^2 per subject and perform a group test.
+- Edgewise: vectorize upper triangles of M_k and run empirical Bayes via
+  `mppi_group_ebayes()` for moderated t-statistics and FDR.
+- Modes: eigendecompose M_k and test dominant eigenvalues across subjects
+  (or build subject × eigenvector scores and run t/permutation tests).
+- Network projections: precompute \(\widehat W = V^T W V\) for network masks W
+  and compute \(\langle M_k, \widehat W\rangle\), i.e. the energy of M_k within a
+  predefined network or motif.
+
+Because `mppi_fit` stores the basis and residuals, any such derived statistic
+can be computed without re-running the estimator.
+
+## Putting it all together
+
+1. **Design** with `fmridesign`/`fmrihrf` (or any GLM toolkit).
+2. **Fit** via `mppi()` (optionally specifying `basis`, `backend`, chunk sizes).
+3. **Inspect** subject-level results (print, summary, `mppi_get_M`, decoding
+   subspaces, partial deltas, HRF adapt, etc.).
+4. **Infer** with permutations (omnibus, edgewise, β-series, lagged).
+5. **Group** by pooling basis matrices (eBayes, energy tests), reconstructing
+   only the edges you need to report.
+
+Every step remains closed-form with deterministic seeding and memory-friendly
+operations, giving you an elegant, scalable Matrix-PPI workflow.

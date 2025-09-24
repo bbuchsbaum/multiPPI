@@ -1,0 +1,640 @@
+---
+title: "Encode/Recall multiPPI with parametric modulators"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Encode/Recall multiPPI with parametric modulators}
+  %\VignetteEngine{rmarkdown::render}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+if (!requireNamespace("multiPPI", quietly = TRUE)) {
+  stop("multiPPI must be installed to build this vignette.")
+}
+if (!requireNamespace("fmridesign", quietly = TRUE) ||
+    !requireNamespace("fmrihrf", quietly = TRUE)) {
+  knitr::knit_exit()
+}
+```
+
+## Paradigm overview
+
+This vignette demonstrates how **multiPPI** enables comprehensive analysis of
+dynamic functional connectivity in complex experimental designs. We analyze
+a simulated encode/recall memory paradigm that exemplifies the kind of rich,
+multi-factorial experiments common in cognitive neuroscience.
+
+### Experimental design and neuroscientific motivation
+
+The paradigm implements a 2 (task: encode vs. recall) × 11 (video identities)
+event-related design with 3-second trials. During encoding, participants view
+video stimuli and are instructed to remember them. During recall, participants
+retrieve memories of previously encoded videos and rate their vividness on a
+continuous scale.
+
+This design addresses fundamental questions about episodic memory and neural
+reinstatement. **Neural reinstatement** refers to the hypothesis that successful
+memory retrieval involves reactivating the same patterns of brain activity that
+were present during initial encoding. In connectivity terms, we expect that
+brain regions that coupled strongly during encoding of a particular stimulus
+will show similar coupling patterns when that stimulus is later recalled.
+
+The vividness rating provides a **parametric modulator** that allows us to test
+whether subjective memory strength correlates with the degree of connectivity
+reinstatement. This addresses whether more vivid memories show stronger
+reactivation of encoding-related connectivity patterns.
+
+### Analytical approach
+
+The multiPPI framework provides several complementary analyses for dissecting
+connectivity patterns in this paradigm:
+
+- **mppi_reinstatement()**: Quantifies similarity between encoding and recall connectivity patterns
+- **mppi_axes()**: Decomposes connectivity changes into gain and routing components
+- **mppi_modes()**: Identifies principal communication patterns across all conditions
+- **mppi_sdppi()**: Analyzes state-dependent connectivity at the trial level
+- **mppi_precision_gate()**: Examines effective connectivity in the precision domain
+
+These analyses collectively provide a comprehensive view of how functional
+connectivity patterns are modulated by memory encoding, retrieval, and
+subjective memory strength.
+
+## Mathematical and conceptual foundations
+
+### Matrix-PPI framework
+
+The **multiPPI** approach extends traditional seed-based psychophysiological
+interaction (PPI) analysis to a matrix framework that estimates condition-specific
+changes in functional connectivity without requiring a priori seed regions.
+
+For each experimental condition $k$, multiPPI estimates an **interaction matrix**
+$M_k$ that captures how the condition modulates pairwise connectivity relative
+to baseline. These matrices can be viewed in different scaling modes:
+
+- **Raw scale**: $M_k$ represents the change in covariance structure
+- **Normalized scale**: $\Delta\Sigma_k = \frac{M_k}{\text{tr}(\Sigma_0)}$ where $\Sigma_0$ is the baseline covariance
+- **Amplitude scale**: Matrices are scaled to unit Frobenius norm for pattern comparison
+
+### Domain options: BOLD, neural, and innovations
+
+multiPPI supports three complementary analysis domains:
+
+- **BOLD domain** (default) estimates connectivity changes directly in the
+  observed BOLD time series, yielding interaction matrices \(\Sigma_k = \Sigma_0 + M_k\)
+  where $\Sigma_0$ is the baseline covariance and $M_k$ captures condition
+  modulations.
+- **Neural domain** deconvolves the hemodynamic response function (HRF) to
+  approximate neural-level interactions, using discrete cosine transform (DCT)
+  bases with data-driven regularization to obtain sticks \(U_k = \mathrm{deconv}(Y_k, h)\).
+- **Innovations domain** whitenes the residuals and psychological modulators via
+  AR models (leveraging `fmriAR`), producing HRF-agnostic interaction estimates
+  well-suited for rapid exploratory passes or paradigms with uncertain HRF shape.
+
+The default baseline (BOLD) keeps the workflow simple, while the neural and
+innovations options can be activated via `domain = "neural"` or
+`domain = "innovations"` in the `mppi()` call.
+
+### Basis projection and dimensionality
+
+High-dimensional fMRI data benefits from projection to a lower-dimensional basis
+to improve statistical power and computational efficiency. Common approaches include:
+
+- **PCA basis**: Projects data to the top $r$ principal components of the baseline covariance
+- **ICA basis**: Uses independent component decomposition for spatial patterns
+- **Identity basis**: Retains original voxel space (for small, well-defined ROIs)
+
+The choice of basis dimension $r$ reflects a bias-variance tradeoff: larger $r$
+preserves more spatial information but may include noise; smaller $r$ provides
+better statistical power but may miss important patterns.
+
+### Statistical inference considerations
+
+Connectivity patterns are assessed using several complementary approaches:
+
+- **Permutation testing**: Null distributions generated by permuting trial labels
+- **Cross-validation**: Model performance assessed using held-out data
+- **Effect size estimation**: Standardized metrics for comparing connectivity magnitudes
+
+The multiPPI helper functions provide specialized summaries that address different
+aspects of connectivity analysis, from basic pattern identification to advanced
+state-dependent and precision-domain analyses.
+
+## Simulating the design and dataset
+
+### Design rationale and ground truth connectivity
+
+We generate two 200-TR runs (`TR = 1 s`) with realistic temporal structure and
+statistical properties. Each of the 22 conditions (11 encode + 11 recall) appears
+three times per run, providing sufficient power for connectivity estimation while
+maintaining manageable computational complexity.
+
+The simulation establishes **distinct ground truth connectivity patterns** for
+encoding and recall conditions:
+
+- **Encode trials**: Emphasize one set of latent coupling patterns (`encode_patterns`)
+- **Recall trials**: Emphasize different latent coupling patterns (`recall_patterns`)
+- **Vividness modulation**: Recall trials are scaled by vividness ratings, creating
+  a parametric relationship between subjective memory strength and connectivity magnitude
+
+This design allows us to test whether multiPPI analyses can successfully:
+1. Distinguish between encode and recall connectivity patterns
+2. Detect parametric modulation by behavioral measures
+3. Identify shared vs. distinct communication patterns across conditions
+
+### Statistical considerations and simulation parameters
+
+**Temporal structure**: Events are spaced 6 TRs apart with 3 TR duration, providing
+sufficient temporal separation to avoid overlap while maintaining realistic event
+density for cognitive experiments.
+
+**Latent dimensionality**: Neural activity is generated in a 10-dimensional latent
+space (`r = 10`), which is then projected to 80 voxels. This reflects the assumption
+that high-dimensional neural data arise from lower-dimensional coordinated patterns.
+
+**Noise characteristics**:
+- Base neural activity has modest variance (`sd = 0.08`) with stronger task-driven
+  modulations (`sd = 0.5` for coupling patterns, `sd = 0.9` for trial-level activity)
+- Measurement noise (`sd = 0.3`) is added after projection to voxel space
+- Signal-to-noise ratio is realistic for fMRI connectivity studies
+
+**Orthonormal projection**: The loading matrix uses QR decomposition to ensure
+orthonormal columns, preventing artificial correlations between voxels that would
+confound connectivity estimates.
+
+```{r simulate-data}
+library(multiPPI)
+library(fmridesign)
+library(fmridataset)
+set.seed(2024)
+
+# Design parameters ---------------------------------------------------------
+TR <- 1
+run_lengths <- c(200, 200)
+runs <- rep(seq_along(run_lengths), times = run_lengths)
+Tn <- length(runs)
+ids <- sprintf("%02d", 1:11)
+conditions <- c(paste0("enc_vid", ids), paste0("rec_vid", ids))
+
+# Build event table (duration = 3 TR) -------------------------------------
+make_onsets <- function(n_events, spacing, offset = 6L) {
+  offset + spacing * seq_len(n_events)
+}
+per_run_events <- length(conditions) * 3 / length(run_lengths)  # 33 per run
+stopifnot(per_run_events %% 1 == 0)
+
+onsets_run1 <- make_onsets(per_run_events, spacing = 6L)
+onsets_run2 <- make_onsets(per_run_events, spacing = 6L)
+
+trial_table <- expand.grid(task = c("enc", "rec"), id = ids, rep = seq_len(3L))
+trial_table$cond <- with(trial_table, paste0(task, "_vid", id))
+trial_table <- trial_table[sample(nrow(trial_table)), ]
+trial_table$run <- rep(c(1L, 2L), each = per_run_events)
+trial_table$onset <- ifelse(trial_table$run == 1L,
+                            onsets_run1,
+                            run_lengths[1] + onsets_run2)
+trial_table$duration <- 3L
+trial_table <- trial_table[order(trial_table$run, trial_table$onset), ]
+
+sf <- sampling_frame(blocklens = run_lengths, TR = TR)
+event_mod <- event_model(onset ~ hrf(cond), data = trial_table,
+                         block = ~ run, sampling_frame = sf)
+
+# Trial-wise vividness for recall events ----------------------------------
+vividness <- rep(0, Tn)
+rec_rows <- which(trial_table$task == "rec")
+rec_vivid <- runif(length(rec_rows), min = 0.4, max = 1)
+for (jj in seq_along(rec_rows)) {
+  onset <- trial_table$onset[rec_rows[jj]]
+  dur <- trial_table$duration[rec_rows[jj]]
+  idx <- onset + seq_len(dur) - 1L
+  idx <- idx[idx <= Tn]
+  vividness[idx] <- rec_vivid[jj]
+}
+
+# Baseline (drift + nuisance) ---------------------------------------------
+baseline_mod <- baseline_model(basis = "poly", degree = 3,
+                               sframe = sf)
+
+design_base <- mppi_model(event_mod, baseline_model = baseline_mod,
+                          runs = runs)
+
+# Simulate latent neural activity (r = 10) --------------------------------
+r <- 10
+U <- matrix(rnorm(Tn * r, sd = 0.08), Tn, r)
+encode_patterns <- matrix(rnorm(length(ids) * r, sd = 0.5), length(ids), r)
+recall_patterns <- matrix(rnorm(length(ids) * r, sd = 0.5), length(ids), r)
+colnames(encode_patterns) <- colnames(recall_patterns) <- paste0("mode", seq_len(r))
+
+for (ii in seq_len(nrow(trial_table))) {
+  onset <- trial_table$onset[ii]
+  dur <- trial_table$duration[ii]
+  idx <- onset + seq_len(dur) - 1L
+  idx <- idx[idx <= Tn]
+  id_idx <- match(trial_table$id[ii], ids)
+  base_drive <- rnorm(length(idx), sd = 0.9)
+  if (trial_table$task[ii] == "enc") {
+    pat <- encode_patterns[id_idx, ]
+    U[idx, ] <- U[idx, ] + outer(base_drive, pat)
+  } else {
+    pat <- recall_patterns[id_idx, ]
+    scale_factor <- 1 + vividness[idx]
+    U[idx, ] <- U[idx, ] + outer(base_drive * scale_factor, pat)
+  }
+}
+
+# Project to voxel space (V = 80) -----------------------------------------
+V <- 80
+loadings <- matrix(rnorm(V * r), V, r)
+loadings <- qr.Q(qr(loadings))
+Y <- U %*% t(loadings) + matrix(rnorm(Tn * V, sd = 0.3), Tn, V)
+
+fmri_ds <- fmridataset::matrix_dataset(datamat = Y, TR = TR, run_length = run_lengths)
+```
+
+## Fitting multiPPI with vividness modulators
+
+To span the full experimental space we combine the condition sticks with a
+set of recall-vividness modulators using `mppi_parametric()`. The resulting
+columns are appended to the design matrix before calling `mppi()` in the
+default BOLD domain with an automatic PCA basis (r = 25).
+
+```{r fit-mppi}
+# Condition main effects and vividness modulators -------------------------
+mods <- mppi_parametric(design_base, T = Tn,
+                        mods = list(vivid = vividness),
+                        select = "^cond_cond.rec",
+                        center = TRUE)
+
+design_info <- mppi_design(design_base, T = Tn)
+X_task <- cbind(design_info$S, do.call(cbind, mods))
+colnames(X_task) <- c(colnames(design_info$S), names(mods))
+
+base_mat <- design_info$nuisance
+if (!is.null(base_mat) && ncol(base_mat)) {
+  keep_cols <- !grepl('^constant_', colnames(base_mat))
+  base_mat <- base_mat[, keep_cols, drop = FALSE]
+}
+if (is.null(base_mat) || ncol(base_mat) == 0) {
+  X_design <- cbind(`(Intercept)` = 1, X_task)
+  psych_idx <- seq(2, ncol(X_design))
+} else {
+  X_design <- cbind(`(Intercept)` = 1, base_mat, X_task)
+  psych_idx <- seq(ncol(base_mat) + 2, ncol(X_design))
+}
+
+custom_design <- structure(list(
+  X = X_design,
+  psych_idx = psych_idx,
+  runs = design_info$runs
+), class = "mppi_design")
+
+fit <- mppi(fmri_ds, custom_design,
+            basis = list(type = "pca", r = 25),
+            domain = "bold",
+            scale = "cov")
+
+print(fit)
+```
+
+By construction the psychological regressors now include one column per condition
+(`cond_cond.enc_vid??`, `cond_cond.rec_vid??`) and one parametric column per recall condition
+(`cond_cond.rec_vid??::vivid`). When you need neural-domain estimates set
+`domain = "neural"` and provide a `deconv` list; for an HRF-agnostic alternative,
+use `domain = "innovations"`. The fit stores the relevant residual series
+(`fit$U`), residualised psychological vectors (`fit$pk`), and evidence summaries
+(`fit$evidence`), enabling all downstream helpers regardless of domain.
+
+## Comprehensive connectivity analysis with helper functions
+
+The multiPPI helper functions provide a comprehensive toolkit for analyzing
+different aspects of dynamic functional connectivity. Each function addresses
+specific questions about how brain networks are modulated by experimental
+conditions. We demonstrate these analyses with the encode/recall dataset,
+providing detailed explanations of each method's purpose, implementation, and
+interpretation.
+
+```{r helper-summaries}
+valid <- vapply(fit$Delta, function(M) !all(is.na(M)), logical(1))
+fit_sum <- fit
+fit_sum$Delta <- fit$Delta[valid]
+fit_sum$names <- fit$names[valid]
+fit_sum$pk <- fit$pk[valid]
+fit_sum$lagged <- fit$lagged[valid]
+if (!is.null(fit$variance)) fit_sum$variance <- fit$variance[valid]
+if (!is.null(fit$partial)) fit_sum$partial <- fit$partial[valid]
+fit_sum$denom <- fit$denom[valid]
+fit_sum$AIC_total <- fit$AIC_total[valid]
+if (!is.null(fit$BIC_total)) fit_sum$BIC_total <- fit$BIC_total[valid]
+fit_sum$evidence <- fit$evidence
+
+### Gain and routing decomposition with mppi_axes()
+
+**mppi_axes()** decomposes connectivity changes along two orthogonal dimensions
+that capture complementary aspects of network modulation:
+
+**Gain axis**: Measures whether condition-specific connectivity changes amplify
+or attenuate the brain's intrinsic connectivity structure. Gain is computed as
+the alignment between connectivity changes and the first eigenvector of the
+baseline covariance matrix:
+
+$$\text{gain} = \frac{v_1^T S_k v_1}{||S_k||_F}$$
+
+where $v_1$ is the dominant baseline connectivity pattern, $S_k = 0.5(M_k + M_k^T)$
+is the symmetrized interaction matrix, and the denominator normalizes by the
+matrix magnitude.
+
+**Routing axis**: Measures directional information flow by comparing forward
+and backward temporal interactions. Using lagged interaction matrices $M_k(\tau)$,
+routing is computed as:
+
+$$\text{routing} = \frac{E_+ - E_-}{E_+ + E_- + \epsilon}$$
+
+where $E_+ = \sum_{\tau>0} ||M_k(\tau)||_F$ (forward energy) and $E_- = \sum_{\tau<0} ||M_k(\tau)||_F$
+(backward energy).
+
+**Interpretation**: Positive gain indicates amplification of intrinsic patterns;
+negative gain indicates attenuation. Positive routing suggests feedforward
+processing; negative routing suggests feedback processing.
+
+# Gain vs routing summaries (condition rows only) -------------------------
+axes <- mppi_axes(fit_sum, lags = -2:2)
+head(subset(axes, grepl("^cond_cond.enc_vid", condition)))
+
+### Communication mode extraction with mppi_modes()
+
+**mppi_modes()** identifies the principal axes of communication across all
+experimental conditions by performing eigendecomposition of the aggregate
+interaction structure.
+
+**Algorithm**: The function computes an aggregate matrix from all condition-specific
+interaction matrices:
+
+$$A = \sum_k M_k M_k^T$$
+
+After symmetrization ($A = 0.5(A + A^T)$) and optional ridge regularization,
+eigendecomposition yields:
+
+$$A = W\Lambda W^T$$
+
+The top $r$ eigenvectors in $W$ represent the dominant **communication modes**—
+spatial patterns that explain the most variance across all connectivity changes.
+
+**Output**: Each condition's connectivity pattern is projected into this mode space:
+
+$$P_k = W^T M_k W$$
+
+This provides a low-dimensional representation that highlights how each condition
+utilizes the fundamental communication patterns.
+
+**Interpretation**: Mode eigenvalues indicate the variance explained by each
+spatial pattern. Conditions with similar projections $P_k$ engage similar
+communication patterns, while dissimilar projections indicate distinct
+network configurations.
+
+# Communication modes spanning the normalized interaction energy ---------
+modes <- mppi_modes(fit_sum, r = 6)
+colnames(modes$vectors)
+
+### Neural reinstatement analysis with mppi_reinstatement()
+
+**mppi_reinstatement()** tests the **neural reinstatement hypothesis**—that
+successful memory retrieval involves reactivating connectivity patterns that
+were present during initial encoding.
+
+**Algorithm**: For each stimulus identity, the function compares connectivity
+patterns between encoding and recall:
+
+1. **Extract patterns**: Identifies interaction matrices $M_{enc,i}$ and $M_{rec,i}$
+   for encoding and recall of identity $i$
+2. **Vectorize connectivity**: Converts lower triangular elements to vectors:
+   $\vec{m}_{enc,i}$ and $\vec{m}_{rec,i}$
+3. **Compute similarities**:
+   - **Within-identity**: $r_{within,i} = \text{corr}(\vec{m}_{enc,i}, \vec{m}_{rec,i})$
+   - **Between-identity**: $r_{between,ij} = \text{corr}(\vec{m}_{enc,i}, \vec{m}_{rec,j})$ for $i \neq j$
+4. **Reinstatement statistic**: $R = \text{mean}(r_{within}) - \text{mean}(r_{between})$
+
+**Interpretation**: Values near 1 indicate perfect reinstatement (encoding and
+recall patterns are identical within identities but unrelated between identities).
+Values near 0 indicate chance-level reinstatement. Negative values suggest
+systematic anti-reinstatement.
+
+**Biological significance**: High reinstatement indicates that brain networks
+reconfigure similarly during encoding and recall of the same content, supporting
+theories of memory as reactivation of encoding-related neural states.
+
+# Encode vs recall reinstatement (exclude parametric terms via pattern) ---
+reinstate <- mppi_reinstatement(fit_sum,
+                                enc_pattern = "^cond_cond.enc_vid",
+                                rec_pattern = "^cond_cond.rec_vid[0-9]{2}$")
+reinstate$stat
+
+### State-dependent connectivity with mppi_sdppi()
+
+**mppi_sdppi()** analyzes **state-dependent psychophysiological interactions**—how
+the brain's ongoing state immediately before an event influences connectivity
+changes during that event.
+
+**Conceptual framework**: Rather than treating each trial independently, this
+analysis recognizes that neural responses to stimuli are shaped by the brain's
+instantaneous configuration at stimulus onset. Different pre-event states may
+lead to different connectivity patterns for the same experimental condition.
+
+**Algorithm**: For each trial, the function:
+
+1. **Pre-event baseline**: Extracts neural activity in the window `[onset - pre_window, onset - 1]`
+2. **State characterization**: Computes features of the pre-event covariance structure:
+   - **Effective rank**: Dimensionality of ongoing activity
+   - **V1 dominance**: Alignment with the dominant connectivity pattern
+   - **Sign balance**: Proportion of positive vs. negative connections
+3. **Post-event connectivity**: Measures connectivity features during the trial:
+   - **Magnitude**: Overall connectivity strength
+   - **Gain/routing**: Alignment with intrinsic patterns and directional flow
+4. **Predictive analysis**: Models how pre-event state features predict post-event connectivity
+
+**Output**: Trial-level features that can be used for:
+- **State-connectivity relationships**: How brain state influences network dynamics
+- **Individual differences**: Subject-specific patterns of state-dependent connectivity
+- **Behavioral correlations**: Whether state-dependent connectivity relates to performance
+
+**Interpretation**: High predictive accuracy suggests that connectivity patterns
+are strongly influenced by ongoing brain dynamics, while low accuracy indicates
+more stimulus-driven, state-independent connectivity changes.
+
+# Trial-level state-dependent PPI metrics (recall conditions) -------------
+sd_recall <- mppi_sdppi(fit, design_base, select = "^cond_cond.rec_vid",
+                        pre_window = 8L, lags = -2:2)
+head(sd_recall)
+
+### Precision domain analysis with mppi_precision_gate()
+
+**mppi_precision_gate()** analyzes connectivity changes in the **precision domain**,
+providing insights into effective connectivity—the direct connections between
+brain regions after removing indirect effects.
+
+**Theoretical foundation**: While covariance-based connectivity (the default
+multiPPI analysis) captures all pairwise relationships, precision-based connectivity
+captures direct relationships. The precision matrix $\Theta$ is the inverse of
+the covariance matrix: $\Theta = \Sigma^{-1}$.
+
+**Algorithm**: For each condition $k$, the function computes precision perturbations:
+
+$$\Delta\Theta_k = -\Theta_0 M_k \Theta_0$$
+
+where $\Theta_0 = (\Sigma_0 + \lambda I)^{-1}$ is the baseline precision matrix
+and $\lambda$ is a ridge regularization parameter for numerical stability.
+
+**Key metrics**:
+1. **Total precision energy**: $||\Delta\Theta_k||_F$ measures the overall magnitude
+   of direct connectivity changes
+2. **Off-diagonal ratio**: $\frac{||\Delta\Theta_k^{off}||_1}{||\text{diag}(\Delta\Theta_k)||_1}$
+   compares between-region coupling changes to within-region variance changes
+
+**Interpretation**:
+- **High total energy**: Condition strongly modulates direct connections
+- **High off-diagonal ratio**: Changes primarily affect between-region coupling
+  rather than regional variance
+- **Low off-diagonal ratio**: Changes primarily affect within-region properties
+
+**Biological significance**: Precision gating reveals how experimental conditions
+selectively modulate specific connections in the network while leaving others
+unchanged, providing insights into the targeted nature of cognitive control and
+attention mechanisms.
+
+# Precision gating summaries ---------------------------------------------
+prec_gate <- mppi_precision_gate(fit_sum)
+head(prec_gate$summary)
+
+### Model evidence with mppi_evidence()
+
+To quantify how much the PPI regressors improve model fit relative to the
+task-only baseline, call `mppi_evidence()`. Positive ΔAIC/ΔBIC values indicate
+additional explanatory power from the interaction terms.
+
+```{r evidence}
+ev <- mppi_evidence(fit)
+head(ev$per_column[, c("component", "delta_AIC", "delta_BIC")])
+ev$aggregate
+```
+
+## Results interpretation and statistical considerations
+
+The multiPPI analyses provide complementary views of connectivity patterns that
+should be interpreted in conjunction with each other and with knowledge of the
+experimental design.
+
+### Expected results for the encode/recall paradigm
+
+Given the simulated ground truth, we expect the following patterns:
+
+**Gain and routing (mppi_axes)**:
+- **Encode conditions**: May show positive gain (amplification of intrinsic patterns)
+  as encoding processes engage widespread network coupling
+- **Recall conditions**: Routing patterns may differ from encoding due to different
+  information flow requirements (retrieval vs. consolidation)
+- **Vividness effects**: Higher vividness recall trials should show stronger
+  connectivity magnitudes
+
+**Communication modes (mppi_modes)**:
+- Mode eigenvalues should show a few dominant patterns explaining most variance
+- Encode and recall conditions should project differently in mode space,
+  reflecting distinct communication strategies
+- Within-task conditions (different video identities) should cluster together
+
+**Neural reinstatement (mppi_reinstatement)**:
+- Positive reinstatement statistic indicates successful pattern reactivation
+- Values > 0.3 typically indicate meaningful reinstatement in real data
+- The pattern should be stronger for more vivid recalls if the simulation is realistic
+
+**State-dependent connectivity (mppi_sdppi)**:
+- Trial-level variability in connectivity features provides insights into
+  individual trial dynamics
+- Correlations with behavioral measures (vividness) can validate the analysis
+- High effective rank indicates complex, distributed pre-event states
+
+**Precision gating (mppi_precision_gate)**:
+- Off-diagonal ratios > 1 indicate that connectivity changes dominate variance changes
+- Precision energy should be higher for conditions with stronger ground-truth patterns
+
+### Statistical significance and effect sizes
+
+**Multiple comparisons**: With 22 conditions plus parametric modulators, consider
+correction for multiple testing when making statistical inferences.
+
+**Effect size interpretation**:
+- **Reinstatement**: Values > 0.2 indicate small effects; > 0.5 indicate large effects
+- **Gain/routing**: Values should be interpreted relative to the range [-1, 1]
+- **Mode projections**: Compare magnitudes across conditions rather than absolute values
+
+**Cross-validation**: For real data, use permutation testing or cross-validation
+to establish statistical significance and avoid overfitting.
+
+## Integration with broader analysis pipelines
+
+The multiPPI framework provides a comprehensive foundation for connectivity analysis
+that integrates naturally with other neuroimaging approaches.
+
+### Group-level analysis strategies
+
+**Subject-level summaries**: Each analysis produces subject-specific metrics that
+can be aggregated across participants:
+
+```r
+# Example group-level analysis workflow (not executed here)
+group_reinstatement <- data.frame(
+  subject = rep(1:N_subjects, each = 1),
+  reinstatement = sapply(subject_fits, function(fit) {
+    mppi_reinstatement(fit, enc_pattern = "...", rec_pattern = "...")$stat
+  })
+)
+
+# Group-level statistical test
+t.test(group_reinstatement$reinstatement, mu = 0)
+```
+
+**Hierarchical modeling**: Trial-level features from `mppi_sdppi()` can be analyzed
+using mixed-effects models to account for within-subject dependencies:
+
+```r
+# Mixed-effects analysis of state-dependent connectivity
+library(lme4)
+model <- lmer(magnitude ~ vividness + (1|subject), data = trial_features)
+```
+
+### Integration with other methods
+
+**Complementary to activation analysis**: multiPPI connectivity measures complement
+traditional GLM activation analysis by revealing how regions coordinate rather
+than just which regions activate.
+
+**Dynamic connectivity**: multiPPI can be combined with sliding-window or other
+dynamic connectivity approaches to examine temporal evolution of network states.
+
+**Machine learning**: Connectivity features can serve as inputs to classification
+or regression models for predicting behavior or clinical outcomes.
+
+### Validation and quality control
+
+**Simulation validation**: The ground-truth simulation approach demonstrated here
+provides a template for validating analysis pipelines with known connectivity patterns.
+
+**Cross-modal validation**: Connectivity patterns should relate to anatomical
+connectivity (diffusion MRI) and to behavioral measures in theoretically
+meaningful ways.
+
+**Reproducibility**: Use consistent seed values, cross-validation schemes, and
+standardized preprocessing to ensure reproducible results across studies.
+
+### Computational considerations
+
+**Memory management**: For large datasets, consider using the chunked processing
+options in multiPPI to manage memory usage.
+
+**Parallel processing**: Most multiPPI analyses can benefit from parallel computing
+for multiple subjects or conditions.
+
+**Basis selection**: The choice of basis dimension involves a bias-variance tradeoff
+that should be validated using held-out data or cross-validation.

@@ -1,0 +1,185 @@
+---
+title: "Resting-State Trait Analyses with multiPPI"
+author: "multiPPI team"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Resting-State Trait Analyses with multiPPI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+suppressPackageStartupMessages({
+  library(multiPPI)
+  library(ggplot2)
+  library(dplyr)
+})
+```
+
+## Overview
+
+This vignette demonstrates how to analyze resting-state data for trait-level
+inference using **multiPPI**. We will:
+
+1. Simulate a cohort of resting datasets with known trait effects using the
+   `mppi_sim_rest_*` helpers.
+2. Fit `mppi_rest()` for each subject with endogenous modulators.
+3. Extract Gain/Routing/mode features via `mppi_rest_features()` and link them to
+   the trait with a simple cross-validated model.
+4. Visualize trait predictions and inspect state-specific coupling patterns.
+
+All analyses run entirely in the low-rank basis returned by `mppi_rest()`, so
+scaling and reproducibility are controlled by default.
+
+## 1. Simulate Resting Cohort with Trait Effects
+
+We generate ten subjects with a latent trait that modulates the coupling strength
+of one endogenous context (`ctx1`). The helper returns both the simulated data
+and the ground truth subject-level amplitudes.
+
+```{r simulate-cohort}
+set.seed(1123)
+cohort <- mppi_sim_rest_cohort(n_subj = 10,
+                               contexts = c("ctx1", "ctx2"),
+                               amp_base = c(0.30, 0.25),
+                               trait_effect = c(0.6, 0.0),
+                               amp_noise = 0.02,
+                               obs_noise = 0.01,
+                               T = 800,
+                               V = 60,
+                               r = 6)
+
+str(cohort$trait)
+cohort$amplitudes[1:5, ]
+```
+
+The `trait` vector is scaled (mean zero, unit variance) and linearly modulates
+the amplitude of `ctx1`. Context `ctx2` acts as a control without trait
+influence.
+
+## 2. Fit Resting multiPPI per Subject
+
+We now run `mppi_rest()` on each simulated subject. The datasets returned by the
+simulator already include precomputed low-rank loadings (`loadings`) and the
+modulators used to generate the coupling (`modulators`). Passing them directly
+into the wrapper avoids recomputation.
+
+```{r fit-rest}
+fits <- lapply(cohort$datasets, function(ds) {
+  mppi_rest(ds$Y,
+            modulators = ds$modulators,
+            basis = ds$loadings,
+            prewhiten = FALSE,
+            domain = "bold")
+})
+
+fits[[1]]
+```
+
+Each `mppi_fit` stores the interaction matrices (`Delta`) for every context along
+with metadata (domain, basis rank, lagged variants). We can inspect an example:
+
+```{r inspect-delta}
+delta_1 <- fits[[1]]$Delta[["ctx1"]]
+round(delta_1[1:5, 1:5], 3)
+```
+
+## 3. Derive Trait Features and Model the Trait
+
+We summarize each fit using `mppi_rest_features()`, which returns a tidy table of
+Gain (`G`), Routing (`R`), and mode magnitude (`mag`) per context and subject.
+
+For the simple trait model we use the mean features per subject and run
+`mppi_rest_trait_cv()`, a light ridge regression with 5-fold cross-validation.
+
+```{r trait-features}
+feat_long <- mppi_rest_features(fits, aggregate = "none")
+head(feat_long)
+
+feat_mean <- mppi_rest_features(fits, aggregate = "mean")
+feat_mean
+
+cv_out <- mppi_rest_trait_cv(feat_long, y = setNames(cohort$trait, seq_along(fits)), k = 5)
+cv_out$cv_r2
+```
+
+Cross-validated $R^2$ quantifies how much variance in the trait is explained by
+our normalized coupling features. We can visualize predicted vs observed trait
+values:
+
+```{r trait-plot, fig.height=4}
+pred_df <- data.frame(
+  subj = as.integer(names(cv_out$pred)),
+  observed = cv_out$observed,
+  predicted = cv_out$pred
+)
+
+ggplot(pred_df, aes(observed, predicted)) +
+  geom_point(size = 3) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+  labs(title = "Cross-validated trait prediction",
+       x = "Observed trait",
+       y = "Predicted trait") +
+  theme_minimal()
+```
+
+## 4. Inspect Context-Specific Coupling Patterns
+
+Because we know the ground-truth coupling templates from the simulator, we can
+compare recovered interaction matrices against the truth. `mppi_sim_rest_dataset`
+stashes the normalized templates under `truth$coupling`.
+
+```{r compare-coupling}
+truth_ctx1 <- cohort$datasets[[1]]$truth$coupling[["ctx1"]]
+recovered_ctx1 <- fits[[1]]$Delta[["ctx1"]]
+
+cor(as.vector(truth_ctx1), as.vector(recovered_ctx1))
+```
+
+The high correlation indicates that multiPPI recovers the context-conditioned
+interaction pattern in the low-rank space. We can also visualize the heatmap for
+one subject:
+
+```{r heatmap, fig.height=4}
+mat_df <- as.data.frame(as.table(recovered_ctx1))
+colnames(mat_df) <- c("row", "col", "value")
+
+ggplot(mat_df, aes(row, col, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "C") +
+  coord_equal() +
+  labs(title = "Recovered coupling matrix (ctx1)", x = "Component", y = "Component") +
+  theme_minimal()
+```
+
+## 5. Extending to Real Data
+
+For real resting-state datasets, the workflow follows the same structure:
+
+1. Construct or load an `fmri_dataset` and select a basis (`basis = list(type = "pca", r = 100)` is a good default).
+2. Let `mppi_rest()` build endogenous modulators using families such as
+   `states`, `bursts`, and `envelopes` (set `include = ...`).
+3. Extract subject-level features via `mppi_rest_features()` and model the trait
+   with `mppi_rest_trait_cv()` or a custom pipeline.
+4. Optionally back-project `Delta` matrices to ROI/voxel maps using existing
+   helpers to interpret spatial patterns.
+
+Because multiPPI forms interactions in the low-rank neural or innovations domain
+and normalizes outputs, the features are robust to between-subject scaling
+differences—an essential property for trait studies.
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
