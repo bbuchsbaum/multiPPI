@@ -8,7 +8,7 @@ mppi_fit_from_fmrireg(
   fmodel,
   dataset,
   psych,
-  scale = c("cov", "corr"),
+  scale = c("normalized", "cov", "corr"),
   zero_diag = TRUE,
   runs = NULL,
   center_by = c("none", "run"),
@@ -19,7 +19,7 @@ mppi_fit_from_fmrireg(
   basis = NULL,
   project_backend = c("blas", "chunked"),
   project_chunk_cols = NULL,
-  domain = c("bold", "neural"),
+  domain = c("neural", "bold", "innovations"),
   deconv = NULL,
   lags = 0L,
   lag_blocklens = NULL
@@ -32,7 +32,7 @@ mppi_fit_from_fmrireg(
 
 \item{psych}{regex patterns or indices}
 
-\item{scale}{"cov" or "corr"}
+\item{scale}{"normalized", "cov", or "corr"}
 }
 \description{
 Convenience wrapper when using fmrireg objects

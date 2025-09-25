@@ -2,18 +2,32 @@
 % Please edit documentation in R/mppi_viz.R
 \name{mppi_modes}
 \alias{mppi_modes}
-\title{Leading eigenmodes of ΔΣ}
+\title{Leading eigenmodes of interaction structure}
 \usage{
-mppi_modes(Delta, r = 3L)
+mppi_modes(
+  Delta,
+  r = 3L,
+  view = c("normalized", "raw", "amplitude"),
+  penalty = c("none", "ridge"),
+  lambda = 1e-04
+)
 }
 \arguments{
-\item{Delta}{matrix VxV}
+\item{Delta}{interaction matrix or \code{mppi_fit}}
 
-\item{r}{number of modes}
+\item{r}{number of modes to retain}
+
+\item{view}{scale view when \code{Delta} is an \code{mppi_fit}}
+
+\item{penalty}{aggregate penalty for the communication subspace}
+
+\item{lambda}{ridge strength when \code{penalty = "ridge"}}
 }
 \value{
-list with values and vectors
+list containing eigenvalues/vectors and, for fits, per-condition projections
 }
 \description{
-Leading eigenmodes of ΔΣ
+For matrix inputs the symmetric eigenmodes are returned. When supplied with an
+\code{mppi_fit}, the communication subspace across conditions is estimated using the
+requested scale view and optional ridge penalty.
 }

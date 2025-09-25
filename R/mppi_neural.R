@@ -125,35 +125,81 @@ mppi_neural_from_fit <- function(fit, X, psych_idx, h, K = NULL,
   if (!is.null(fit$basis)) {
     if (is.null(fit$Z)) stop("fit must store basis residuals in $Z for conversion.")
     U <- mppi_deconv_dct(fit$Z, h = h, K = K, method = method, lambda = lambda)$U
+    sigma <- matrixStats::colSds(U)
+    sigma[sigma < 1e-12] <- 1e-12
     out <- fit
-    out$Delta <- lapply(seq_len(ncol(S)), function(ii) {
+    delta_list <- vector("list", ncol(S))
+    raw_list <- vector("list", ncol(S))
+    amp_list <- vector("list", ncol(S))
+    norm_list <- vector("list", ncol(S))
+    for (ii in seq_len(ncol(S))) {
       denom <- sum(S[, ii]^2)
-      if (denom < .Machine$double.eps) matrix(NA_real_, ncol(fit$Z), ncol(fit$Z)) else {
-        Mk <- crossprod(U, S[, ii] * U) / denom
-        diag(Mk) <- 0
-        Mk
+      Mk <- if (denom < .Machine$double.eps) matrix(NA_real_, ncol(fit$Z), ncol(fit$Z)) else {
+        out_mat <- crossprod(U, S[, ii] * U) / denom
+        diag(out_mat) <- 0
+        out_mat
       }
-    })
+      raw_list[[ii]] <- Mk
+      amp_list[[ii]] <- if (all(is.na(Mk))) Mk else .mppi_scale_matrix(Mk, sigma, "amplitude")
+      norm_list[[ii]] <- if (all(is.na(Mk))) Mk else .mppi_scale_matrix(Mk, sigma, "normalized")
+      selected <- switch(fit$scale,
+                         normalized = norm_list[[ii]],
+                         corr = norm_list[[ii]],
+                         cov = Mk,
+                         Mk)
+      attr(selected, "raw") <- Mk
+      attr(selected, "amplitude") <- amp_list[[ii]]
+      attr(selected, "normalized") <- norm_list[[ii]]
+      delta_list[[ii]] <- selected
+    }
+    out$Delta <- delta_list
     out$names <- ps$names
     out$U <- U
     out$pk <- lapply(seq_len(ncol(S)), function(ii) S[, ii])
+    out$Delta_raw <- raw_list
+    out$Delta_amplitude <- amp_list
+    out$Delta_normalized <- norm_list
+    out$sigma <- sigma
     out$domain <- "neural"
     out
   } else {
     if (is.null(fit$R)) stop("fit must store residuals in $R for conversion.")
     Ufull <- mppi_deconv_dct(fit$R, h = h, K = K, method = method, lambda = lambda)$U
+    sigma <- matrixStats::colSds(Ufull)
+    sigma[sigma < 1e-12] <- 1e-12
     out <- fit
-    out$Delta <- lapply(seq_len(ncol(S)), function(ii) {
+    delta_list <- vector("list", ncol(S))
+    raw_list <- vector("list", ncol(S))
+    amp_list <- vector("list", ncol(S))
+    norm_list <- vector("list", ncol(S))
+    for (ii in seq_len(ncol(S))) {
       denom <- sum(S[, ii]^2)
-      if (denom < .Machine$double.eps) matrix(NA_real_, ncol(fit$R), ncol(fit$R)) else {
-        Dk <- crossprod(Ufull, S[, ii] * Ufull) / denom
-        diag(Dk) <- 0
-        Dk
+      Mk <- if (denom < .Machine$double.eps) matrix(NA_real_, ncol(fit$R), ncol(fit$R)) else {
+        out_mat <- crossprod(Ufull, S[, ii] * Ufull) / denom
+        diag(out_mat) <- 0
+        out_mat
       }
-    })
+      raw_list[[ii]] <- Mk
+      amp_list[[ii]] <- if (all(is.na(Mk))) Mk else .mppi_scale_matrix(Mk, sigma, "amplitude")
+      norm_list[[ii]] <- if (all(is.na(Mk))) Mk else .mppi_scale_matrix(Mk, sigma, "normalized")
+      selected <- switch(fit$scale,
+                         normalized = norm_list[[ii]],
+                         corr = norm_list[[ii]],
+                         cov = Mk,
+                         Mk)
+      attr(selected, "raw") <- Mk
+      attr(selected, "amplitude") <- amp_list[[ii]]
+      attr(selected, "normalized") <- norm_list[[ii]]
+      delta_list[[ii]] <- selected
+    }
+    out$Delta <- delta_list
     out$names <- ps$names
     out$U <- Ufull
     out$pk <- lapply(seq_len(ncol(S)), function(ii) S[, ii])
+    out$Delta_raw <- raw_list
+    out$Delta_amplitude <- amp_list
+    out$Delta_normalized <- norm_list
+    out$sigma <- sigma
     out$domain <- "neural"
     out
   }

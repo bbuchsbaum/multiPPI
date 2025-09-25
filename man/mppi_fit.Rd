@@ -10,7 +10,7 @@ mppi_fit(
   psych_idx,
   runs = NULL,
   zero_diag = TRUE,
-  scale = c("cov", "corr"),
+  scale = c("normalized", "cov", "corr"),
   center_by = c("none", "run"),
   na_action = c("omit_tr", "error"),
   backend = c("blas", "accumulate", "chunked"),
@@ -19,7 +19,7 @@ mppi_fit(
   basis = NULL,
   project_backend = c("blas", "chunked"),
   project_chunk_cols = NULL,
-  domain = c("bold", "neural"),
+  domain = c("bold", "neural", "innovations"),
   deconv = NULL,
   lags = 0L,
   lag_blocklens = NULL

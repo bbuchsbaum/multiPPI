@@ -3,7 +3,7 @@ Type: Package
 Title: Seedless Task-Modulated Connectivity (Matrix-PPI) for fMRI
 Version: 0.1.0
 Authors@R: 
-    c(person(given="Johnny", family="", role=c("aut","cre"), email="johnny@example.org"))
+    c(person(given="Brad", family="Buchsbaum", role=c("aut","cre"), email="brad.buchsbaum@gmail.com"))
 Description: Closed-form, seedless psychophysiological interactions (Matrix-PPI)
     with fast per-regressor slope matrices, lagged/directed variants, HRF-adaptive
     weights, permutation inference, partial connectivity updates, and bridges to

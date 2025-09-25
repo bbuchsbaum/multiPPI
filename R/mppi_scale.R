@@ -15,12 +15,26 @@
   mode <- match.arg(mode, c("raw", "amplitude", "normalized"))
   if (mode == "raw") return(M)
   if (is.null(sigma)) stop("Scale factors unavailable for rescaling interaction matrix.", call. = FALSE)
-  Sinv <- diag(1 / sigma, length(sigma), length(sigma))
+  stopifnot(is.matrix(M), ncol(M) == length(sigma), nrow(M) == length(sigma))
+  sigma <- as.numeric(sigma)
+  sigma[!is.finite(sigma) | sigma < 1e-12] <- 1e-12
   if (mode == "amplitude") {
-    M %*% Sinv
-  } else {
-    Sinv %*% M %*% Sinv
+    return(sweep(M, 2, sigma, "/"))
   }
+  sweep(sweep(M, 1, sigma, "/"), 2, sigma, "/")
+}
+
+.mppi_convert_scale <- function(M, sigma, from, to) {
+  from <- match.arg(from, c("raw", "amplitude", "normalized"))
+  to <- match.arg(to, c("raw", "amplitude", "normalized"))
+  if (from == to) return(M)
+  if (is.null(sigma)) stop("Scale conversion requires column standard deviations.", call. = FALSE)
+  raw <- switch(from,
+                raw = M,
+                amplitude = sweep(M, 2, sigma, `*`),
+                normalized = sweep(sweep(M, 1, sigma, `*`), 2, sigma, `*`))
+  if (to == "raw") return(raw)
+  .mppi_scale_matrix(raw, sigma, to)
 }
 
 #' Retrieve an interaction matrix in a selected scale

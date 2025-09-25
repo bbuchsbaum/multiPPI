@@ -12,13 +12,14 @@ mppi_fit_whitened(
   ar_method = "ar",
   p = "auto",
   zero_diag = TRUE,
-  scale = c("cov", "corr"),
+  scale = c("normalized", "cov", "corr"),
   center_by = c("none", "run"),
   na_action = c("omit_tr", "error"),
   backend = c("blas", "accumulate", "chunked"),
   chunk_size = NULL,
   packed = FALSE,
   basis = NULL,
+  domain = c("neural", "bold"),
   project_backend = c("blas", "chunked"),
   project_chunk_cols = NULL,
   lags = 0L,
@@ -26,15 +27,50 @@ mppi_fit_whitened(
 )
 }
 \arguments{
-\item{Y}{T x V data}
+\item{Y}{Numeric matrix of observed time series (T x V).}
 
-\item{X}{T x q design}
+\item{X}{Numeric design matrix (T x q).}
 
-\item{runs}{vector of run labels (length T)}
+\item{runs}{Integer or factor vector of run labels (length T).}
 
-\item{psych_idx}{indices of psychological columns}
+\item{psych_idx}{Integer vector of psychological column indices within \code{X}.}
 
-\item{ar_method}{"ar" or "arma"; @param p AR order or "auto"}
+\item{ar_method}{String selecting AR noise model (\code{"ar"} or \code{"arma"}).}
+
+\item{p}{AR order or \code{"auto"} when delegating to \code{fmriAR::fit_noise()}.}
+
+\item{zero_diag}{Logical; zero the diagonal of each interaction matrix.}
+
+\item{scale}{Output scale for interaction matrices (\code{"normalized"},
+\code{"cov"}, or \code{"corr"}).}
+
+\item{center_by}{Strategy for centering psychological regressors
+(\code{"none"} or \code{"run"}).}
+
+\item{na_action}{Behaviour when encountering missing data (\code{"omit_tr"}
+drops time points, \code{"error"} aborts).}
+
+\item{backend}{Computational backend for crossproducts (\code{"blas"},
+\code{"accumulate"}, or \code{"chunked"}).}
+
+\item{chunk_size}{Optional integer chunk size when using chunked backend.}
+
+\item{packed}{Logical; request packed upper-triangular storage when
+supported.}
+
+\item{basis}{Optional \code{mppi_basis} object for projecting into a subspace.}
+
+\item{domain}{Domain for the fit (\code{"neural"} or \code{"bold"}).}
+
+\item{project_backend}{Backend for projecting residuals into the basis.}
+
+\item{project_chunk_cols}{Chunk width for column-wise projection when
+\code{project_backend = "chunked"}.}
+
+\item{lags}{Integer vector of lags to include (defaults to \code{0L}).}
+
+\item{lag_blocklens}{Optional integer vector of block lengths for lagged
+fits.}
 }
 \description{
 mPPI with fmriAR prewhitening

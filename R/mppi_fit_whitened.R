@@ -1,11 +1,33 @@
 # Prewhitened estimator (fmriAR) ------------------------------------------
 
 #' mPPI with fmriAR prewhitening
-#' @param Y T x V data
-#' @param X T x q design
-#' @param runs vector of run labels (length T)
-#' @param psych_idx indices of psychological columns
-#' @param ar_method "ar" or "arma"; @param p AR order or "auto"
+#'
+#' @param Y Numeric matrix of observed time series (T x V).
+#' @param X Numeric design matrix (T x q).
+#' @param runs Integer or factor vector of run labels (length T).
+#' @param psych_idx Integer vector of psychological column indices within `X`.
+#' @param ar_method String selecting AR noise model (`"ar"` or `"arma"`).
+#' @param p AR order or `"auto"` when delegating to `fmriAR::fit_noise()`.
+#' @param zero_diag Logical; zero the diagonal of each interaction matrix.
+#' @param scale Output scale for interaction matrices (`"normalized"`,
+#'   `"cov"`, or `"corr"`).
+#' @param center_by Strategy for centering psychological regressors
+#'   (`"none"` or `"run"`).
+#' @param na_action Behaviour when encountering missing data (`"omit_tr"`
+#'   drops time points, `"error"` aborts).
+#' @param backend Computational backend for crossproducts (`"blas"`,
+#'   `"accumulate"`, or `"chunked"`).
+#' @param chunk_size Optional integer chunk size when using chunked backend.
+#' @param packed Logical; request packed upper-triangular storage when
+#'   supported.
+#' @param basis Optional `mppi_basis` object for projecting into a subspace.
+#' @param domain Domain for the fit (`"neural"` or `"bold"`).
+#' @param project_backend Backend for projecting residuals into the basis.
+#' @param project_chunk_cols Chunk width for column-wise projection when
+#'   `project_backend = "chunked"`.
+#' @param lags Integer vector of lags to include (defaults to `0L`).
+#' @param lag_blocklens Optional integer vector of block lengths for lagged
+#'   fits.
 mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               ar_method = "ar", p = "auto",
                               zero_diag = TRUE, scale = c("normalized","cov","corr"),

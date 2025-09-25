@@ -9,6 +9,14 @@ mppi_deconv_map <- function(Y, h, lambda) {
     .Call(`_multiPPI_mppi_deconv_map`, Y, h, lambda)
 }
 
+ewm_gated_cross_rcpp <- function(U, PK, eta, offsets, normalized = TRUE, blocklens = integer()) {
+    .Call(`_multiPPI_ewm_gated_cross_rcpp`, U, PK, eta, offsets, normalized, blocklens)
+}
+
+inst_corr_rcpp <- function(x, y, tau_half, offset = 0L, warmup = -1L, fill = "zero") {
+    .Call(`_multiPPI_inst_corr_rcpp`, x, y, tau_half, offset, warmup, fill)
+}
+
 ppi_batch_cpp <- function(U, G, lags, blocklens = integer()) {
     .Call(`_multiPPI_ppi_batch_cpp`, U, G, lags, blocklens)
 }

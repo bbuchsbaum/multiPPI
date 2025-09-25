@@ -198,6 +198,57 @@ The neural helpers `mppi_psych_neural_from_X()`, `mppi_neural_from_fit()`,
 `mppi_routing_index()` are exported for standalone analyses and share the same
 defaults as the core fitter.
 
+## Instantaneous engine (iPPI)
+
+When you want run-wise "instantaneous" coupling estimates, switch the core
+estimator by setting `engine = "instant"`. The instantaneous engine operates in
+the same S3 flow, returning an `mppi_fit` object whose `Delta`, `lagged`, and
+seedset helpers all work as before.
+
+```{r instant, eval = FALSE}
+# Exponentially-weighted moving correlation (EWM) with half-life 12 TRs
+fit_ewm <- mppi(ev, Y = Y_matrix, base = base,
+                runs = run_labels, prewhiten = TRUE,
+                engine = "instant",
+                instant = list(method = "ewm",
+                                tau_half = 12,
+                                offsets = 0:2))
+
+# Retrieve contemporaneous and lagged slopes
+M0 <- mppi_get_M(fit_ewm, 1)
+M1 <- mppi_get_M_lag(fit_ewm, 1, lag = 1)
+
+# Mean seed -> brain slope at lag +1
+seed_mean <- mppi_seed_slopes(fit_ewm, seeds = c("hippocampus_L", "hippocampus_R"),
+                              k = 1, collapse = "mean", lag = 1)
+
+# Instantaneous phase synchrony (IPHS) variant with analytic-signal phases
+fit_iphs <- mppi(ev, Y = Y_matrix, base = base,
+                 runs = run_labels, prewhiten = TRUE,
+                 engine = "instant",
+                 instant = list(method = "iphs",
+                                 band = c(0.03, 0.07),
+                                 tau_half = 10))
+```
+
+Key points:
+
+- **Same output surface** – the fit carries `Delta`, `lagged`, `Sigma0`, and
+  seedset helpers, so group pipelines and permutation tests continue to work.
+- **Offsets control lag structure** – `instant$offsets = -2:2` computes
+  contemporaneous and lagged slopes; retrieve them via `mppi_get_M_lag()`.
+- **Two estimators** – `method = "ewm"` streams exponentially-weighted
+  cross-moments (good for routing analyses); `method = "iphs"` band-limits and
+  tracks instantaneous phase synchrony. Both honour the same basis and
+  prewhitening options.
+- **Diagnostics** – `inst_corr()` provides an exponentially-weighted seed pair
+  correlation series for quick QC.
+
+Because the engine still lives in low rank (basis) space, `mppi_axes()`,
+`mppi_modes()`, `mppi_seedset_*()` and group summaries remain compatible. Use
+`instant = list(fs = 1/TR)` if your dataset lacks timing metadata for the IPHS
+bandpass. 
+
 When HRF shape is uncertain or a rapid fallback is needed, set
 `domain = "innovations"` to whiten the residual time-series and
 psychological modulators via AR models (leveraging `fmriAR`). This produces
@@ -313,6 +364,40 @@ component matrices:
 
 Because `mppi_fit` stores the basis and residuals, any such derived statistic
 can be computed without re-running the estimator.
+
+When subjects are fit with subject-specific PCA bases, rotate each fit into a
+shared reference basis before stacking:
+
+```{r group-align, eval = FALSE}
+# Choose a reference basis (atlas, group PCA, ...)
+ref_basis <- as_mppi_basis(group_pca_loadings, name = "groupPCA200")
+
+# Align every subject into the shared space
+fits_aligned <- lapply(fits_subject_specific, function(fit) {
+  mppi_align_fit_basis(fit, ref_basis)
+})
+
+# Stack and run limma/GLM inference
+stacked <- mppi_stack(fits_aligned, k = "hrf(condA)")
+design <- cbind(Intercept = 1, group = group_codes, covar = covariate_z)
+
+edge_table <- mppi_group_glm(stacked,
+                             design = design,
+                             method = "limma",
+                             contrast = c(0, 1, 0))
+
+# CRAN-only alternative using adaptive shrinkage
+ash_table <- mppi_group_ashr(stacked,
+                             design = design,
+                             coef = "group")
+```
+
+`mppi_group_ashr()` relies on the CRAN package `ashr` to deliver moderated
+estimates and local FDR/FDR metrics without requiring Bioconductor. Pass a
+numeric vector to `contrast` when you need custom contrasts.
+
+If you only need the orthogonal rotation between two bases (for example, to
+align eigenvectors or templates), use `mppi_align_basis()` directly.
 
 ## Putting it all together
 

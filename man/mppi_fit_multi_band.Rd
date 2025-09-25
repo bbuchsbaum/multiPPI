@@ -10,7 +10,7 @@ mppi_fit_multi_band(
   psych_idx,
   bands,
   zero_diag = TRUE,
-  scale = c("cov", "corr")
+  scale = c("normalized", "cov", "corr")
 )
 }
 \arguments{

@@ -8,9 +8,15 @@ mppi <- function(x, ...) {
 #' @export
 mppi.matrix <- function(x, X, psych_idx, runs = NULL, prewhiten = FALSE,
                         basis = NULL, domain = c("bold","neural","innovations"),
-                        deconv = NULL, lags = 0L, lag_blocklens = NULL, ...) {
+                        deconv = NULL, lags = 0L, lag_blocklens = NULL,
+                        engine = c("closed", "instant"), instant = list(), ...) {
   domain <- match.arg(domain)
-  if (prewhiten) {
+  engine <- match.arg(engine)
+  if (identical(engine, "instant")) {
+    res <- mppi_instant_fit(Y = x, X = X, psych_idx = psych_idx, runs = runs,
+                            prewhiten = prewhiten, basis = basis, domain = domain,
+                            deconv = deconv, instant = instant, ...)
+  } else if (prewhiten) {
     if (is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.")
     res <- mppi_fit_whitened(Y = x, X = X, runs = runs, psych_idx = psych_idx,
                              basis = basis, domain = domain, deconv = deconv,
@@ -26,9 +32,11 @@ mppi.matrix <- function(x, X, psych_idx, runs = NULL, prewhiten = FALSE,
 #' @export
 mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
                              basis = NULL, domain = c("bold","neural","innovations"),
-                             deconv = NULL, lags = 0L, lag_blocklens = NULL, ...) {
+                             deconv = NULL, lags = 0L, lag_blocklens = NULL,
+                             engine = c("closed", "instant"), instant = list(), ...) {
   if (!is.matrix(Y)) stop("'Y' must be a matrix (time x V).")
   domain <- match.arg(domain)
+  engine <- match.arg(engine)
   basis <- basis %||% x$basis
   if (is.null(basis)) {
     basis_obj <- NULL
@@ -45,7 +53,11 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
   if (is.null(runs) && !is.null(x$event_model)) {
     runs <- mppi_runs(x$event_model, T = nrow(Y))
   }
-  if (prewhiten) {
+  if (identical(engine, "instant")) {
+    res <- mppi_instant_fit(Y = Y, X = x$X, psych_idx = x$psych_idx, runs = runs,
+                            prewhiten = prewhiten, basis = basis_obj, domain = domain,
+                            deconv = deconv, instant = instant, ...)
+  } else if (prewhiten) {
     if (is.null(runs)) runs <- x$runs
     if (is.null(runs)) stop("'runs' must be provided for prewhitening.")
     res <- mppi_fit_whitened(Y = Y, X = x$X, runs = runs, psych_idx = x$psych_idx,
@@ -67,8 +79,10 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
 mppi.event_model <- function(x, Y = NULL, baseline_model = NULL, nuisance = NULL, dataset = NULL,
                              runs = NULL, prewhiten = FALSE, include_intercept = TRUE, basis = NULL,
                              domain = c("bold","neural","innovations"), deconv = NULL,
-                             lags = 0L, lag_blocklens = NULL, ...) {
+                             lags = 0L, lag_blocklens = NULL,
+                             engine = c("closed", "instant"), instant = list(), ...) {
   domain <- match.arg(domain)
+  engine <- match.arg(engine)
   design <- as_mppi_design(event = x, baseline = baseline_model, confounds = nuisance,
                            include_intercept = include_intercept, runs = runs, basis = basis)
   basis <- basis %||% design$basis
@@ -76,19 +90,23 @@ mppi.event_model <- function(x, Y = NULL, baseline_model = NULL, nuisance = NULL
   if (!is.null(dataset) && is.null(Y)) {
     return(mppi(dataset, design, runs = runs, prewhiten = prewhiten,
                 basis = basis, domain = domain, deconv = deconv,
-                lags = lags, lag_blocklens = lag_blocklens, ...))
+                lags = lags, lag_blocklens = lag_blocklens,
+                engine = engine, instant = instant, ...))
   }
   if (is.null(Y)) stop("Provide either 'Y' or 'dataset' when calling mppi() with an event_model.")
   mppi(design, Y = Y, runs = runs, prewhiten = prewhiten,
        basis = basis, domain = domain, deconv = deconv,
-       lags = lags, lag_blocklens = lag_blocklens, ...)
+       lags = lags, lag_blocklens = lag_blocklens,
+       engine = engine, instant = instant, ...)
 }
 
 #' @export
 mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","innovations"),
-                            prewhiten = FALSE, runs = NULL, deconv = NULL, ...) {
+                            prewhiten = FALSE, runs = NULL, deconv = NULL,
+                            engine = c("closed", "instant"), instant = list(), ...) {
   if (!is.matrix(Y)) stop("'Y' must be a matrix (time x V).")
   domain <- match.arg(domain)
+  engine <- match.arg(engine)
   T <- nrow(Y)
   info <- mppi_design(x, T = T)
   basis_input <- basis %||% x$basis
@@ -122,7 +140,8 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
   }
 
   fit <- mppi(design_obj, Y = Y, runs = runs_vec, prewhiten = prewhiten,
-              basis = basis_obj, domain = domain, deconv = deconv_args, ...)
+              basis = basis_obj, domain = domain, deconv = deconv_args,
+              engine = engine, instant = instant, ...)
   fit$design <- info
   fit$design_source <- x
   if (!is.null(basis_obj)) {
@@ -138,8 +157,9 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
 #' @export
 mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","innovations"),
                               prewhiten = FALSE, runs = NULL, deconv = NULL,
-                              r = NULL, ...) {
+                              r = NULL, engine = c("closed", "instant"), instant = list(), ...) {
   domain <- match.arg(domain)
+  engine <- match.arg(engine)
   Y <- NULL
   TR_ds <- NULL
   runs_ds <- runs
@@ -177,7 +197,8 @@ mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","i
     basis_obj$source %||% "provided"
   }
   fit <- mppi(fd, Y = Y, basis = basis_obj, domain = domain,
-              prewhiten = prewhiten, runs = runs_ds, deconv = deconv, ...)
+              prewhiten = prewhiten, runs = runs_ds, deconv = deconv,
+              engine = engine, instant = instant, ...)
   fit$dataset <- x
   fit$basis_source <- basis_source
   if (!is.null(fit$basis)) fit$basis$source <- basis_source
