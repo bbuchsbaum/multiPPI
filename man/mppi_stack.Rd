@@ -4,7 +4,14 @@
 \alias{mppi_stack}
 \title{Stack subject-level ΔΣ matrices into an edge matrix}
 \usage{
-mppi_stack(fits, k = 1L, lag = 0L, include_diag = FALSE)
+mppi_stack(
+  fits,
+  k = 1L,
+  lag = 0L,
+  include_diag = FALSE,
+  directed = FALSE,
+  triangle = c("upper", "lower", "both")
+)
 }
 \arguments{
 \item{fits}{List of \code{mppi_fit} objects (one per subject).}
@@ -14,6 +21,10 @@ mppi_stack(fits, k = 1L, lag = 0L, include_diag = FALSE)
 \item{lag}{Integer lag τ to extract (defaults to contemporaneous, τ = 0).}
 
 \item{include_diag}{Logical; include diagonal elements when stacking.}
+
+\item{directed}{Logical; treat matrices as directed (keep orientation).}
+
+\item{triangle}{Which triangle/orientation to retain (\code{"upper"}, \code{"lower"}, \code{"both"}).}
 }
 \value{
 Object of class \code{mppi_stack} with the stacked matrix and edge metadata.

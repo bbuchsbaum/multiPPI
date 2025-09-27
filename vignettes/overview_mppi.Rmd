@@ -229,6 +229,17 @@ fit_iphs <- mppi(ev, Y = Y_matrix, base = base,
                  instant = list(method = "iphs",
                                  band = c(0.03, 0.07),
                                  tau_half = 10))
+
+# Phase-winding interaction (PWI) – directed flow per psych regressor
+fit_pwi <- mppi(ev, Y = Y_matrix, base = base,
+                runs = run_labels, prewhiten = TRUE,
+                engine = "instant",
+                instant = list(method = "pwi",
+                                band = c(0.01, 0.08),
+                                weight = "amplitude"))
+
+W_taskA <- mppi_get_M(fit_pwi, "taskA")
+lead <- attr(W_taskA, "divergence")
 ```
 
 Key points:
@@ -237,10 +248,11 @@ Key points:
   seedset helpers, so group pipelines and permutation tests continue to work.
 - **Offsets control lag structure** – `instant$offsets = -2:2` computes
   contemporaneous and lagged slopes; retrieve them via `mppi_get_M_lag()`.
-- **Two estimators** – `method = "ewm"` streams exponentially-weighted
+- **Three estimators** – `method = "ewm"` streams exponentially-weighted
   cross-moments (good for routing analyses); `method = "iphs"` band-limits and
-  tracks instantaneous phase synchrony. Both honour the same basis and
-  prewhitening options.
+  tracks instantaneous phase synchrony; `method = "pwi"` regresses instantaneous
+  frequency on each psych regressor to deliver directed phase-winding flow (rad/s
+  per unit psych). All honour the same basis and prewhitening options.
 - **Diagnostics** – `inst_corr()` provides an exponentially-weighted seed pair
   correlation series for quick QC.
 

@@ -13,7 +13,9 @@ mppi_group_glm(
   k = 1L,
   lag = 0L,
   include_diag = FALSE,
-  adjust = "fdr"
+  adjust = "fdr",
+  directed = FALSE,
+  triangle = c("upper", "lower", "both")
 )
 }
 \arguments{
@@ -34,6 +36,10 @@ mppi_group_glm(
 \item{include_diag}{Logical; include diagonal elements when stacking.}
 
 \item{adjust}{Multiple-comparison correction method for \code{p.adjust}.}
+
+\item{directed}{Logical; treat matrices as directed (no symmetrisation).}
+
+\item{triangle}{Which triangle/orientation to retain (\code{"upper"}, \code{"lower"}, \code{"both"}).}
 }
 \value{
 Data frame with edge-level estimates, test statistics, p- and q-values.

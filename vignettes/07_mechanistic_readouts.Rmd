@@ -78,7 +78,7 @@ condition strengthens the dominant connectivity pattern, while routing captures
 whether information flow is biased toward leading or lagging the psychological
 modulator.
 
-```{r axes, fig.height=4, fig.alt='Scatterplot of routing (x-axis) versus gain (y-axis) for contexts ctxA, ctxB, ctxC'}
+```{r axes, fig.height=4, dev='png', fig.alt='Scatterplot of routing (x-axis) versus gain (y-axis) for contexts ctxA, ctxB, ctxC'}
 axes_df <- mppi_axes(fit, lags = -2:2)
 axes_df
 
@@ -121,7 +121,7 @@ seen earlier.
 communication subspace. Eigenvalues indicate how much interaction energy each
 mode carries.
 
-```{r modes, fig.height=4, fig.alt='Bar plot of leading communication mode eigenvalues'}
+```{r modes, fig.height=4, dev='png', fig.alt='Bar plot of leading communication mode eigenvalues'}
 modes_out <- mppi_modes(fit, r = 5)
 mode_df <- data.frame(mode = factor(seq_along(modes_out$values)),
                       value = modes_out$values)

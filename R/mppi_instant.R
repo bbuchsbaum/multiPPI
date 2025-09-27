@@ -6,8 +6,11 @@
     tau_half = 10,
     offsets = 0L,
     band = c(0.03, 0.07),
+    weight = "amplitude",
     normalize = "normalized",
-    warmup = NULL
+    warmup = NULL,
+    robust = TRUE,
+    fs = NULL
   )
 }
 
@@ -15,7 +18,7 @@
   defaults <- .mppi_instant_defaults()
   if (is.null(instant)) instant <- list()
   opts <- modifyList(defaults, instant, keep.null = TRUE)
-  opts$method <- match.arg(opts$method, c("ewm", "iphs"))
+  opts$method <- match.arg(opts$method, c("ewm", "iphs", "pwi"))
   opts$normalize <- match.arg(opts$normalize, c("normalized", "amplitude", "raw"))
   if (is.null(opts$offsets)) opts$offsets <- 0L
   opts$offsets <- as.integer(opts$offsets)
@@ -24,13 +27,16 @@
   if (opts$method == "ewm" && (is.null(opts$tau_half) || !is.finite(opts$tau_half) || opts$tau_half <= 0)) {
     stop("instant$tau_half must be a positive value for method='ewm'.", call. = FALSE)
   }
-  if (opts$method == "iphs") {
+  if (opts$method %in% c("iphs", "pwi")) {
     if (length(opts$band) != 2L || any(!is.finite(opts$band))) {
-      stop("instant$band must be a numeric length-2 vector when method='iphs'.", call. = FALSE)
+      stop("instant$band must be a numeric length-2 vector when method='iphs' or 'pwi'.", call. = FALSE)
     }
     opts$band <- sort(as.numeric(opts$band))
     if (diff(opts$band) <= 0) stop("instant$band must have band[1] < band[2].", call. = FALSE)
   }
+  opts$weight <- opts$weight %||% "amplitude"
+  opts$weight <- match.arg(opts$weight, c("amplitude", "unit"))
+  opts$robust <- isTRUE(opts$robust)
   opts$scale_choice <- scale_choice
   opts
 }
@@ -145,35 +151,79 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
   }
   if (is.null(fs)) fs <- 1
   band <- opts$band
-  tau_half <- opts$tau_half %||% 10
-  iphs_list <- ipppi_iphs(state$R_work, pk_mat, fs = fs, band = band, tau_half = tau_half)
-  lagged <- vector("list", length(iphs_list))
-  Delta_raw <- vector("list", length(iphs_list))
-  Delta_amp <- vector("list", length(iphs_list))
-  Delta_norm <- vector("list", length(iphs_list))
-  names(lagged) <- names(Delta_raw) <- names(Delta_amp) <- names(Delta_norm) <- state$pk_names
-  for (k in seq_along(iphs_list)) {
-    corr_mat <- iphs_list[[k]]
-    if (!is.null(sigma)) {
-      diag_sigma <- diag(sigma, length(sigma))
-      raw_mat <- diag_sigma %*% corr_mat %*% diag_sigma
-    } else {
-      raw_mat <- corr_mat
+
+  if (method == "iphs") {
+    tau_half <- opts$tau_half %||% 10
+    iphs_list <- ipppi_iphs(state$R_work, pk_mat, fs = fs, band = band, tau_half = tau_half)
+    lagged <- vector("list", length(iphs_list))
+    Delta_raw <- vector("list", length(iphs_list))
+    Delta_amp <- vector("list", length(iphs_list))
+    Delta_norm <- vector("list", length(iphs_list))
+    names(lagged) <- names(Delta_raw) <- names(Delta_amp) <- names(Delta_norm) <- state$pk_names
+    for (k in seq_along(iphs_list)) {
+      corr_mat <- iphs_list[[k]]
+      if (!is.null(sigma)) {
+        diag_sigma <- diag(sigma, length(sigma))
+        raw_mat <- diag_sigma %*% corr_mat %*% diag_sigma
+      } else {
+        raw_mat <- corr_mat
+      }
+      amp_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
+      norm_mat <- if (is.null(sigma)) corr_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
+      selected <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+      lagged[[k]] <- list(`0` = selected)
+      Delta_raw[[k]] <- raw_mat
+      Delta_amp[[k]] <- amp_mat
+      Delta_norm[[k]] <- norm_mat
     }
-    amp_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
-    norm_mat <- if (is.null(sigma)) corr_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
-    selected <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
-    lagged[[k]] <- list(`0` = selected)
-    Delta_raw[[k]] <- raw_mat
-    Delta_amp[[k]] <- amp_mat
-    Delta_norm[[k]] <- norm_mat
+    return(list(Delta_raw = Delta_raw,
+                Delta_amplitude = Delta_amp,
+                Delta_normalized = Delta_norm,
+                lagged = lagged,
+                offsets = 0L,
+                lag_blocklens = NULL))
   }
-  list(Delta_raw = Delta_raw,
-       Delta_amplitude = Delta_amp,
-       Delta_normalized = Delta_norm,
-       lagged = lagged,
-       offsets = 0L,
-       lag_blocklens = NULL)
+
+  if (method == "pwi") {
+    weight <- opts$weight
+    robust <- opts$robust
+    K <- ncol(pk_mat)
+    Delta_raw <- vector("list", K)
+    Delta_amp <- vector("list", K)
+    Delta_norm <- vector("list", K)
+    lagged <- vector("list", K)
+    names(Delta_raw) <- names(Delta_amp) <- names(Delta_norm) <- names(lagged) <- state$pk_names
+    for (k in seq_len(K)) {
+      out <- ipppi_pwi(state$R_work, pk_mat[, k], fs = fs, band = band,
+                       runs = state$runs, weight = weight, robust = robust)
+      raw_mat <- out$mat
+      diag(raw_mat) <- 0
+      attr(raw_mat, "beta") <- out$beta
+      attr(raw_mat, "divergence") <- out$divergence
+      attr(raw_mat, "units") <- "rad/s per unit psych"
+      amp_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
+      norm_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
+      attr(amp_mat, "beta") <- out$beta
+      attr(amp_mat, "divergence") <- out$divergence
+      attr(amp_mat, "units") <- "rad/s per unit psych"
+      attr(norm_mat, "beta") <- out$beta
+      attr(norm_mat, "divergence") <- out$divergence
+      attr(norm_mat, "units") <- "rad/s per unit psych"
+      selected <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+      lagged[[k]] <- list(`0` = selected)
+      Delta_raw[[k]] <- raw_mat
+      Delta_amp[[k]] <- amp_mat
+      Delta_norm[[k]] <- norm_mat
+    }
+    return(list(Delta_raw = Delta_raw,
+                Delta_amplitude = Delta_amp,
+                Delta_normalized = Delta_norm,
+                lagged = lagged,
+                offsets = 0L,
+                lag_blocklens = NULL))
+  }
+
+  stop(sprintf("Unsupported instantaneous method '%s'.", method), call. = FALSE)
 }
 
 .mppi_instant_select_scale <- function(raw, amp, norm, scale_choice) {

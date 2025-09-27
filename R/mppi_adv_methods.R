@@ -490,6 +490,13 @@ mppi_gate_by_theta <- function(fits, k, lambda = 1e-3, controls = NULL) {
 }
 
 .mppi_adv_pk <- function(fit, k) {
+  if (is.character(k)) {
+    idx <- match(k, fit$names)
+    if (is.na(idx)) {
+      stop(sprintf("Regressor '%s' not found in fit names.", k), call. = FALSE)
+    }
+    k <- idx
+  }
   stopifnot(!is.null(fit$pk), k >= 1, k <= length(fit$pk))
   as.numeric(fit$pk[[k]])
 }

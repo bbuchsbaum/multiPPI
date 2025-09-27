@@ -97,6 +97,112 @@ ipppi_iphs <- function(U, pk, fs, band, tau_half = 10) {
   out
 }
 
+.ipppi_unwrap <- function(theta) {
+  y <- as.numeric(theta)
+  if (!length(y)) return(y)
+  dy <- diff(y)
+  dy <- (dy + pi) %% (2 * pi) - pi
+  c(y[1], y[1] + cumsum(dy))
+}
+
+ipppi_instfreq <- function(U, fs, band, runs = NULL) {
+  stopifnot(is.matrix(U), length(fs) == 1L, is.finite(fs), fs > 0)
+  if (length(band) != 2L || any(!is.finite(band))) {
+    stop("band must be a finite length-2 numeric vector.", call. = FALSE)
+  }
+  band <- sort(as.numeric(band))
+  if (diff(band) <= 0) stop("band must satisfy band[1] < band[2].", call. = FALSE)
+  U <- as.matrix(U)
+  Tn <- nrow(U)
+  V <- ncol(U)
+  Ubp <- ipppi_bandpass_fft(U, fs, band)
+  analytic <- matrix(NA_complex_, Tn, V)
+  for (j in seq_len(V)) {
+    analytic[, j] <- ipppi_analytic_signal(Ubp[, j])
+  }
+  amp <- Mod(analytic)
+  phi <- Arg(analytic)
+  if (is.null(runs)) {
+    runs <- rep.int(1L, Tn)
+  } else {
+    if (length(runs) != Tn) stop("runs must have length nrow(U).", call. = FALSE)
+    runs <- as.integer(runs)
+  }
+  omega <- matrix(NA_real_, Tn, V)
+  split_idx <- split(seq_len(Tn), runs)
+  for (idx in split_idx) {
+    if (length(idx) < 2L) {
+      next
+    }
+    phi_run <- phi[idx, , drop = FALSE]
+    phi_unwrapped <- phi_run
+    for (j in seq_len(V)) {
+      phi_unwrapped[, j] <- .ipppi_unwrap(phi_run[, j])
+    }
+    dphi <- rbind(NA_real_, diff(phi_unwrapped))
+    omega[idx, ] <- fs * dphi
+  }
+  list(phi = phi, amp = amp, omega = omega)
+}
+
+ipppi_pwi <- function(U, pk, fs, band, runs = NULL,
+                      weight = c("amplitude", "unit"), robust = FALSE, tol = 1e-8) {
+  stopifnot(is.matrix(U))
+  pk <- as.numeric(pk)
+  if (nrow(U) != length(pk)) stop("pk must have length nrow(U).", call. = FALSE)
+  weight <- match.arg(weight)
+  fi <- ipppi_instfreq(U, fs = fs, band = band, runs = runs)
+  Tn <- nrow(U)
+  V <- ncol(U)
+  pk_vec <- pk
+  weighted_beta <- function(x, w) {
+    keep <- is.finite(x) & is.finite(pk_vec) & is.finite(w)
+    if (!any(keep)) return(NA_real_)
+    x <- x[keep]
+    p <- pk_vec[keep]
+    w <- w[keep]
+    if (!any(w > 0)) return(NA_real_)
+    wm <- sum(w)
+    if (!is.finite(wm) || wm <= 0) return(NA_real_)
+    pm <- sum(w * p) / wm
+    xm <- sum(w * x) / wm
+    num <- sum(w * (p - pm) * (x - xm))
+    den <- sum(w * (p - pm)^2)
+    if (!is.finite(den) || den <= tol) return(NA_real_)
+    beta <- num / den
+    if (!robust) return(beta)
+    kappa <- 1.345
+    for (it in seq_len(10L)) {
+      r <- x - (xm + beta * (p - pm))
+      s0 <- stats::mad(r, center = 0, constant = 1.4826, na.rm = TRUE)
+      if (!is.finite(s0) || s0 <= tol) break
+      wh <- pmin(1, (kappa * s0) / pmax(abs(r), .Machine$double.eps))
+      w2 <- w * wh
+      if (!any(w2 > 0)) break
+      wm2 <- sum(w2)
+      if (!is.finite(wm2) || wm2 <= 0) break
+      pm <- sum(w2 * p) / wm2
+      xm <- sum(w2 * x) / wm2
+      num <- sum(w2 * (p - pm) * (x - xm))
+      den <- sum(w2 * (p - pm)^2)
+      if (!is.finite(den) || den <= tol) break
+      beta_new <- num / den
+      if (!is.finite(beta_new)) break
+      if (abs(beta_new - beta) < 1e-8) {
+        beta <- beta_new
+        break
+      }
+      beta <- beta_new
+    }
+    beta
+  }
+  w_mat <- if (weight == "amplitude") fi$amp else matrix(1, Tn, V)
+  betas <- vapply(seq_len(V), function(j) weighted_beta(fi$omega[, j], w_mat[, j]), numeric(1))
+  mat <- outer(betas, betas, `-`)
+  diag(mat) <- 0
+  list(mat = mat, beta = betas, divergence = rowSums(mat, na.rm = FALSE), omega = fi$omega)
+}
+
 #' Exponentially weighted instantaneous correlation
 #'
 #' @param x Numeric vector (time series).

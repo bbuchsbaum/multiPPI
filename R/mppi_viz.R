@@ -19,11 +19,28 @@ mppi_modes <- function(Delta, r = 3L, view = c("normalized", "raw", "amplitude")
     penalty <- match.arg(penalty)
     mats <- lapply(seq_along(Delta$names), function(idx) mppi_get_M_scaled(Delta, idx, mode = view))
     if (!length(mats)) stop("Fit does not contain interaction matrices.", call. = FALSE)
+    finite_ok <- vapply(mats, function(M) all(is.finite(M)), logical(1))
+    finite_ok[is.na(finite_ok)] <- FALSE
+    if (!all(finite_ok)) {
+      drop_count <- sum(!finite_ok)
+      dropped <- Delta$names[!finite_ok]
+      if (is.null(dropped) || !length(dropped)) {
+        dropped <- which(!finite_ok)
+      }
+      mats <- mats[finite_ok]
+      if (!length(mats)) {
+        stop("Interaction matrices contain no finite entries for mode extraction.", call. = FALSE)
+      }
+      warning(sprintf("Dropping %d regressors with non-finite entries: %s",
+                      drop_count, paste(dropped, collapse = ", ")), call. = FALSE)
+    }
+    reg_names <- Delta$names[finite_ok]
     A <- Reduce(`+`, lapply(mats, function(M) M %*% t(M)))
     A <- 0.5 * (A + t(A))
     if (penalty == "ridge") {
       A <- A + lambda * diag(nrow(A))
     }
+    A[!is.finite(A)] <- 0
     ev <- eigen(A, symmetric = TRUE)
     keep <- seq_len(min(r, length(ev$values)))
     W <- ev$vectors[, keep, drop = FALSE]
@@ -42,7 +59,7 @@ mppi_modes <- function(Delta, r = 3L, view = c("normalized", "raw", "amplitude")
       }
       P
     })
-    names(projected) <- Delta$names
+    names(projected) <- reg_names
     list(values = ev$values[keep], vectors = W,
          projected = projected, view = view, penalty = penalty)
   } else {

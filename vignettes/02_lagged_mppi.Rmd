@@ -18,6 +18,8 @@ shows two complementary workflows:
 ```r
 library(multiPPI)
 library(mvtnorm)
+library(ggplot2)
+library(tidyr)
 set.seed(7)
 ```
 
@@ -35,7 +37,7 @@ cond_feedback <- c(rep(0, 40), rep(c(rep(1, 8), rep(0, 8)), length.out = Tn - 40
 S <- cbind(forward = cond_forward, feedback = cond_feedback)
 
 # Build a design matrix (task regressors = sticks convolved with a simple HRF)
-hrf <- fmrihrf::spm_hrf(TR)
+hrf <- fmrihrf::hrf_spmg1(tr = TR)
 design_task <- cbind(
   forward = as.numeric(stats::filter(S[, 1], hrf, sides = 1)),
   feedback = as.numeric(stats::filter(S[, 2], hrf, sides = 1))
@@ -43,6 +45,25 @@ design_task <- cbind(
 design_task[is.na(design_task)] <- 0
 X <- cbind(design_task)
 colnames(X) <- c("forward", "feedback")
+
+# Visualise the paradigm
+design_df <- data.frame(
+  time = seq_len(Tn),
+  Run = factor(runs),
+  Forward = S[, 1],
+  Feedback = S[, 2]
+)
+design_long <- pivot_longer(design_df, c("Forward", "Feedback"),
+                            names_to = "Condition", values_to = "On")
+
+ggplot(design_long, aes(x = time, y = Condition, fill = On > 0)) +
+  geom_tile(colour = "white") +
+  facet_wrap(~Run, ncol = 1, scales = "free_x") +
+  scale_fill_manual(values = c(`TRUE` = "#1b9e77", `FALSE` = "#f0f0f0"),
+                    name = "Active") +
+  labs(title = "Simulated paradigm", x = "Time (TR)", y = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
 # Simulate 4 regions
 V <- 4
@@ -73,8 +94,11 @@ fit <- mppi_fit(Y, X, psych_idx = 1:2, runs = runs, lags = -2:2, scale = "corr")
 lag_forward <- mppi_lagged(fit, k = 1, lags = -2:2)
 lag_feedback <- mppi_lagged(fit, k = 2, lags = -2:2)
 
-lag_forward$R
-lag_feedback$R
+lag_summary <- data.frame(
+  condition = c("forward", "feedback"),
+  routing_index = c(lag_forward$R, lag_feedback$R)
+)
+lag_summary
 ```
 
 The positive `R` for condition `forward` indicates dominant feed-forward (positive-lag) coupling,
@@ -89,8 +113,24 @@ fast; increase `B` in real analyses.
 ```r
 lag_search <- mppi_lag_select(Y, X, psych_idx = 1:2, lags = -2:2,
                               blocklens = rle(runs)$lengths, B = 199)
-lag_search$best_lag
-lag_search$p
+
+lag_table <- data.frame(
+  condition = names(lag_search),
+  best_lag = vapply(lag_search, function(x) x$best_lag, numeric(1)),
+  p_value = vapply(lag_search, function(x) x$p, numeric(1))
+)
+lag_table
+
+# Visualise the best-lag interaction matrices
+best_forward <- lag_forward$M_lag[[as.character(lag_table$best_lag[lag_table$condition == "forward"])]]
+best_feedback <- lag_feedback$M_lag[[as.character(lag_table$best_lag[lag_table$condition == "feedback"])]]
+
+par(mfrow = c(1, 2))
+image(best_forward, main = sprintf("Forward (lag %+d)", lag_table$best_lag[lag_table$condition == "forward"]),
+      col = hcl.colors(50, "Spectral"))
+image(best_feedback, main = sprintf("Feedback (lag %+d)", lag_table$best_lag[lag_table$condition == "feedback"]),
+      col = hcl.colors(50, "Spectral"))
+par(mfrow = c(1, 1))
 ```
 
 For condition `forward` the best lag is +1 TR; for `feedback` it is −1 TR, as designed.

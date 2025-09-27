@@ -60,7 +60,7 @@ exported with documentation alongside the core API.
 
 ## Mechanistic readouts
 
-multiPPI now ships lightweight “DCM-lite” diagnostics that operate entirely in
+multiPPI now ships lightweight mechanistic diagnostics that operate entirely in
 the fitted subspace (ROI or basis):
 
 - `mppi_gain()` — converts task slopes into first-order precision updates and

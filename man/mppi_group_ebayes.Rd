@@ -2,18 +2,30 @@
 % Please edit documentation in R/mppi_group_ebayes.R
 \name{mppi_group_ebayes}
 \alias{mppi_group_ebayes}
-\title{Moderated one-sample tests on vectorized ΔΣ across subjects}
+\title{Moderated one-sample tests on vectorized Δ matrices across subjects}
 \usage{
-mppi_group_ebayes(Delta_list, use_limma = TRUE)
+mppi_group_ebayes(
+  Delta_list,
+  use_limma = TRUE,
+  directed = FALSE,
+  triangle = c("upper", "lower", "both"),
+  include_diag = FALSE
+)
 }
 \arguments{
 \item{Delta_list}{list of VxV matrices (same V), one per subject}
 
 \item{use_limma}{logical; if TRUE and limma present, use eBayes}
+
+\item{directed}{logical; treat matrices as directed (no symmetrisation)}
+
+\item{triangle}{which triangle/orientation to retain when vectorising}
+
+\item{include_diag}{logical; include diagonal elements}
 }
 \value{
 list with t, p, and (if limma) moderated stats
 }
 \description{
-Moderated one-sample tests on vectorized ΔΣ across subjects
+Moderated one-sample tests on vectorized Δ matrices across subjects
 }
