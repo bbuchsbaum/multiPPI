@@ -31,8 +31,8 @@ mechanistic readouts condense these effects into interpretable dimensions:
 
 - **Gain** — does the interaction amplify or attenuate the intrinsic covariance
   structure?
-- **Routing** — is the modulation stronger for forward vs. backward lags,
-  implying dominant directionality?
+- **Routing** — is the lagged modulation directed, i.e. does one region lead
+  another more than the reverse?
 - **Communication modes** — what low-dimensional patterns summarize the change?
 - **Precision gating** — how does the condition reshape direct (precision-domain)
   connections?
@@ -73,10 +73,12 @@ quantities that the mechanistic helpers reuse.
 
 `mppi_axes()` decomposes each interaction into a *gain* component (alignment
 with the baseline covariance eigenvector \(v_1\)) and a *routing* component
-(difference between positive and negative lag energies). High gain indicates a
-condition strengthens the dominant connectivity pattern, while routing captures
-whether information flow is biased toward leading or lagging the psychological
-modulator.
+(directedness of the lagged slopes). High gain indicates a condition
+strengthens the dominant connectivity pattern. Because
+\(M(-\tau) = M(\tau)^\top\), positive- and negative-lag energies are always
+equal; routing instead compares, for each pair, the lagged energy with \(i\)
+leading \(j\) against \(j\) leading \(i\): 0 when lagged coupling is symmetric,
+1 when every pair couples one way only.
 
 ```{r axes, fig.height=4, dev='png', fig.alt='Scatterplot of routing (x-axis) versus gain (y-axis) for contexts ctxA, ctxB, ctxC'}
 axes_df <- mppi_axes(fit, lags = -2:2)
@@ -87,21 +89,23 @@ ggplot(axes_df, aes(routing, gain, label = condition)) +
   geom_hline(yintercept = 0, colour = "grey70", linetype = "dashed") +
   geom_vline(xintercept = 0, colour = "grey70", linetype = "dashed") +
   geom_text(vjust = -1, size = 4) +
-  labs(title = "Gain vs. routing", x = "Routing (forward minus backward energy)",
+  labs(title = "Gain vs. routing", x = "Routing (lagged directedness)",
        y = "Gain (alignment with baseline mode)") +
-  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(-1, 1)) +
   theme_minimal(base_size = 12)
 ```
 
-In this simulation `ctxA` shows both high gain and positive routing, reflecting
-strong amplification aligned with the leading covariance mode and a preference
-for positive lags. `ctxC` produces a mild, slightly negative routing effect.
+In this simulation `ctxA` shows high gain, reflecting strong amplification
+aligned with the leading covariance mode. The simulator injects symmetric
+(undirected) templates, so routing reflects only the noise floor of the lagged
+estimates; directed lagged coupling pushes it towards 1.
 
 ## 4. Lagged directionality (mppi_lagged)
 
-For a closer look at routing, use `mppi_lagged()` to inspect energy per lag. The
-function returns lagged interaction matrices and aggregate positive/negative
-energies.
+For a closer look at routing, use `mppi_lagged()`. It returns the lagged
+interaction matrices, the routing index `R`, and the lead-lag energy matrix
+`lead_energy`, whose entry \([i, j]\) pools the squared lagged slopes with
+\(i\) leading \(j\).
 
 ```{r lagged}
 lag_ctxA <- mppi_lagged(fit, "ctxA", lags = -2:2)
@@ -112,8 +116,10 @@ lag_df <- data.frame(lag = as.integer(names(lag_ctxA$M_lag)),
 lag_df
 ```
 
-In this example, lag \(+1\) dominates, which explains the positive routing value
-seen earlier.
+The per-lag energies are symmetric in \(\tau\); direction shows up only in the
+asymmetry of `lag_ctxA$lead_energy`. With a hierarchy vector,
+`mppi_routing_index()` gives a signed index: positive when lagged coupling runs
+from low to high hierarchy values.
 
 ## 5. Communication modes (mppi_modes)
 
@@ -164,9 +170,9 @@ report <- mppi_mechanism_report(fit, k = "ctxA", lag_fits = list(pos = lag_ctxA)
 report
 ```
 
-The report shows that `ctxA` amplifies the baseline pattern (gain \> 0), is
-routing-forward (positive routing and lag energy skew), and generates a sizable
-precision perturbation.
+The report shows that `ctxA` amplifies the baseline pattern (gain \> 0) and
+generates a sizable precision perturbation. Pass `hierarchy` together with a
+lagged fit as `lag_fits` to add the signed routing index.
 
 ## 8. Where to go next
 

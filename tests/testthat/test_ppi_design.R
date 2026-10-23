@@ -10,7 +10,8 @@ test_that("masked DCT inverse and interactions match dense causal operators", {
   B <- outer(seq_len(m) - 0.5, 0:(k-1L), function(t, f) cos(pi*t*f/m))
   B[, 1] <- B[, 1] / sqrt(m); B[, -1] <- B[, -1] * sqrt(2/m)
   scan <- seq(1, m, by = mt); A <- H[scan, ] %*% B
-  beta <- solve(crossprod(A[keep, ]) + diag(lambda, k), crossprod(A[keep, ], seed[keep]))
+  G <- crossprod(A[keep, ])
+  beta <- solve(G + diag(lambda * mean(diag(G)), k), crossprod(A[keep, ], seed[keep]))
   u <- drop(B %*% beta)
   expect_equal(d$neural_seed, u, tolerance = 1e-10)
   expect_equal(unname(d$X[, d$terms$type == "task"]), unname(H[scan, ] %*% p), tolerance = 1e-10)
@@ -54,4 +55,23 @@ test_that("scan matrix is explicitly equivalent to declared scan input", {
   H <- outer(seq_len(m), seq_len(m), function(i, j) ifelse(i >= j & i-j < length(h), h[pmin(pmax(i-j+1, 1), length(h))], 0)) * dt
   neural <- p[rep(seq_len(nrow(p)), each = args$microtime), ]
   expect_equal(unname(x$X[, x$terms$type == "task"]), unname(H[seq(1, m, by = args$microtime), ] %*% neural), tolerance = 1e-10)
+})
+
+test_that("default DCT basis has one component per scan in every run", {
+  set.seed(3); runs <- rep(c("a", "b"), c(70, 90))
+  d <- ppi_design(rnorm(160), psych = cbind(A = rep(0:1, 80)), TR = 2, runs = runs, hrf = c(0, 1, 0.5))
+  expect_equal(vapply(d$deconv$runs, `[[`, numeric(1), "n_basis"), c(a = 70, b = 90))
+})
+
+test_that("blocked basis construction matches a dense basis across block boundaries", {
+  set.seed(4); n <- 70L; mt <- 2L; m <- n * mt; k <- 130L
+  h <- c(0, 0.6, 1, 0.4); seed <- rnorm(n); p <- cbind(A = rep(0:1, length.out = m))
+  d <- ppi_design(seed, psych = list(values = p, grid = "neural"), TR = 2, microtime = mt,
+                  hrf = h, deconv = list(n_basis = k), seed_adjust = "none")
+  H <- outer(seq_len(m), seq_len(m), function(i, j) ifelse(i >= j & i - j < length(h), h[pmin(pmax(i - j + 1, 1), length(h))], 0))
+  B <- outer(seq_len(m) - 0.5, 0:(k - 1L), function(t, f) cos(pi * t * f / m))
+  B[, 1] <- B[, 1] / sqrt(m); B[, -1] <- B[, -1] * sqrt(2 / m)
+  A <- H[seq(1, m, by = mt), ] %*% B; G <- crossprod(A)
+  u <- drop(B %*% solve(G + diag(mean(diag(G)), k), crossprod(A, seed)))
+  expect_equal(d$neural_seed, u, tolerance = 1e-10)
 })

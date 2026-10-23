@@ -10,5 +10,6 @@ mppi_coerce_beta(obj)
 \item{obj}{matrix, data.frame with (trial, roi, beta), or list of numeric vectors}
 }
 \description{
-Coerce fmrilss output to a trial x V beta matrix
+For a data.frame, trial/ROI cells with no row, and NA betas, are NA in the
+result; duplicate trial/ROI cells are an error.
 }

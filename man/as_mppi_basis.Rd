@@ -11,7 +11,8 @@ as_mppi_basis(V, name = "basis", orthonormalize = TRUE)
 
 \item{name}{optional label for reporting}
 
-\item{orthonormalize}{logical; orthonormalize columns via QR (default TRUE)}
+\item{orthonormalize}{logical; orthonormalize columns via QR (default TRUE).
+Row names (ROI labels, used as seed labels) are kept.}
 }
 \value{
 object of class 'mppi_basis'

@@ -43,22 +43,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// ewm_gated_cross_rcpp
-List ewm_gated_cross_rcpp(NumericMatrix U, NumericMatrix PK, double eta, IntegerVector offsets, bool normalized, IntegerVector blocklens);
-RcppExport SEXP _multiPPI_ewm_gated_cross_rcpp(SEXP USEXP, SEXP PKSEXP, SEXP etaSEXP, SEXP offsetsSEXP, SEXP normalizedSEXP, SEXP blocklensSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericMatrix >::type U(USEXP);
-    Rcpp::traits::input_parameter< NumericMatrix >::type PK(PKSEXP);
-    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type offsets(offsetsSEXP);
-    Rcpp::traits::input_parameter< bool >::type normalized(normalizedSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type blocklens(blocklensSEXP);
-    rcpp_result_gen = Rcpp::wrap(ewm_gated_cross_rcpp(U, PK, eta, offsets, normalized, blocklens));
-    return rcpp_result_gen;
-END_RCPP
-}
 // inst_corr_rcpp
 NumericVector inst_corr_rcpp(NumericVector x, NumericVector y, double tau_half, int offset, int warmup, std::string fill);
 RcppExport SEXP _multiPPI_inst_corr_rcpp(SEXP xSEXP, SEXP ySEXP, SEXP tau_halfSEXP, SEXP offsetSEXP, SEXP warmupSEXP, SEXP fillSEXP) {
@@ -117,7 +101,6 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_multiPPI_deconv_dct_multi", (DL_FUNC) &_multiPPI_deconv_dct_multi, 9},
     {"_multiPPI_mppi_deconv_map", (DL_FUNC) &_multiPPI_mppi_deconv_map, 3},
-    {"_multiPPI_ewm_gated_cross_rcpp", (DL_FUNC) &_multiPPI_ewm_gated_cross_rcpp, 6},
     {"_multiPPI_inst_corr_rcpp", (DL_FUNC) &_multiPPI_inst_corr_rcpp, 6},
     {"_multiPPI_ppi_batch_cpp", (DL_FUNC) &_multiPPI_ppi_batch_cpp, 4},
     {"_multiPPI_ridge_precision_cpp", (DL_FUNC) &_multiPPI_ridge_precision_cpp, 2},

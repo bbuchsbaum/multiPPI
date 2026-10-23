@@ -18,11 +18,55 @@ mppi_instant_fit(
   scale = c("normalized", "cov", "corr"),
   ar_method = "ar",
   ar_order = "auto",
+  zero_diag = TRUE,
+  lags = 0L,
+  lag_blocklens = NULL,
   instant = list(),
   ...
 )
 }
+\arguments{
+\item{lags}{Integer lags, an alternative to \code{instant$offsets} (they must
+agree when both are given).}
+
+\item{lag_blocklens, zero_diag}{As in \code{mppi_fit()}.}
+
+\item{instant}{list of engine options: \code{method} (\code{"ewm"}, \code{"iphs"} or
+\code{"pwi"}), \code{tau_half} (half-life in scans), \code{offsets} (integer lags, 0 is
+always included; \code{"ewm"} only), \code{band}, \code{weight}, \code{robust} and \code{fs}.}
+
+\item{...}{Not supported: other \code{mppi_fit()} arguments are an error.}
+}
 \description{
-Instantaneous mPPI engine
+Prepares data exactly as \code{mppi_fit()}, or \code{mppi_fit_whitened()} when
+\code{prewhiten = TRUE} (run-local deconvolution, rejection of censored scans
+outside the BOLD domain, rank-based evidence), then replaces its
+whole-scan slopes with the estimator chosen by \code{instant$method}.
+}
+\details{
+For \code{method = "ewm"} the matrix at offset \eqn{\tau \ge 0} is the
+exponentially weighted slope
+\deqn{\sum_t w_t p_t R_{t,i} R_{t+\tau,j} / \sum_t w_t p_t^2}
+with \eqn{w_t = 2^{-(T - t)/h}}, \eqn{h} = \code{tau_half} and \eqn{T} the last
+scan, over scans \eqn{t} and \eqn{t+\tau} that are both retained and in the
+same run on the acquisition grid; offset \eqn{-\tau} is its transpose. Units
+and orientation match \code{mppi_fit()}'s \code{Delta} and \code{lagged} (row \eqn{i} leads
+column \eqn{j} for \eqn{\tau > 0}), and as \code{tau_half} grows the estimate
+converges to them. It is end-weighted (runs are concatenated in order): the
+effective window is a few \code{tau_half} scans before the last scan, not the
+whole acquisition.
+
+\code{method = "iphs"} (contemporaneous only) uses the same weights for the slope
+of instantaneous phase locking \eqn{\cos(\phi_{t,i} - \phi_{t,j})} on
+\eqn{p_t} (see \code{ipppi_iphs()}); it is stored as a normalized-scale matrix
+(\code{scale = "cov"} multiplies it by the residual SDs). \code{method = "pwi"} gives
+differences of instantaneous-frequency slopes in rad/s per unit psych, which
+are amplitude-free, so every scale holds the same matrix. Both filter and
+Hilbert-transform each contiguous stretch of retained scans within a run
+separately, so censored gaps and run boundaries are never bridged.
+
+As in \code{mppi_fit()}, \code{zero_diag} zeroes the diagonal of every returned matrix
+and \code{lag_blocklens} (run lengths on the acquisition grid) override \code{runs}
+for lag pairs and filtering segments.
 }
 \keyword{internal}

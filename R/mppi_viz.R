@@ -12,6 +12,7 @@
 #' @param penalty aggregate penalty for the communication subspace
 #' @param lambda ridge strength when `penalty = "ridge"`
 #' @return list containing eigenvalues/vectors and, for fits, per-condition projections
+#' @export
 mppi_modes <- function(Delta, r = 3L, view = c("normalized", "raw", "amplitude"),
                        penalty = c("none", "ridge"), lambda = 1e-4) {
   if (inherits(Delta, "mppi_fit")) {
@@ -73,6 +74,7 @@ mppi_modes <- function(Delta, r = 3L, view = c("normalized", "raw", "amplitude")
 #' Nodewise degree of modulation (L1 or L2)
 #' @param Delta interaction matrix
 #' @param type norm to use when aggregating (`"L1"` or `"L2"`)
+#' @export
 mppi_degree <- function(Delta, type = c("L1","L2")) {
   type <- match.arg(type)
   A <- abs(Delta)
@@ -82,6 +84,7 @@ mppi_degree <- function(Delta, type = c("L1","L2")) {
 #' Project ΔΣ onto a hypothesis mask W (VxV)
 #' @param Delta slope matrix to project
 #' @param W hypothesis weight matrix (same dimension as `Delta`)
+#' @export
 mppi_project <- function(Delta, W) {
   stopifnot(all(dim(Delta) == dim(W)))
   sum(Delta * W, na.rm = TRUE)

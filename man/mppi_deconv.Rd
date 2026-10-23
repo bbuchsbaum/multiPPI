@@ -11,13 +11,21 @@ mppi_deconv(Y, TR, hrf = NULL, lambda = 10)
 
 \item{TR}{Repetition time in seconds}
 
-\item{hrf}{Optional haemodynamic response specification (numeric, function, or NULL)}
+\item{hrf}{Numeric kernel sampled at \code{TR} from lag zero, or a function of time
+in seconds (e.g. an fmrihrf HRF) evaluated on \code{seq(0, span, by = TR)}, where
+\code{span} is the function's \code{span} attribute, else 32 s. \code{NULL} uses
+\code{\link[=mppi_default_hrf]{mppi_default_hrf()}}.}
 
-\item{lambda}{Tikhonov weight (default 10)}
+\item{lambda}{Relative Tikhonov weight (default 10): the first-difference
+penalty is \code{lambda} times the mean diagonal of \eqn{H'H}.}
 }
 \value{
 Time x series matrix of neural-domain estimates
 }
 \description{
-MAP/Tikhonov deconvolution in neural domain
+Solves \eqn{\min_u \|y - Hu\|^2 + \lambda s \|Du\|^2}{min ||y - Hu||^2 + lambda s ||Du||^2}
+per column, with \eqn{H} causal convolution with the HRF, \eqn{D} first
+differences and \eqn{s} the mean diagonal of \eqn{H'H}. The penalty is thus
+relative to the operator scale: scaling the HRF by \eqn{c} scales the
+estimate by \eqn{1/c} and leaves its shape unchanged.
 }

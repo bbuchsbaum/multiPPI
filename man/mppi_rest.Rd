@@ -32,7 +32,8 @@ the basis time-series.}
 
 \item{basis}{Basis specification passed to \code{.mppi_resolve_basis()}.}
 
-\item{modulator_domain}{Domain for building modulators ("auto", "bold", "neural").}
+\item{modulator_domain}{Domain for building modulators ("auto", "bold", "neural").
+Neural modulators deconvolve each run separately.}
 
 \item{domain}{Domain for the final mPPI fit.}
 

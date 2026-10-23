@@ -1,10 +1,15 @@
 # HRF-adaptive combination -------------------------------------------------
 
 #' Combine multiple ΔΣ from an HRF basis using energy-maximizing weights
+#'
+#' Weights are the leading eigenvector of the Gram matrix of the inputs, signed
+#' so the combined matrix aligns positively with the sum of the inputs (or, if
+#' that alignment is zero, so the weights sum positive).
 #' @param deltas_list list of VxV slope matrices for the same psychological effect but different HRF basis columns
 #' @param pk_norms optional vector of ||pk||^2 to normalize columns
 #' @param normalize logical; if TRUE, normalize Gram by pk_norms
 #' @return list with Delta (combined), weights, Gram matrix M
+#' @export
 mppi_hrf_adapt <- function(deltas_list, pk_norms = NULL, normalize = TRUE) {
   stopifnot(is.list(deltas_list), length(deltas_list) >= 1)
   B <- length(deltas_list)
@@ -21,5 +26,8 @@ mppi_hrf_adapt <- function(deltas_list, pk_norms = NULL, normalize = TRUE) {
   a  <- ev$vectors[,1,drop = TRUE]
   if (normalize && !is.null(pk_norms)) a <- a / sqrt(pk_norms)
   Delta_star <- Reduce(`+`, Map(function(w, D) w*D, a, deltas_list))
+  s <- sum(Delta_star * Reduce(`+`, deltas_list), na.rm = TRUE)
+  if (!is.finite(s) || s == 0) s <- sum(a)
+  if (s < 0) { a <- -a; Delta_star <- -Delta_star }
   list(Delta = Delta_star, weights = a, M = M)
 }

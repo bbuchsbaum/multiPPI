@@ -23,8 +23,11 @@
 #' @param hrf Numeric kernel sampled at `TR / microtime` from lag zero, or a
 #'   function evaluated on that grid from zero to 32 seconds. The default is
 #'   `fmrihrf::hrf_spmg1` evaluated on the same grid. Zeros are preserved.
-#' @param deconv List with optional positive `lambda` (default 0.1) and integer
-#'   `n_basis` (default min(64, number of scans) per run).
+#' @param deconv List with optional positive `lambda` (default 1) and integer
+#'   `n_basis` (default: the number of scans in each run, one DCT component per
+#'   scan). The ridge penalty is `lambda` times the mean diagonal of the
+#'   observed basis Gram matrix, so the deconvolved seed and interaction terms
+#'   do not depend on HRF amplitude or the microtime grid.
 #' @param censor Logical vector marking excluded scans. The full time grid is
 #'   retained and deconvolution uses only observed seed values.
 #' @param run_effects Whether task, physiology and interaction terms are
@@ -111,22 +114,29 @@ ppi_design <- function(seed, psych = NULL, events = NULL, TR = 1, runs = NULL,
   else if (is.function(hrf)) hrf <- hrf(seq(0, 32, by = dt))
   if (!is.numeric(hrf) || !length(hrf) || any(!is.finite(hrf)) || !any(hrf != 0)) stop("hrf must be a finite nonzero numeric kernel or function")
   if (!is.list(deconv) || is.null(names(deconv)) && length(deconv) || any(!names(deconv) %in% c("lambda", "n_basis"))) stop("deconv accepts only lambda and n_basis")
-  lambda <- if (is.null(deconv$lambda)) 0.1 else deconv$lambda
+  lambda <- if (is.null(deconv$lambda)) 1 else deconv$lambda
   if (!is.numeric(lambda) || length(lambda) != 1L || !is.finite(lambda) || lambda <= 0) stop("deconv lambda must be positive")
   if (!is.null(deconv$n_basis) && (!is.numeric(deconv$n_basis) || length(deconv$n_basis) != 1L || !is.finite(deconv$n_basis) || deconv$n_basis < 1 || deconv$n_basis != floor(deconv$n_basis))) stop("n_basis must be a positive integer")
   if (is.null(nuisance)) nuisance <- matrix(numeric(), n, 0L)
   if (!is.matrix(nuisance) || !is.numeric(nuisance) || nrow(nuisance) != n || any(!is.finite(nuisance))) stop("nuisance must be a finite numeric matrix with one row per scan")
   if (ncol(nuisance) && is.null(colnames(nuisance))) colnames(nuisance) <- paste0("nuisance", seq_len(ncol(nuisance)))
   if (ncol(nuisance) && (anyNA(colnames(nuisance)) || any(!nzchar(colnames(nuisance))) || anyDuplicated(colnames(nuisance)))) stop("nuisance names must be unique and nonempty")
-  # Cache the padded kernel transform for all columns at each run length.
+  # Convolve every column of x; cache the padded kernel transform at each run length.
   kernel_fft <- new.env(parent = emptyenv())
   conv <- function(x) {
-    size <- stats::nextn(length(x) + length(hrf) - 1L, factors = 2L)
+    x <- as.matrix(x); len <- nrow(x)
+    size <- stats::nextn(len + length(hrf) - 1L, factors = 2L)
     key <- as.character(size)
     if (!exists(key, envir = kernel_fft, inherits = FALSE))
       assign(key, stats::fft(c(hrf, rep(0, size - length(hrf)))), envir = kernel_fft)
-    transformed <- stats::fft(c(x, rep(0, size - length(x))))
-    Re(stats::fft(transformed * get(key, envir = kernel_fft), inverse = TRUE))[seq_along(x)] * dt / size
+    padded <- rbind(x, matrix(0, size - len, ncol(x)))
+    transformed <- stats::mvfft(padded) * get(key, envir = kernel_fft)
+    Re(stats::mvfft(transformed, inverse = TRUE))[seq_len(len), , drop = FALSE] * dt / size
+  }
+  # Orthonormal DCT-II columns for frequencies f on an m-bin grid.
+  dct <- function(f, m) {
+    b <- outer(seq_len(m) - 0.5, f, function(t, f) cos(pi * t * f / m))
+    sweep(b, 2L, ifelse(f == 0, sqrt(1 / m), sqrt(2 / m)), "*")
   }
   task <- interaction <- matrix(0, n, ncol(neural_psych), dimnames = list(NULL, colnames(neural_psych)))
   neural_seed <- numeric(n * microtime); adjusted_seed <- seed
@@ -134,7 +144,7 @@ ppi_design <- function(seed, psych = NULL, events = NULL, TR = 1, runs = NULL,
   for (r in seq_along(blocks)) {
     i <- blocks[[r]]; mi <- seq.int((i[1L] - 1L) * microtime + 1L, i[length(i)] * microtime)
     m <- length(mi); sample <- seq.int(1L + offset_bins, m, by = microtime)
-    for (j in seq_len(ncol(neural_psych))) task[i, j] <- conv(neural_psych[mi, j])[sample]
+    task[i, ] <- conv(neural_psych[mi, , drop = FALSE])[sample, , drop = FALSE]
     obs <- keep[i]
     if (seed_adjust == "nuisance") {
       # Protect variation in task effects, with baseline overlap removed first.
@@ -151,22 +161,27 @@ ppi_design <- function(seed, psych = NULL, events = NULL, TR = 1, runs = NULL,
         stop("Seed nuisance adjustment is unidentified because nuisance overlaps protected task effects; revise the design or explicitly choose seed_adjust='none'.")
       adjusted_seed[i[obs]] <- seed[i[obs]] - drop(qn %*% qr.solve(rn, seed[i[obs]], tol = 1e-7))
     }
-    k <- if (is.null(deconv$n_basis)) min(64L, length(i)) else deconv$n_basis
+    k <- if (is.null(deconv$n_basis)) length(i) else deconv$n_basis
     if (k > m) stop("n_basis cannot exceed the microtime grid length of any run")
-    basis <- outer(seq_len(m) - 0.5, 0:(k - 1L), function(t, f) cos(pi * t * f / m))
-    basis[, 1L] <- basis[, 1L] / sqrt(m)
-    if (k > 1L) basis[, -1L] <- basis[, -1L, drop = FALSE] * sqrt(2 / m)
-    A <- vapply(seq_len(k), function(j) conv(basis[, j])[sample], numeric(length(i)))
-    A <- matrix(A, nrow = length(i), ncol = k)
+    # Build the basis in column blocks so memory stays O(m) per block, not O(m * k).
+    freq_blocks <- split(seq_len(k) - 1L, (seq_len(k) - 1L) %/% 64L)
+    A <- matrix(0, length(i), k)
+    for (f in freq_blocks) A[, f + 1L] <- conv(dct(f, m))[sample, , drop = FALSE]
     ao <- A[obs, , drop = FALSE]
-    coef <- solve(crossprod(ao) + diag(lambda, k), crossprod(ao, adjusted_seed[i][obs]))
-    u <- drop(basis %*% coef); neural_seed[mi] <- u
+    gram <- crossprod(ao)
+    # The ridge is relative to the mean basis energy, so the solution does not
+    # depend on HRF amplitude or the microtime grid.
+    ridge <- lambda * mean(diag(gram))
+    if (!is.finite(ridge) || ridge <= 0) stop("deconvolution basis has no energy at the observed scans")
+    coef <- solve(gram + diag(ridge, k), crossprod(ao, adjusted_seed[i][obs]))
+    u <- numeric(m)
+    for (f in freq_blocks) u <- u + drop(dct(f, m) %*% coef[f + 1L])
+    neural_seed[mi] <- u
     pp <- neural_psych[mi, , drop = FALSE]
     if (center) pp <- sweep(pp, 2L, colMeans(pp), "-")
-    for (j in seq_len(ncol(pp))) {
-      interaction[i, j] <- conv(u * pp[, j])[sample]
-    }
-    info[[r]] <- list(n_basis = k, observed = sum(obs), condition = kappa(crossprod(ao) + diag(lambda, k)))
+    interaction[i, ] <- conv(u * pp)[sample, , drop = FALSE]
+    info[[r]] <- list(n_basis = k, observed = sum(obs), ridge = ridge,
+                      condition = kappa(gram + diag(ridge, k)))
   }
   cols <- list(); term <- list()
   add <- function(x, name, type, condition = NA_character_, run = NA_character_) {

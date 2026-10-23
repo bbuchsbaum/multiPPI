@@ -22,7 +22,8 @@ mppi_mechanism_report(
 
 \item{hierarchy}{Optional vector for routing index.}
 
-\item{lag_fits}{Optional named list of lagged fits for routing.}
+\item{lag_fits}{Optional lagged \code{mppi_fit} (or named list of lagged fits) for
+\code{\link[=mppi_routing_index]{mppi_routing_index()}}.}
 
 \item{templates}{Optional list of template matrices for projections.}
 

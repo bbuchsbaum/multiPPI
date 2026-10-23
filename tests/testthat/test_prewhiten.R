@@ -1,5 +1,4 @@
 test_that("fmriAR prewhitening paths align", {
-  skip_if_not_installed("fmriAR")
 
   set.seed(2024)
   Tn <- 48L

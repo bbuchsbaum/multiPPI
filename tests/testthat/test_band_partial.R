@@ -1,8 +1,8 @@
-test_that("mppi_bandpass falls back to moving-average smoothing when signal missing", {
+test_that("mppi_bandpass falls back to base-R filtering when signal missing", {
   set.seed(1)
   Tn <- 200L
   t <- seq_len(Tn)
-  raw <- sin(2 * pi * t / 10) + 0.3 * sin(2 * pi * t / 2) # fast + slow
+  raw <- sin(2 * pi * t / 20) + 0.3 * sin(2 * pi * t * 0.15) # slow + fast
   X <- cbind(raw = raw)
 
   smoothed <- with_mocked_bindings(

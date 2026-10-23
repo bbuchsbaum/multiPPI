@@ -3,6 +3,7 @@
 #' MultiPPI generic
 #' @param x object containing either time series or a prepared design
 #' @param ... additional arguments passed to class-specific methods
+#' @export
 mppi <- function(x, ...) {
   UseMethod("mppi")
 }
@@ -17,7 +18,8 @@ mppi.matrix <- function(x, X, psych_idx, runs = NULL, prewhiten = FALSE,
   if (identical(engine, "instant")) {
     res <- mppi_instant_fit(Y = x, X = X, psych_idx = psych_idx, runs = runs,
                             prewhiten = prewhiten, basis = basis, domain = domain,
-                            deconv = deconv, instant = instant, ...)
+                            deconv = deconv, lags = lags, lag_blocklens = lag_blocklens,
+                            instant = instant, ...)
   } else if (prewhiten) {
     if (is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.")
     res <- mppi_fit_whitened(Y = x, X = X, runs = runs, psych_idx = psych_idx,
@@ -59,6 +61,12 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
       if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between design and deconvolution.", call. = FALSE)
       deconv$tr <- tr
     }
+    .mppi_require_single_hrf(x$event_model, deconv)
+    model_hrf <- if (is.null(deconv$hrf)) .mppi_deconv_hrf(mppi_hrf(x$event_model))
+    if (!is.null(model_hrf)) {
+      deconv <- deconv %||% list()
+      deconv$hrf <- model_hrf
+    }
   }
   runs <- runs %||% x$runs
   if (is.null(runs) && !is.null(x$event_model)) {
@@ -67,7 +75,8 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
   if (identical(engine, "instant")) {
     res <- mppi_instant_fit(Y = Y, X = x$X, psych_idx = x$psych_idx, runs = runs,
                             prewhiten = prewhiten, basis = basis_obj, domain = domain,
-                            deconv = deconv, instant = instant, ...)
+                            deconv = deconv, lags = lags, lag_blocklens = lag_blocklens,
+                            instant = instant, ...)
   } else if (prewhiten) {
     if (is.null(runs)) runs <- x$runs
     if (is.null(runs)) stop("'runs' must be provided for prewhitening.")
@@ -144,7 +153,9 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
                           class = "mppi_design")
 
   deconv_args <- deconv %||% list()
-  if (!is.null(info$hrf) && is.null(deconv_args$hrf)) deconv_args$hrf <- info$hrf
+  if (domain != "bold") .mppi_require_single_hrf(x$event_model, deconv_args)
+  design_hrf <- .mppi_deconv_hrf(info$hrf)
+  if (!is.null(design_hrf) && is.null(deconv_args$hrf)) deconv_args$hrf <- design_hrf
   if (!is.null(info$TR)) {
     if (is.null(deconv_args$TR)) deconv_args$TR <- info$TR
     if (is.null(deconv_args$tr)) deconv_args$tr <- info$TR
@@ -165,42 +176,55 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
   fit
 }
 
+# Accessor of the pre-frame fmridataset API (<= 0.10), which defined fmri_dataset;
+# fmridataset >= 0.11 replaced it by fmri_frame (see mppi.fmri_frame).
+.mppi_fmridataset_fn <- function(name) {
+  if (!requireNamespace("fmridataset", quietly = TRUE)) stop("mppi() on an fmri_dataset requires the fmridataset package.", call. = FALSE)
+  fn <- tryCatch(getExportedValue("fmridataset", name), error = function(e) NULL)
+  if (!is.function(fn)) stop(sprintf("The installed fmridataset does not provide %s(); fmri_dataset objects need fmridataset <= 0.10. Convert newer data to an fmri_frame.", name), call. = FALSE)
+  fn
+}
+
+# Data via get_data_matrix(), TR via get_TR() and runs via blockids() (overridden
+# by `runs`); censored datasets are rejected, as in mppi.fmri_frame.
 #' @export
 mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","innovations"),
                               prewhiten = FALSE, runs = NULL, deconv = NULL,
                               r = NULL, engine = c("closed", "instant"), instant = list(), ...) {
   domain <- match.arg(domain)
   engine <- match.arg(engine)
-  Y <- NULL
-  TR_ds <- NULL
-  runs_ds <- runs
-  if (is.null(Y)) {
-    Y <- x$Y %||% x$timeseries %||% x$X
-  }
-  if (!is.matrix(Y)) stop("fmri_dataset must supply a matrix field (or support fmridataset accessors).")
+  Y <- as.matrix(.mppi_fmridataset_fn("get_data_matrix")(x))
   T <- nrow(Y)
-  if (!is.null(runs_ds) && length(runs_ds) != T) stop("Dataset runs have incompatible length.")
-  if (is.null(runs_ds)) runs_ds <- x$runs %||% attr(x, "runs")
-  if (!is.null(runs_ds) && length(runs_ds) != T) stop("Dataset runs have incompatible length.")
-  if (!is.null(runs_ds)) runs_ds <- as.integer(runs_ds)
-  TR_ds <- TR_ds %||% x$TR %||% attr(x, "TR")
-  TR_fd <- tryCatch(mppi_tr(fd), error = function(e) NULL)
-  if (!is.null(TR_ds) && !is.null(TR_fd) && abs(TR_ds - TR_fd) > 1e-6) {
+  if (!is.null(x$censor) && any(x$censor != 0)) stop("Censored fmri_dataset scans are unsupported by this adapter.", call. = FALSE)
+  runs_ds <- runs %||% .mppi_fmridataset_fn("blockids")(x)
+  if (length(runs_ds) != T) stop("Dataset runs have incompatible length.")
+  tr <- as.numeric(.mppi_fmridataset_fn("get_TR")(x))
+  if (length(unique(x$sampling_frame$TR)) > 1L || length(tr) != 1L || !is.finite(tr) || tr <= 0) stop("fmri_dataset requires one common TR.", call. = FALSE)
+  TR_fd <- tryCatch(mppi_tr(fd), error = function(e) NA_real_)
+  if (length(TR_fd) == 1L && is.finite(TR_fd) && abs(tr - TR_fd) > 1e-6) {
     stop("TR mismatch between dataset and design.", call. = FALSE)
   }
-  basis_res <- .mppi_resolve_basis(Y, basis = basis, r = r, dataset = x, design = fd)
-  basis_obj <- basis_res
-  basis_source <- if (is.null(basis_obj)) {
-    if (is.character(basis)) tolower(basis[[1L]]) else if (is.list(basis) && !is.null(basis$type)) tolower(basis$type) else "roi"
-  } else {
-    basis_obj$source %||% "provided"
+  if (domain != "bold") {
+    deconv <- deconv %||% list()
+    supplied <- deconv$tr %||% deconv$TR
+    if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between dataset and deconvolution.", call. = FALSE)
+    deconv$tr <- tr
   }
+  # As in mppi(design, Y): no basis unless one is requested or carried by the design.
+  basis_obj <- if (is.null(basis)) NULL else .mppi_resolve_basis(Y, basis = basis, r = r, dataset = x, design = fd)
   fit <- mppi(fd, Y = Y, basis = basis_obj, domain = domain,
               prewhiten = prewhiten, runs = runs_ds, deconv = deconv,
               engine = engine, instant = instant, ...)
   fit$dataset <- x
-  fit$basis_source <- basis_source
-  if (!is.null(fit$basis)) fit$basis$source <- basis_source
+  if (!is.null(basis)) {
+    basis_source <- if (is.null(basis_obj)) {
+      if (is.character(basis)) tolower(basis[[1L]]) else if (is.list(basis) && !is.null(basis$type)) tolower(basis$type) else "roi"
+    } else {
+      basis_obj$source %||% "provided"
+    }
+    fit$basis_source <- basis_source
+    if (!is.null(fit$basis)) fit$basis$source <- basis_source
+  }
   fit
 }
 
@@ -231,19 +255,6 @@ mppi.default <- function(x, ...) {
 # Constructors --------------------------------------------------------------
 
 # Print / summary ----------------------------------------------------------
-
-#' @export
-print.mppi_design <- function(x, ...) {
-  cat(sprintf("mppi_design: %d time points x %d regressors (%d psychological)\n",
-              nrow(x$X), ncol(x$X), length(x$psych_idx)))
-  if (!is.null(colnames(x$X))) {
-    preview <- head(colnames(x$X)[x$psych_idx], 5L)
-    cat("Psychological columns: ", paste(preview, collapse = ", "))
-    if (length(x$psych_idx) > length(preview)) cat(", ...")
-    cat("\n")
-  }
-  invisible(x)
-}
 
 #' @export
 print.mppi_fit <- function(x, ...) {
@@ -302,8 +313,17 @@ print.summary.mppi_fit <- function(x, ...) {
 
 #' Group HRF basis columns belonging to each condition.
 #'
+#' Columns are grouped only when they are recognisably the basis functions of
+#' one condition: fmridesign names basis function `j` of a multi-basis HRF
+#' `<condition>_b<j>` (zero-padded, e.g. `cond_cond.A_b01`, `cond_cond.A_b02`),
+#' so a non-empty stem whose suffixes run exactly `1..n` (`n >= 2`) forms one
+#' group; so do two or more distinct legacy prefixes `hrf`, `hrfT`, `hrfD`,
+#' `hrfTD` of the same full condition (`hrf_A`, `hrfTD_A`, or `hrf(A)`). Every
+#' other column, including unnamed or duplicated ones, is its own group;
+#' distinct conditions are never merged.
+#'
 #' @param design An `mppi_design` object or design matrix with column names.
-#' @return A named list mapping condition keys to column indices.
+#' @return A named list mapping condition keys to column indices, in design order.
 #' @export
 mppi_group_hrf_columns <- function(design) {
   if (inherits(design, "mppi_design")) {
@@ -316,19 +336,31 @@ mppi_group_hrf_columns <- function(design) {
   } else {
     stop("design must be an mppi_design or matrix with column names.")
   }
-  keyfun <- function(nm) {
-    if (grepl("^hrf", nm)) {
-      if (grepl("\\(", nm)) {
-        inside <- sub("^hrf[^\\(]*\\(([^\\)]+)\\).*", "\\1", nm)
-        if (!identical(inside, nm) && nzchar(inside)) return(inside)
-      }
-      stripped <- sub("^hrf[TtDd]*", "", nm)
-      stripped <- sub("^[\\._:]+", "", stripped)
-      stripped <- sub("[\\._].*$", "", stripped)
-      if (nzchar(stripped)) return(stripped)
+  n <- length(idx)
+  if (is.null(names_vec)) names_vec <- rep("", n)
+  names_vec[is.na(names_vec)] <- ""
+  stem <- tag <- rep(NA_character_, n)
+  fd <- regexpr("_b[0-9]{2,}$", names_vec)
+  hit <- fd > 0
+  stem[hit] <- paste0("b:", substr(names_vec[hit], 1L, fd[hit] - 1L))
+  tag[hit] <- as.integer(substring(names_vec[hit], fd[hit] + 2L))
+  re <- "^hrf([TtDd]*)(?:[._:](.+)|\\((.+)\\))$"
+  lg <- !hit & grepl(re, names_vec, perl = TRUE)
+  stem[lg] <- paste0("h:", sub(re, "\\2\\3", names_vec[lg], perl = TRUE))
+  tag[lg] <- toupper(sub(re, "\\1", names_vec[lg], perl = TRUE))
+  grp <- seq_len(n)
+  key <- ifelse(nzchar(names_vec), names_vec, paste0("col", idx))
+  for (s in unique(stem[!is.na(stem)])) {
+    pos <- which(stem == s)
+    cond <- substring(s, 3L)
+    ok <- if (startsWith(s, "b:")) identical(sort(as.integer(tag[pos])), seq_along(pos)) else !anyDuplicated(tag[pos])
+    if (nzchar(cond) && length(pos) >= 2L && ok) {
+      grp[pos] <- pos[1L]
+      key[pos] <- cond
     }
-    sub("[\\._].*$", "", nm)
   }
-  keys <- vapply(names_vec, keyfun, character(1))
-split(idx, keys)
+  ids <- unique(grp)
+  out <- lapply(ids, function(g) idx[grp == g])
+  names(out) <- make.unique(key[ids])
+  out
 }

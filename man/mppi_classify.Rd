@@ -30,11 +30,22 @@ mppi_classify(
 
 \item{B}{number of permutations for null distribution}
 
-\item{seed}{RNG seed}
+\item{seed}{RNG seed for the circular shifts (reproducible by default); the
+caller's RNG state is restored afterwards. \code{NULL} draws from, and
+advances, the caller's stream.}
 }
 \value{
 list with indices, p-values, and label
 }
 \description{
-Gain vs routing classifier (G/C/I/R indices)
+\code{G} is the leading-eigenvalue energy share of the contemporaneous slope
+matrix, \code{C} the off-diagonal energy of the precision perturbation, \code{I} the
+innovations-to-neural slope norm ratio (\code{mode = "innov"} only) and \code{R} the
+lagged directedness from \code{\link[=mppi_lagged]{mppi_lagged()}}. P-values come from circular shifts
+of the psychological regressor; \code{pR} tests the directed lagged energy
+\code{lagged$energy_directed} (the numerator of \code{R}), which unlike the scale-free
+ratio is not swamped by its noise floor. \code{pI} is \code{NA} in neural mode, where
+the innovations criterion is skipped. The label is \code{"Gain-dominant"} when
+\code{G > 0.5} and \code{C}, \code{I}, \code{R} are not significant (0.05), \code{"Routing-dominant"}
+when \code{G <= 0.5} and they all are, and \code{"Mixed/Ambiguous"} otherwise.
 }

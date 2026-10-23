@@ -53,10 +53,15 @@ test_that("mppi_reinstatement returns within/between similarities", {
 
 
 test_that("mppi_sdppi yields per-trial summaries", {
+  # events 10 s apart overlap on the convolved regressors, so onsets are given
+  # (scans sample at 0.5 + (i - 1) s)
+  expect_error(mppi_sdppi(fit_obj, design, select = "^cond_cond.rec"), "overlap")
   sd_df <- mppi_sdppi(fit_obj, design, select = "^cond_cond.rec",
-                      pre_window = 3L, lags = -1:1, mode = "raw")
+                      pre_window = 3L, lags = -1:1, mode = "raw",
+                      onsets = list(cond_cond.rec_vid01 = rec_onsets + 1,
+                                    cond_cond.rec_vid02 = rec_onsets + 3))
   expect_s3_class(sd_df, "data.frame")
-  expect_gt(nrow(sd_df), 0L)
+  expect_equal(nrow(sd_df), 2L * length(rec_onsets))
   expect_true(all(c("condition", "trial", "onset", "magnitude", "gain", "routing") %in% names(sd_df)))
 })
 

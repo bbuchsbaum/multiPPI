@@ -13,7 +13,9 @@ mppi_group_seedset(
   design,
   formula = ~1,
   Theta0_list = NULL,
-  target_idx = NULL
+  target_idx = NULL,
+  contrast = NULL,
+  coef = NULL
 )
 }
 \arguments{
@@ -35,9 +37,16 @@ mppi_group_seedset(
 \code{aggregate = "precision"}.}
 
 \item{target_idx}{Optional shared target indices.}
+
+\item{contrast}{Optional contrast vector over the columns of
+\code{model.matrix(formula, design)}.}
+
+\item{coef}{Optional coefficient index or name tested when \code{contrast} is
+\code{NULL}; defaults to the last column, as in \code{\link[=mppi_group_glm]{mppi_group_glm()}} (the group
+mean for \code{~ 1}, the last covariate effect otherwise).}
 }
 \value{
-List with coefficient, t- and p-maps plus metadata.
+List with coefficient, t- and p-maps, the \code{contrast} tested, plus metadata.
 }
 \description{
 Group-level inference on seed-set maps

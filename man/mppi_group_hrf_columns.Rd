@@ -10,8 +10,15 @@ mppi_group_hrf_columns(design)
 \item{design}{An \code{mppi_design} object or design matrix with column names.}
 }
 \value{
-A named list mapping condition keys to column indices.
+A named list mapping condition keys to column indices, in design order.
 }
 \description{
-Group HRF basis columns belonging to each condition.
+Columns are grouped only when they are recognisably the basis functions of
+one condition: fmridesign names basis function \code{j} of a multi-basis HRF
+\verb{<condition>_b<j>} (zero-padded, e.g. \code{cond_cond.A_b01}, \code{cond_cond.A_b02}),
+so a non-empty stem whose suffixes run exactly \verb{1..n} (\code{n >= 2}) forms one
+group; so do two or more distinct legacy prefixes \code{hrf}, \code{hrfT}, \code{hrfD},
+\code{hrfTD} of the same full condition (\code{hrf_A}, \code{hrfTD_A}, or \code{hrf(A)}). Every
+other column, including unnamed or duplicated ones, is its own group;
+distinct conditions are never merged.
 }

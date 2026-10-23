@@ -67,10 +67,20 @@ mppi_lagged(x, ...)
 \item{scale}{compute covariance (\code{"cov"}) or correlation (\code{"corr"}) slopes}
 }
 \value{
-list with matrices per lag and routing index R
+list with matrices per lag (\code{M_lag}), routing index \code{R}, the
+\code{lead_energy} matrix \eqn{E}, \code{energy_directed} (numerator of \code{R}) and
+\code{energy_total} (denominator)
 }
 \description{
-Short-lag task-gated coupling matrices
-
-Psychological-regressor shifts for covariance modulation
+For \eqn{\tau > 0}, \code{M_lag[[tau]][i, j]} weights node \eqn{i} at \eqn{t}
+times node \eqn{j} at \eqn{t + \tau} by \eqn{p_k(t)} (i leads j), and
+\eqn{M(-\tau) = M(\tau)^T}. Positive- and negative-lag energies are thus
+always equal; direction lives in the asymmetry of each matrix. The routing
+index \code{R} is the directedness of the lead-lag energy
+\eqn{E_{ij} = \sum_\tau M(\tau)_{ij}^2} over nonzero lags (negative lags
+transposed, diagonal excluded):
+\eqn{R = \sum_{i<j} |E_{ij} - E_{ji}| / \sum_{i<j} (E_{ij} + E_{ji})}, in
+\eqn{[0, 1]}; 0 when every pair's lagged coupling is symmetric, 1 when every
+pair couples in one direction only. Use \code{\link[=mppi_routing_index]{mppi_routing_index()}} for a signed
+index along a hierarchy.
 }

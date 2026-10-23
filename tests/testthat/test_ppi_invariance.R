@@ -58,3 +58,17 @@ test_that("predictor units do not alter rank or transformed inference", {
   expect_equal(b$sigma2,a$sigma2,tolerance=1e-10)
   expect_equal(ppi_contrast(a,c(B=1))$statistic,ppi_contrast(b,c(B=1e8))$statistic,tolerance=1e-9)
 })
+
+test_that("deconvolution does not depend on HRF amplitude or microtime", {
+  set.seed(7); n <- 120
+  spm <- function(t) ifelse(t < 0, 0, dgamma(t, 6, 1) - dgamma(t, 16, 1) / 6)
+  seed <- as.numeric(stats::filter(rnorm(n), 0.7, method = "recursive"))
+  ps <- cbind(A = rep(rep(0:1, each = 4), length.out = n))
+  d <- ppi_design(seed, psych = ps, TR = 2, hrf = spm, run_effects = "shared")
+  d10 <- ppi_design(seed, psych = ps, TR = 2, hrf = function(t) 10 * spm(t), run_effects = "shared")
+  expect_equal(d10$X[, "interaction:A"], d$X[, "interaction:A"], tolerance = 1e-10)
+  expect_equal(d10$neural_seed, d$neural_seed / 10, tolerance = 1e-10)
+  d64 <- ppi_design(seed, psych = ps, TR = 2, hrf = spm, microtime = 64, run_effects = "shared")
+  expect_gt(cor(d64$X[, "interaction:A"], d$X[, "interaction:A"]), 0.999)
+  expect_equal(sd(d64$X[, "interaction:A"]), sd(d$X[, "interaction:A"]), tolerance = 0.01)
+})

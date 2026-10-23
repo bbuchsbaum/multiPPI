@@ -102,7 +102,7 @@ seed_ppi_mcca <- function(data,
     }
   } else {
     # Validate provided neighborhoods
-    if (!is.list(neigh) || !all(vapply(neigh, function(x) is.integer(x) || is.numeric(x), logical(1)))) {
+    if (!is.list(neigh) || !all(vapply(neigh, function(x) (is.integer(x) || is.numeric(x)) && all(x == round(x), na.rm = TRUE), logical(1)))) {
       stop("'neighborhoods' must be a list of integer vectors (column indices).", call. = FALSE)
     }
     neigh <- lapply(neigh, as.integer)
@@ -136,9 +136,11 @@ seed_ppi_mcca <- function(data,
   D_cent <- D_mat
   N_cent <- if (!is.null(N_mat)) N_mat else NULL
 
+  outside <- vapply(neigh, function(id) anyNA(id) || any(id < 1L | id > ncol(Y_all)), logical(1))
+  if (any(outside)) stop(sprintf("%d neighborhood(s) contain column indices outside 1..%d.", sum(outside), ncol(Y_all)), call. = FALSE)
+
   for (i in seq_along(neigh)) {
     idx <- neigh[[i]]
-    idx <- idx[idx >= 1L & idx <= ncol(Y_all)]
     if (length(idx) < 2L) next
 
     # Searchlight data and PCA
@@ -314,7 +316,6 @@ seed_ppi_mcca <- function(data,
   # Prewhiten Y and Z0=[D,N] together for consistency
   if (isTRUE(prewhiten)) {
     if (is.null(runs)) stop("'runs' must be provided when prewhiten = TRUE.", call. = FALSE)
-    if (!requireNamespace("fmriAR", quietly = TRUE)) stop("fmriAR is required for prewhiten.", call. = FALSE)
     Z0 <- if (is.null(N)) D else cbind(D, N)
     # Fit AR on residuals of Y after projecting Z0 (per standard practice)
     qrZ <- if (ncol(Z0)) qr(Z0) else NULL

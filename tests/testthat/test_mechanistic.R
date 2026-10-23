@@ -25,13 +25,21 @@ test_that("mppi_gain matches manual precision update", {
   expect_equal(gain$gain, diag(dTheta), tolerance = 1e-8)
 })
 
+lagged_drive_fit <- function(seed = 2) {
+  set.seed(seed)
+  Tn <- 240L
+  task <- rep(c(rep(1, 12), rep(0, 12)), length.out = Tn)
+  Y <- matrix(rnorm(Tn * 3), Tn, 3)
+  for (t in 2:Tn) Y[t, 1] <- Y[t, 1] + 2 * task[t - 1] * Y[t - 1, 3]
+  mppi_fit(Y, cbind(int = 1, task = task), psych_idx = 2, lags = -1:1)
+}
+
 test_that("mppi_routing_index detects feedforward bias", {
-  fit_pos <- mock_fit(c(2, 0))
-  fit_neg <- mock_fit(c(0, 2))
-  routing <- mppi_routing_index(list("1" = fit_pos, "-1" = fit_neg),
-                                hierarchy = c(1, 2))
-  expect_equal(routing$routing, (0.5 - 2) / (0.5 + 2), tolerance = 1e-8)
-  expect_true(routing$energy_neg > routing$energy_pos)
+  fit <- lagged_drive_fit()
+  routing <- mppi_routing_index(fit, hierarchy = c(3, 2, 1), pos = 1, neg = -1)
+  expect_gt(routing$routing, 0.5)
+  expect_gt(routing$energy_up, routing$energy_down)
+  expect_lt(mppi_routing_index(fit, hierarchy = c(1, 2, 3), pos = 1, neg = -1)$routing, -0.5)
 })
 
 test_that("mppi_project_templates returns normalized weights", {
@@ -54,12 +62,12 @@ test_that("template helpers build orthogonal patterns", {
 })
 
 test_that("mechanism report bundles gain, routing, templates", {
-  fit <- mock_fit(c(2, 0))
-  lag_fits <- list("1" = fit, "-1" = mock_fit(c(0, 2)))
-  templates <- list(diag = diag(2))
-  rep <- mppi_mechanism_report(fit, hierarchy = c(1, 2), lag_fits = lag_fits,
+  fit <- lagged_drive_fit()
+  templates <- list(diag = diag(3))
+  rep <- mppi_mechanism_report(fit, hierarchy = c(3, 2, 1), lag_fits = fit,
                                templates = templates)
   expect_true(is.list(rep$gain))
-  expect_true(is.list(rep$routing))
+  expect_equal(rep$routing, mppi_routing_index(fit, hierarchy = c(3, 2, 1)))
+  expect_gt(rep$routing$routing, 0.5)
   expect_true(is.numeric(rep$templates))
 })

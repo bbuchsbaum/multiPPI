@@ -22,17 +22,21 @@ mppi_deconv_dct(
 
 \item{method}{"gcv" (default) for per-column GCV lambda, or "fixed"}
 
-\item{lambda}{fixed ridge if method="fixed"}
+\item{lambda}{relative ridge if method="fixed" (multiplied by \eqn{s})}
 
 \item{q}{optional length-K vector of frequency prior weights (diagonal of Q); default uniform}
 }
 \value{
-list with U (T x R neural estimates), beta (K x R coefficients), lambda (R vector)
+list with U (T x R neural estimates), beta (K x R coefficients), lambda
+(R vector of relative penalties, on the scale of the \code{lambda} argument)
 }
 \description{
 Implements a DCT-basis deconvolution with Tikhonov/frequency prior as advocated by
 Gitelman et al. (2003) for forming interaction terms in neural space. Operates column-wise
 on a T x R matrix and chooses the penalty per column by generalized cross-validation.
+Penalties are relative to the mean diagonal \eqn{s} of the Gram matrix of the
+HRF-convolved DCT basis (the ridge is \eqn{\lambda s Q}), and the GCV grid is
+scaled by \eqn{s}, so the estimate's shape does not depend on HRF amplitude.
 }
 \examples{
 \dontrun{

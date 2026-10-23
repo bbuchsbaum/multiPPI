@@ -108,7 +108,8 @@ mppi_sim_rest_dataset <- function(T = 600L, V = 40L, r = 6L,
   if (!is.null(hrf)) {
     h <- as.numeric(hrf)
     if (!length(h)) stop("HRF must be a numeric vector.", call. = FALSE)
-    conv_col <- function(x) stats::filter(c(x, rep(0, length(h))), h, sides = 1)[seq_len(length(x))]
+    # Causal convolution with zero history; leading padding keeps every row defined.
+    conv_col <- function(x) stats::filter(c(rep(0, length(h) - 1L), x), h, sides = 1)[-seq_len(length(h) - 1L)]
     U <- apply(U, 2, conv_col)
   }
   L <- qr.Q(qr(matrix(rnorm(V * r), V, r)))

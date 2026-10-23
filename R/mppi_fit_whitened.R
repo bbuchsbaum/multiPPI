@@ -3,7 +3,9 @@
 #' mPPI with fmriAR prewhitening
 #'
 #' @param Y Numeric matrix of observed time series (T x V).
-#' @param X Numeric design matrix (T x q).
+#' @param X Numeric design matrix (T x q). An intercept is added before
+#'   whitening when `X` spans none; the whitened design is then used as-is
+#'   (no raw intercept is appended), so residuals and slopes are GLS.
 #' @param runs Integer or factor vector of run labels (length T).
 #' @param psych_idx Integer vector of psychological column indices within `X`.
 #' @param ar_method String selecting AR noise model (`"ar"` or `"arma"`).
@@ -30,6 +32,7 @@
 #' @param lags Integer vector of lags to include (defaults to `0L`).
 #' @param lag_blocklens Optional integer vector of block lengths for lagged
 #'   fits.
+#' @export
 mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               ar_method = "ar", p = "auto",
                               zero_diag = TRUE, scale = c("normalized","cov","corr"),
@@ -39,9 +42,6 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               domain = c("bold","neural","innovations"), deconv = NULL,
                               project_backend = c("blas","chunked"), project_chunk_cols = NULL,
                               lags = 0L, lag_blocklens = NULL) {
-  if (!requireNamespace("fmriAR", quietly = TRUE)) {
-    stop("fmriAR not available. Install via remotes::install_github('bbuchsbaum/fmriAR').")
-  }
   stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
   scale_choice <- match.arg(scale)
   domain <- match.arg(domain)
@@ -51,12 +51,16 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
   na_action <- match.arg(na_action)
   backend <- match.arg(backend)
   project_backend <- match.arg(project_backend)
-  # Initial residuals for noise fit
+  # GLS: add any intercept before whitening; the whitened design is then used as-is
+  design <- .mppi_prepare_design_matrix(X, psych_idx)
+  X <- design$X
   qrX <- qr(X)
   res  <- qr.resid(qrX, Y)
   plan <- fmriAR::fit_noise(res, runs = runs, method = ar_method, p = p)
   xyw  <- fmriAR::whiten_apply(plan, X = X, Y = Y, runs = runs)
-  fit <- mppi_fit(Y = xyw$Y, X = xyw$X, psych_idx = psych_idx, runs = runs,
+  Xw <- xyw$X
+  attr(Xw, "mppi_whitened") <- TRUE
+  fit <- mppi_fit(Y = xyw$Y, X = Xw, psych_idx = design$psych_idx, runs = runs,
            zero_diag = zero_diag, scale = scale_choice,
            center_by = center_by, na_action = na_action,
            backend = backend, chunk_size = chunk_size, packed = packed,

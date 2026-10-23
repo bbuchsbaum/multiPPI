@@ -30,7 +30,9 @@ mppi_fit_whitened(
 \arguments{
 \item{Y}{Numeric matrix of observed time series (T x V).}
 
-\item{X}{Numeric design matrix (T x q).}
+\item{X}{Numeric design matrix (T x q). An intercept is added before
+whitening when \code{X} spans none; the whitened design is then used as-is
+(no raw intercept is appended), so residuals and slopes are GLS.}
 
 \item{runs}{Integer or factor vector of run labels (length T).}
 

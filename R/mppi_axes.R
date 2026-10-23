@@ -2,6 +2,10 @@
 
 #' Summarise conditions along gain and routing axes
 #'
+#' `gain` is the alignment of the symmetrised slope matrix with the leading
+#' baseline covariance mode. `routing` is the directedness of the lagged slopes
+#' in \eqn{[0, 1]} (0 = symmetric lagged coupling, 1 = one-way), defined as in
+#' [mppi_lagged()]; it is `NA` when no lagged matrices are available.
 #' @param fit `mppi_fit` object
 #' @param lags integer vector of lags (excluding zero) used for routing; defaults to stored lags
 #' @param mode scale view for the interaction matrices
@@ -53,21 +57,7 @@ mppi_axes <- function(fit, lags = NULL, mode = c("normalized", "amplitude", "raw
     if (!is.na(gain)) gain <- max(min(gain, 1), -1)
 
     lag_mats <- get_lag_mats(k_idx)
-    if (length(lag_mats)) {
-      pos_sum <- 0
-      neg_sum <- 0
-      for (i in seq_along(lags)) {
-        lg <- lags[i]
-        Mk_lag <- lag_mats[[i]]
-        if (is.null(Mk_lag)) next
-        e <- sqrt(sum(Mk_lag^2, na.rm = TRUE))
-        if (lg > 0) pos_sum <- pos_sum + e
-        if (lg < 0) neg_sum <- neg_sum + e
-      }
-      routing <- (pos_sum - neg_sum) / (pos_sum + neg_sum + eps)
-    } else {
-      routing <- NA_real_
-    }
+    routing <- if (length(lag_mats)) .mppi_directedness(.mppi_lead_energy(lag_mats, lags)) else NA_real_
     rows[[k_idx]] <- data.frame(condition = cond_names[k_idx],
                                 gain = gain,
                                 routing = routing,

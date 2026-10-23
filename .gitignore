@@ -1,0 +1,17 @@
+# Compiled code
+src/*.o
+src/*.so
+src/*.dll
+# R session and check artifacts
+.Rhistory
+.RData
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+Rplots.pdf
+# Rendered vignettes
+vignettes/*.html
+vignettes/*.knit.md
+inst/doc/
+# Local agent tooling
+.claude/

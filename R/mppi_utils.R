@@ -40,6 +40,7 @@
   Q <- qr.Q(qrV)
   rank <- qrV$rank
   Q <- Q[, seq_len(rank), drop = FALSE]
+  rownames(Q) <- rownames(V)
   structure(list(V = Q, name = name, r = ncol(Q)), class = "mppi_basis")
 }
 
@@ -215,38 +216,6 @@
   }
 }
 
-.mppi_phase_randomize_seg <- function(x) {
-  n <- length(x)
-  if (n <= 2L) return(x)
-  Fx <- fft(x)
-  half <- floor(n / 2)
-  for (k in seq.int(2L, half)) {
-    angle <- runif(1, 0, 2 * pi)
-    mag <- Mod(Fx[k])
-    Fx[k] <- mag * exp(1i * angle)
-    conj_idx <- n - k + 2L
-    if (conj_idx <= length(Fx)) {
-      Fx[conj_idx] <- Conj(Fx[k])
-    }
-  }
-  if (n %% 2 == 0) {
-    idx <- half + 1L
-    Fx[idx] <- Mod(Fx[idx]) * exp(1i * runif(1, 0, 2 * pi))
-  }
-  Re(fft(Fx, inverse = TRUE) / n)
-}
-
-.mppi_phase_randomize <- function(pk, runs = NULL) {
-  if (is.null(runs)) runs <- rep(1L, length(pk))
-  stopifnot(length(pk) == length(runs))
-  out <- pk
-  idx <- split(seq_along(pk), runs)
-  for (g in idx) {
-    out[g] <- .mppi_phase_randomize_seg(pk[g])
-  }
-  out
-}
-
 # Internal: detect if a design already contains an intercept-like column
 .mppi_has_intercept <- function(X) {
   stopifnot(is.matrix(X))
@@ -257,22 +226,35 @@
   sqrt(sum(residual^2)) <= 1e-8 * sqrt(nrow(X))
 }
 
-# Prepare a design matrix, ensuring an intercept column and adjusting indices
-.mppi_prepare_design_matrix <- function(X, psych_idx = NULL) {
-  stopifnot(is.matrix(X))
-  if (.mppi_has_intercept(X)) {
-    return(list(X = X,
-                psych_idx = if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx))),
-                intercept_added = FALSE))
-  }
-  X_new <- cbind(`(Intercept)` = 1, X)
-  idx_new <- if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx))) + 1L
-  list(X = X_new, psych_idx = idx_new, intercept_added = TRUE)
+# Unique design column names: missing, empty or duplicated names become
+# psych1..psychK (psychological columns, in index order) or x<j> (others).
+.mppi_design_colnames <- function(X, psych_idx = NULL) {
+  nm <- colnames(X) %||% character(ncol(X))
+  nm[is.na(nm)] <- ""
+  bad <- !nzchar(nm) | nm %in% nm[duplicated(nm)]
+  if (!any(bad)) return(nm)
+  def <- paste0("x", seq_along(nm))
+  p <- psych_idx[psych_idx >= 1L & psych_idx <= length(nm)]
+  def[p] <- paste0("psych", seq_along(p))
+  nm[bad] <- utils::tail(make.unique(c(nm[!bad], def[bad])), sum(bad))
+  nm
 }
 
-# Backwards-compatible helper used by legacy code paths
-.mppi_with_intercept <- function(X) {
-  .mppi_prepare_design_matrix(X)$X
+# Prepare a design matrix, ensuring an intercept column, unique column names
+# (see .mppi_design_colnames) and adjusting indices.
+# A prewhitened design (attr "mppi_whitened") already carries its whitened intercept.
+.mppi_prepare_design_matrix <- function(X, psych_idx = NULL) {
+  stopifnot(is.matrix(X))
+  whitened <- isTRUE(attr(X, "mppi_whitened"))
+  attr(X, "mppi_whitened") <- NULL
+  p_idx <- if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx)))
+  colnames(X) <- .mppi_design_colnames(X, p_idx)
+  if (whitened || .mppi_has_intercept(X)) {
+    return(list(X = X, psych_idx = p_idx, intercept_added = FALSE))
+  }
+  X_new <- cbind(`(Intercept)` = 1, X)
+  colnames(X_new) <- make.unique(colnames(X_new))
+  list(X = X_new, psych_idx = if (is.null(p_idx)) p_idx else p_idx + 1L, intercept_added = TRUE)
 }
 
 # Public helper: select psychological regressors by name or regex
@@ -281,6 +263,7 @@
 #' @param patterns character vector of regex patterns (applied to colnames(X))
 #' @param names_or_idx specific names or integer indices
 #' @return integer vector of column indices
+#' @export
 mppi_select_psych <- function(X, patterns = NULL, names_or_idx = NULL) {
   stopifnot(is.matrix(X))
   if (!is.null(names_or_idx)) {

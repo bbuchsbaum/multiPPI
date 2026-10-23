@@ -3,6 +3,7 @@
 #' Psychological-regressor shifts for covariance modulation
 #' @param x object containing a design or fit to dispatch on
 #' @param ... additional arguments passed to methods
+#' @export
 mppi_lagged <- function(x, ...) UseMethod("mppi_lagged")
 
 #' @rdname mppi_lagged
@@ -61,6 +62,7 @@ mppi_lagged.default <- function(x, X, psych_idx, lags = -2:2, blocklens = NULL,
 #' @param scale compute covariance (`"cov"`) or correlation (`"corr"`) slopes
 #' @param targets optional subset of psychological regressors (names or indices)
 #' @param zero_diag logical; zero the diagonal of returned matrices
+#' @export
 mppi_lag_select <- function(Y, X, psych_idx, lags = -2:2, blocklens = NULL, B = 499L,
                             blksize = 10L, scale = c("cov","corr"), targets = NULL,
                             zero_diag = TRUE) {
@@ -73,7 +75,8 @@ mppi_lag_select <- function(Y, X, psych_idx, lags = -2:2, blocklens = NULL, B = 
   if (is.null(blocklens)) blocklens <- n
   if (any(!is.finite(blocklens)) || any(blocklens <= 0) || any(blocklens != as.integer(blocklens)) || sum(blocklens) != n) stop("blocklens must describe the acquisition grid.", call. = FALSE)
   runs <- rep(seq_along(blocklens), blocklens)
-  fit <- mppi_fit(Y, X, psych_idx, runs=runs, zero_diag=zero_diag, scale=scale, na_action="error")
+  # Only residuals and regressors are used; the cheapest fit scale avoids V^3 diagnostics.
+  fit <- mppi_fit(Y, X, psych_idx, runs=runs, zero_diag=zero_diag, scale="normalized", na_action="error")
   p_names <- fit$names
   targets_idx <- if (is.null(targets)) seq_along(p_names) else if (is.numeric(targets)) as.integer(targets) else match(targets,p_names)
   if (!length(targets_idx) || anyNA(targets_idx) || any(targets_idx < 1 | targets_idx > length(p_names)) || (is.numeric(targets) && any(targets != targets_idx))) stop("Invalid targets.", call. = FALSE)
@@ -97,6 +100,7 @@ mppi_lag_select <- function(Y, X, psych_idx, lags = -2:2, blocklens = NULL, B = 
     q <- vapply(mats,function(m) if (all(is.na(m))) NA_real_ else sum(m^2),numeric(1))
     list(mats=mats, q=q)
   }
+  energy <- .mppi_slope_energy(R, zero_diag)
   results <- setNames(vector("list",length(targets_idx)),p_names[targets_idx])
   for (i in seq_along(targets_idx)) {
     pk <- fit$pk[[targets_idx[i]]]; obs <- evaluate(pk)
@@ -106,7 +110,10 @@ mppi_lag_select <- function(Y, X, psych_idx, lags = -2:2, blocklens = NULL, B = 
     for (b in seq_len(B)) {
       signs <- sample(c(-1,1),length(blocks),replace=TRUE); perm <- pk
       for (j in seq_along(blocks)) perm[blocks[[j]]] <- signs[j] * perm[blocks[[j]]]
-      q <- evaluate(perm)$q
+      q <- vapply(lags, function(lg) {
+        shifted <- .mppi_shift_by_run(perm, lg, blocklens)
+        if (sum(shifted^2) <= .Machine$double.eps) NA_real_ else energy(shifted)
+      }, numeric(1))
       null[b] <- if (all(is.na(q))) NA_real_ else max(q,na.rm=TRUE)
     }
     valid <- is.finite(null)

@@ -43,14 +43,7 @@
   if (is.null(duration_val)) duration_val <- default_duration
   oversample_val <- cfg$oversample
   if (is.null(oversample_val)) oversample_val <- default_oversample
-  hrf_input <- cfg$hrf
-  if (is.function(hrf_input)) {
-    hrf_vec <- as.numeric(hrf_input(tr = tr_val, duration = duration_val, oversample = oversample_val))
-  } else if (is.null(hrf_input)) {
-    hrf_vec <- mppi_default_hrf(tr = tr_val, duration = duration_val, oversample = oversample_val)
-  } else {
-    hrf_vec <- as.numeric(hrf_input)
-  }
+  hrf_vec <- if (is.null(cfg$hrf)) mppi_default_hrf(tr = tr_val, duration = duration_val, oversample = oversample_val) else .mppi_hrf_to_vec(cfg$hrf, tr_val, span = duration_val)
   if (!length(hrf_vec) || any(!is.finite(hrf_vec))) {
     stop("Resolved HRF for neural domain must be finite and non-empty.", call. = FALSE)
   }
@@ -88,10 +81,17 @@
 
 #' Matrix-PPI estimator from raw matrices
 #' @param Y T x V matrix of time series (preprocessed)
-#' @param X T x q design matrix (intercept + confounds + psychological mains)
+#' @param X T x q design matrix (intercept + confounds + psychological mains).
+#'   Missing, empty or duplicated column names are replaced by unique defaults:
+#'   `psych1`, ..., `psychK` for the psychological columns (in index order) and
+#'   `x<j>` for column `j` otherwise; these name the returned regressors.
 #' @param psych_idx integer indices of psychological columns in X
-#' @param runs optional integer vector the same length as the rows of `Y` indicating run membership
-#' @param zero_diag logical; zero the diagonal of ΔΣ
+#' @param runs optional run labels (integer, character or factor), one per row
+#'   of `Y`; factors are stored as character labels
+#' @param zero_diag logical; zero the diagonal of ΔΣ. With a `basis`, the stored
+#'   r x r matrices are component-space summaries; ROI-space edges come from
+#'   [mppi_reconstruct_delta()], [mppi_edge()] and [mppi_seedset_slopes()], which
+#'   back-project the full component slope and apply `zero_diag` and scaling in ROI space.
 #' @param scale summary scale for returned matrices; choose among `"normalized"`, `"cov"`, or `"corr"`
 #' @param center_by strategy for mean-centering psychological regressors (`"none"` or per-`runs`)
 #' @param na_action how to handle missing trials (`"omit_tr"` to drop them or `"error"` to abort)
@@ -102,10 +102,25 @@
 #' @param project_backend backend for projecting onto the supplied basis
 #' @param project_chunk_cols optional number of columns per projection chunk
 #' @param domain working domain (`"bold"`, `"neural"`, or `"innovations"`); enables deconvolution if not bold
-#' @param deconv optional deconvolution configuration list used when `domain != "bold"`
+#' @param deconv optional deconvolution configuration list used when `domain != "bold"`:
+#'   `tr`; `hrf`, a numeric kernel sampled at `tr` from lag zero or a function of
+#'   time in seconds (e.g. an fmrihrf HRF) evaluated on `seq(0, span, by = tr)`,
+#'   `span` being its `span` attribute, else `duration` (default 32 s); default
+#'   [mppi_default_hrf()]; `type` (`"dct"` or `"map"`); `lambda`, relative to the
+#'   operator scale so results do not depend on HRF amplitude: for `"map"` the
+#'   first-difference penalty is `lambda` (default 10) times the mean diagonal of
+#'   \eqn{H'H} (see [mppi_deconv()]), for `"dct"` with `method = "fixed"` the ridge
+#'   is `lambda` (default 0.1) times the mean diagonal of the convolved-basis Gram
+#'   matrix (GCV is scale-free); `method`, `K`, `q`, `groups`, `psych`.
 #' @param lags Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes)
-#' @param lag_blocklens Optional run lengths for lagged computations when `runs` is unavailable
-#' @return list with contemporaneous and lagged slope matrices plus residual metadata
+#' @param lag_blocklens Optional run lengths on the acquisition grid (summing to
+#'   `nrow(Y)`) for lagged computations when `runs` is unavailable
+#' @return list with contemporaneous and lagged slope matrices plus residual
+#'   metadata. `lag_blocklens` holds the lengths of the contiguous blocks of the
+#'   retained rows of `R` (`NULL` for one block): blocks break at run boundaries
+#'   and at censored scans, so adjacent rows within a block are adjacent scans;
+#'   `observation_index` gives each retained row's acquisition position.
+#' @export
 mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                      zero_diag = TRUE, scale = c("normalized","cov","corr"),
                      center_by = c("none","run"), na_action = c("omit_tr","error"),
@@ -121,6 +136,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   backend <- match.arg(backend)
   project_backend_choice <- match.arg(project_backend)
   domain <- match.arg(domain)
+  if (is.factor(runs)) runs <- as.character(runs)
 
   original_n <- nrow(Y)
   original_runs <- runs
@@ -145,11 +161,13 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   lags <- sort(unique(as.integer(lags)))
   if (!length(lags)) lags <- 0L
   if (!0L %in% lags) lags <- c(0L, lags)
-  if (!is.null(lag_blocklens) && inputs$dropped > 0L) {
-    if (any(original_blocklens <= 0) || sum(original_blocklens) != original_n) stop("lag_blocklens must describe the original acquisition grid.", call. = FALSE)
-    lag_blocklens <- NULL
-  }
-  if (!is.null(lag_blocklens)) {
+  obs_idx <- setdiff(seq_len(original_n), inputs$dropped_idx)
+  if (inputs$dropped > 0L) {
+    if (!is.null(lag_blocklens) && (any(original_blocklens <= 0) || sum(original_blocklens) != original_n)) stop("lag_blocklens must describe the original acquisition grid.", call. = FALSE)
+    segments <- if (!is.null(original_blocklens)) rep(seq_along(original_blocklens), original_blocklens) else if (!is.null(original_runs)) cumsum(c(TRUE, original_runs[-1] != original_runs[-original_n])) else rep(1L, original_n)
+    # Stored blocks of retained rows break at run boundaries and censored gaps.
+    lag_blocklens <- rle(cumsum(c(TRUE, diff(obs_idx) != 1L | diff(segments[obs_idx]) != 0L)))$lengths
+  } else if (!is.null(lag_blocklens)) {
     lag_blocklens <- as.integer(lag_blocklens)
     if (any(lag_blocklens <= 0)) {
       stop("lag_blocklens must contain positive lengths.", call. = FALSE)
@@ -187,7 +205,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                     name), call. = FALSE)
   }
 
-  pNms <- if (is.null(colnames(X))) paste0("psych", seq_along(p_idx)) else colnames(X)[p_idx]
+  pNms <- colnames(X)[p_idx]
   deconv_psych <- NULL
   neural_lambda <- NULL
   n_psych <- length(p_idx)
@@ -317,6 +335,10 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   }
 
   sigma_unscaled <- matrixStats::colSds(R_work)
+  # ROI-space SDs for back-projected basis slopes: voxel residuals in BOLD; otherwise the
+  # back-projected working series, since deconvolution/filtering runs on components.
+  sigma_roi <- if (is.null(basis_info)) NULL else if (domain == "bold") matrixStats::colSds(R) else
+    sqrt(rowSums((basis_info$V %*% stats::cov(R_work)) * basis_info$V))
 
   out  <- vector("list", n_psych)
   pks  <- vector("list", n_psych)
@@ -423,11 +445,10 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       lg <- lags[li]
       if (!is.na(zero_idx) && li == zero_idx) next
       if (inputs$dropped > 0L) {
-        keep <- setdiff(seq_len(original_n), inputs$dropped_idx)
-        grid_R <- matrix(0, original_n, ncol(R_work)); grid_R[keep, ] <- R_work
-        grid_pk <- numeric(original_n); grid_pk[keep] <- pk_vec
-        valid <- rep(FALSE, original_n); valid[keep] <- TRUE
-        segments <- if (!is.null(original_blocklens)) rep(seq_along(original_blocklens), original_blocklens) else if (!is.null(original_runs)) cumsum(c(TRUE, original_runs[-1] != original_runs[-original_n])) else rep(1L, original_n)
+        # Pairs are formed on the acquisition grid, so a lag may span a censored scan.
+        grid_R <- matrix(0, original_n, ncol(R_work)); grid_R[obs_idx, ] <- R_work
+        grid_pk <- numeric(original_n); grid_pk[obs_idx] <- pk_vec
+        valid <- rep(FALSE, original_n); valid[obs_idx] <- TRUE
         a <- if (abs(lg) >= original_n) integer(0) else seq_len(original_n - abs(lg)); b <- a + abs(lg)
         ok <- valid[a] & valid[b] & segments[a] == segments[b]
         a <- a[ok]; b <- b[ok]
@@ -436,6 +457,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       } else raw_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
                                         blocklens = lag_blocklens,
                                         backend = backend, chunk_size = chunk_size)
+      lag_diag <- diag(raw_lag)
       if (!all(is.na(raw_lag)) && zero_diag) diag(raw_lag) <- 0
       amp_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "amplitude")
       norm_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "normalized")
@@ -446,6 +468,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       attr(chosen_lag, "raw") <- raw_lag
       attr(chosen_lag, "amplitude") <- amp_lag
       attr(chosen_lag, "normalized") <- norm_lag
+      attr(chosen_lag, "diagonal") <- lag_diag
       lag_list[[li]] <- chosen_lag
     }
     lag_store[[ii]] <- lag_list
@@ -483,9 +506,9 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   }
   res <- list(Delta = out, names = pNms, R = R_work, R_raw = R_unscaled,
               Delta_raw = raw_list, Delta_amplitude = amp_list, Delta_normalized = norm_list,
-              sigma = sigma_unscaled, pk = pks,
+              sigma = sigma_unscaled, sigma_roi = sigma_roi, pk = pks,
               scale = scale_choice, dropped = inputs$dropped, center_by = center_by,
-              observation_index = setdiff(seq_len(original_n), inputs$dropped_idx),
+              observation_index = obs_idx,
               covariance_diagonal = covariance_diagonal, zero_diag = zero_diag,
               fitted_X = X, psych_idx = p_idx,
               runs = runs, denom = denoms, backend = backend,
@@ -512,6 +535,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 #' @param dataset fmrireg dataset supplying Y
 #' @param psych regex patterns or column indices identifying psychological regressors
 #' @inheritParams mppi_fit
+#' @export
 mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("normalized","cov","corr"), zero_diag = TRUE,
                                   runs = NULL, center_by = c("none","run"), na_action = c("omit_tr","error"),
                                   backend = c("blas","accumulate","chunked"), chunk_size = NULL,

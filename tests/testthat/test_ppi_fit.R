@@ -50,7 +50,6 @@ test_that("missing observations stay on their original grid under IID fitting", 
 })
 
 test_that("fixed fmriAR operator agrees with independent dense runwise GLS", {
-  skip_if_not_installed("fmriAR")
   set.seed(122)
   n <- 120; rr <- rep(c(1, 2), c(55, 65))
   d <- ppi_design(rnorm(n), psych = cbind(A = rnorm(n), B = rnorm(n)),
@@ -86,4 +85,29 @@ test_that("a changing seed variance alone does not create conventional interacti
   e <- qr.resid(qr(d$X), rnorm(120))
   f <- ppi_fit(matrix(0.7 * seed + e, ncol = 1), d, noise = "iid")
   expect_equal(drop(ppi_contrast(f, c(A = 1))$estimate), 0, tolerance = 1e-10)
+})
+
+test_that("README conventional example runs with the default HRF and noise model", {
+  set.seed(1)
+  n <- 100
+  seed <- rnorm(n)
+  psych <- cbind(A = rep(c(0, 1), 50), B = rep(c(0, 0, 1, 1), 25))
+  design <- ppi_design(seed, psych = psych, TR = 2, run_effects = "shared")
+  expect_equal(design$provenance$hrf, fmrihrf::hrf_spmg1(seq(0, 32, by = 2 / 16)))
+  Y <- matrix(rnorm(n * 2), nrow = n)
+  fit <- ppi_fit(Y, design, noise = "iid")
+  est <- ppi_contrast(fit, c(A = 1, B = -1))$estimate
+  expect_true(all(is.finite(est)))
+  expect_s3_class(ppi_fit(Y, design)$noise_plan, "fmriAR_plan")
+})
+
+test_that("condition contrasts average only over runs where the condition occurs", {
+  set.seed(5); n <- 120; runs <- rep(1:2, each = 60)
+  ps <- cbind(A = rep(rep(0:1, each = 6), 10), C = c(rep(c(0, 0, 0, 1, 1, 1), 10), rep(0, 60)))
+  d <- ppi_design(rnorm(n), psych = ps, TR = 2, hrf = c(0, 1, 0.5), microtime = 1, runs = runs)
+  f <- ppi_fit(matrix(rnorm(n * 3), n), d, noise = "iid")
+  expect_equal(ppi_contrast(f, c(C = 1))$estimate, ppi_contrast(f, c("interaction:C:1" = 1))$estimate)
+  expect_true(all(is.finite(ppi_contrast(f, c(A = 1, C = -1))$estimate)))
+  both <- ppi_contrast(f, c("interaction:A:1" = 0.5, "interaction:A:2" = 0.5))$estimate
+  expect_equal(ppi_contrast(f, c(A = 1))$estimate, both)
 })

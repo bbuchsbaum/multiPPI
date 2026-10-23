@@ -24,8 +24,11 @@
   opts$offsets <- as.integer(opts$offsets)
   if (!0L %in% opts$offsets) opts$offsets <- c(0L, opts$offsets)
   opts$offsets <- sort(unique(opts$offsets))
-  if (opts$method == "ewm" && (is.null(opts$tau_half) || !is.finite(opts$tau_half) || opts$tau_half <= 0)) {
-    stop("instant$tau_half must be a positive value for method='ewm'.", call. = FALSE)
+  if (opts$method != "ewm" && any(opts$offsets != 0L)) {
+    stop(sprintf("Lags/offsets are only supported for instant method 'ewm'; method '%s' is contemporaneous.", opts$method), call. = FALSE)
+  }
+  if (opts$method %in% c("ewm", "iphs") && (length(opts$tau_half) != 1L || !is.finite(opts$tau_half) || opts$tau_half <= 0)) {
+    stop(sprintf("instant$tau_half must be a positive value for method='%s'.", opts$method), call. = FALSE)
   }
   if (opts$method %in% c("iphs", "pwi")) {
     if (length(opts$band) != 2L || any(!is.finite(opts$band))) {
@@ -41,19 +44,45 @@
   opts
 }
 
-.mppi_instant_prewhiten <- function(Y, X, runs, ar_method = "ar", ar_order = "auto") {
-  if (!requireNamespace("fmriAR", quietly = TRUE)) {
-    stop("fmriAR not available. Install via remotes::install_github('bbuchsbaum/fmriAR').")
-  }
-  stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
-  qrX <- qr(X)
-  res <- Y - X %*% qr.coef(qrX, Y)
-  plan <- fmriAR::fit_noise(res, runs = runs, method = ar_method, p = ar_order)
-  fmriAR::whiten_apply(plan, X = X, Y = Y, runs = runs)
-}
-
 #' Instantaneous mPPI engine
 #'
+#' Prepares data exactly as `mppi_fit()`, or `mppi_fit_whitened()` when
+#' `prewhiten = TRUE` (run-local deconvolution, rejection of censored scans
+#' outside the BOLD domain, rank-based evidence), then replaces its
+#' whole-scan slopes with the estimator chosen by `instant$method`.
+#'
+#' For `method = "ewm"` the matrix at offset \eqn{\tau \ge 0} is the
+#' exponentially weighted slope
+#' \deqn{\sum_t w_t p_t R_{t,i} R_{t+\tau,j} / \sum_t w_t p_t^2}
+#' with \eqn{w_t = 2^{-(T - t)/h}}, \eqn{h} = `tau_half` and \eqn{T} the last
+#' scan, over scans \eqn{t} and \eqn{t+\tau} that are both retained and in the
+#' same run on the acquisition grid; offset \eqn{-\tau} is its transpose. Units
+#' and orientation match `mppi_fit()`'s `Delta` and `lagged` (row \eqn{i} leads
+#' column \eqn{j} for \eqn{\tau > 0}), and as `tau_half` grows the estimate
+#' converges to them. It is end-weighted (runs are concatenated in order): the
+#' effective window is a few `tau_half` scans before the last scan, not the
+#' whole acquisition.
+#'
+#' `method = "iphs"` (contemporaneous only) uses the same weights for the slope
+#' of instantaneous phase locking \eqn{\cos(\phi_{t,i} - \phi_{t,j})} on
+#' \eqn{p_t} (see `ipppi_iphs()`); it is stored as a normalized-scale matrix
+#' (`scale = "cov"` multiplies it by the residual SDs). `method = "pwi"` gives
+#' differences of instantaneous-frequency slopes in rad/s per unit psych, which
+#' are amplitude-free, so every scale holds the same matrix. Both filter and
+#' Hilbert-transform each contiguous stretch of retained scans within a run
+#' separately, so censored gaps and run boundaries are never bridged.
+#'
+#' As in `mppi_fit()`, `zero_diag` zeroes the diagonal of every returned matrix
+#' and `lag_blocklens` (run lengths on the acquisition grid) override `runs`
+#' for lag pairs and filtering segments.
+#'
+#' @param lags Integer lags, an alternative to `instant$offsets` (they must
+#'   agree when both are given).
+#' @param lag_blocklens,zero_diag As in `mppi_fit()`.
+#' @param instant list of engine options: `method` (`"ewm"`, `"iphs"` or
+#'   `"pwi"`), `tau_half` (half-life in scans), `offsets` (integer lags, 0 is
+#'   always included; `"ewm"` only), `band`, `weight`, `robust` and `fs`.
+#' @param ... Not supported: other `mppi_fit()` arguments are an error.
 #' @keywords internal
 mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                              prewhiten = FALSE,
@@ -64,20 +93,27 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                              na_action = c("omit_tr", "error"),
                              scale = c("normalized", "cov", "corr"),
                              ar_method = "ar", ar_order = "auto",
+                             zero_diag = TRUE, lags = 0L, lag_blocklens = NULL,
                              instant = list(), ...) {
   stopifnot(is.matrix(Y), is.matrix(X))
+  if (...length()) {
+    stop(sprintf("Argument(s) not supported by engine = \"instant\": %s.",
+                 paste(names(list(...)), collapse = ", ")), call. = FALSE)
+  }
   domain <- match.arg(domain)
   center_by <- match.arg(center_by)
   na_action_choice <- match.arg(na_action)
   scale_choice <- match.arg(scale)
+  lags <- sort(unique(c(0L, as.integer(lags))))
+  if (length(lags) > 1L) {
+    if (!is.null(instant$offsets) && !setequal(c(0L, as.integer(instant$offsets)), lags)) {
+      stop("'lags' and instant$offsets disagree; supply one of them.", call. = FALSE)
+    }
+    instant$offsets <- lags
+  }
   opts <- .mppi_resolve_instant_options(instant, scale_choice)
 
-  if (prewhiten) {
-    if (is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.", call. = FALSE)
-    xyw <- .mppi_instant_prewhiten(Y, X, runs, ar_method = ar_method, ar_order = ar_order)
-    Y <- xyw$Y
-    X <- xyw$X
-  }
+  if (prewhiten && is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.", call. = FALSE)
 
   state <- .mppi_engine_state(Y, X, psych_idx, runs = runs,
                               basis = basis,
@@ -86,14 +122,36 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                               center_by = center_by,
                               na_action = na_action_choice,
                               project_backend = "blas",
-                              project_chunk_cols = NULL)
+                              project_chunk_cols = NULL,
+                              prewhiten = prewhiten,
+                              ar_method = ar_method, ar_order = ar_order,
+                              lag_blocklens = lag_blocklens)
 
-  core <- .mppi_instant_core(state, opts, ...)
+  core <- .mppi_instant_core(state, opts)
+  # EWM slopes are linear in the data, so basis fits can back-project them exactly.
+  if (opts$method == "ewm") core$covariance_diagonal <- lapply(core$Delta_raw, diag)
+  if (isTRUE(zero_diag)) core <- .mppi_instant_zero_diag(core)
 
-  .mppi_instant_build_fit(state, core, opts, prewhiten = prewhiten)
+  fit <- .mppi_instant_build_fit(state, core, opts, prewhiten = prewhiten)
+  fit$zero_diag <- isTRUE(zero_diag)
+  fit
 }
 
-.mppi_instant_core <- function(state, opts, ...) {
+.mppi_instant_zero_diag <- function(core) {
+  z <- function(M) {
+    if (all(is.na(M))) return(M)
+    diag(M) <- 0
+    for (a in c("raw", "amplitude", "normalized")) if (!is.null(attr(M, a))) {
+      A <- attr(M, a); diag(A) <- 0; attr(M, a) <- A
+    }
+    M
+  }
+  for (nm in c("Delta_raw", "Delta_amplitude", "Delta_normalized")) core[[nm]] <- lapply(core[[nm]], z)
+  core$lagged <- lapply(core$lagged, function(l) lapply(l, z))
+  core
+}
+
+.mppi_instant_core <- function(state, opts) {
   method <- opts$method
   pk_mat <- do.call(cbind, state$pk_list)
   colnames(pk_mat) <- state$pk_names
@@ -103,12 +161,11 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
   if (method == "ewm") {
     offsets <- opts$offsets
     if (length(offsets) == 0L) offsets <- 0L
-    blk <- if (is.null(state$runs)) NULL else rle(state$runs)$lengths
     ewm <- ipppi_ewm(state$R_work, pk_mat,
                      tau_half = opts$tau_half,
                      offsets = offsets,
-                     normalized = FALSE,
-                     blocklens = blk)
+                     index = state$index,
+                     segments = state$segments)
     offsets <- ewm$offsets
     zero_idx <- match(0L, offsets)
     if (is.na(zero_idx)) stop("EWM engine requires offsets to include 0.", call. = FALSE)
@@ -125,7 +182,11 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
         raw_mat <- offset_list[[nm]]
         amp_mat <- if (all(is.na(raw_mat))) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
         norm_mat <- if (all(is.na(raw_mat))) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
-        lag_sel[[nm]] <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+        sel <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+        # As in mppi_fit(): every scale and the pre-zeroing diagonal, for basis back-projection.
+        attr(sel, "raw") <- raw_mat; attr(sel, "amplitude") <- amp_mat; attr(sel, "normalized") <- norm_mat
+        attr(sel, "diagonal") <- diag(raw_mat)
+        lag_sel[[nm]] <- sel
         if (nm == "0") {
           Delta_raw[[k]] <- raw_mat
           Delta_amp[[k]] <- amp_mat
@@ -139,7 +200,7 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                 Delta_normalized = Delta_norm,
                 lagged = lagged,
                 offsets = offsets,
-                lag_blocklens = blk))
+                lag_blocklens = state$lag_blocklens))
   }
 
   fs <- opts$fs
@@ -154,7 +215,8 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
 
   if (method == "iphs") {
     tau_half <- opts$tau_half %||% 10
-    iphs_list <- ipppi_iphs(state$R_work, pk_mat, fs = fs, band = band, tau_half = tau_half)
+    iphs_list <- ipppi_iphs(state$R_work, pk_mat, fs = fs, band = band, tau_half = tau_half,
+                            index = state$index, segments = state$segments)
     lagged <- vector("list", length(iphs_list))
     Delta_raw <- vector("list", length(iphs_list))
     Delta_amp <- vector("list", length(iphs_list))
@@ -195,25 +257,16 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
     names(Delta_raw) <- names(Delta_amp) <- names(Delta_norm) <- names(lagged) <- state$pk_names
     for (k in seq_len(K)) {
       out <- ipppi_pwi(state$R_work, pk_mat[, k], fs = fs, band = band,
-                       runs = state$runs, weight = weight, robust = robust)
+                       runs = .ipppi_contiguous(state$index, state$segments),
+                       weight = weight, robust = robust)
       raw_mat <- out$mat
       diag(raw_mat) <- 0
       attr(raw_mat, "beta") <- out$beta
       attr(raw_mat, "divergence") <- out$divergence
       attr(raw_mat, "units") <- "rad/s per unit psych"
-      amp_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
-      norm_mat <- if (is.null(sigma)) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
-      attr(amp_mat, "beta") <- out$beta
-      attr(amp_mat, "divergence") <- out$divergence
-      attr(amp_mat, "units") <- "rad/s per unit psych"
-      attr(norm_mat, "beta") <- out$beta
-      attr(norm_mat, "divergence") <- out$divergence
-      attr(norm_mat, "units") <- "rad/s per unit psych"
-      selected <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
-      lagged[[k]] <- list(`0` = selected)
-      Delta_raw[[k]] <- raw_mat
-      Delta_amp[[k]] <- amp_mat
-      Delta_norm[[k]] <- norm_mat
+      # frequency slopes are amplitude-free: no rescaling by residual SDs
+      lagged[[k]] <- list(`0` = raw_mat)
+      Delta_raw[[k]] <- Delta_amp[[k]] <- Delta_norm[[k]] <- raw_mat
     }
     return(list(Delta_raw = Delta_raw,
                 Delta_amplitude = Delta_amp,
@@ -253,9 +306,12 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
     Delta_amplitude = Delta_amplitude,
     Delta_normalized = Delta_normalized,
     sigma = state$sigma,
+    sigma_roi = state$sigma_roi,
+    covariance_diagonal = core$covariance_diagonal,
     pk = state$pk_list,
     scale = scale_choice,
     dropped = state$dropped,
+    observation_index = state$index,
     center_by = state$center_by,
     runs = state$runs,
     denom = state$denoms,

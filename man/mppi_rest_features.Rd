@@ -12,7 +12,8 @@ mppi_rest_features(
 )
 }
 \arguments{
-\item{fits}{List of \code{mppi_fit} objects.}
+\item{fits}{List of \code{mppi_fit} objects; its names, when present, label the
+subjects (otherwise \verb{1..n}).}
 
 \item{lags}{Lags used when computing routing.}
 

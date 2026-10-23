@@ -17,23 +17,32 @@ mppi_rest_states(
 \arguments{
 \item{U}{Low-rank time-series matrix (\verb{T x r}).}
 
-\item{K}{Number of states.}
+\item{K}{Number of states (at least 2).}
 
 \item{method}{"kmeans" (default) or "hmm" (requires depmixS4).}
 
-\item{soft}{Return soft posteriors (TRUE) or hard one-hot sticks (FALSE).}
+\item{soft}{Return soft occupancies (TRUE) or hard one-hot sticks (FALSE).
+For k-means, soft occupancies are a 3-TR moving average of the sticks.}
 
 \item{sticky}{Self-transition boost for the HMM (ignored for kmeans).}
 
-\item{seed}{Seed for reproducibility.}
+\item{seed}{Seed for reproducibility; the caller's RNG state is restored
+afterwards. \code{NULL} draws from (and advances) the caller's stream.}
 
 \item{zscore}{Whether to z-score columns of \code{U} before clustering.}
 }
 \value{
-Named list of modulators.
+Named list of \code{K - 1} occupancy modulators (\code{state2}, ..., \code{stateK}).
 }
 \description{
 Builds a list of T-length modulators describing latent states obtained from a
 PCA basis time-series. Methods include k-means (default) and an optional
 sticky HMM (via \code{depmixS4}).
+}
+\details{
+Occupancies sum to one at every time point, so a full set spans the
+intercept and cannot be fitted alongside it. States are labelled by
+decreasing occupancy and treatment-coded: \code{state1}, the most occupied, is the
+reference and is omitted, so the coupling slope of \code{statek} contrasts state
+k with state 1.
 }

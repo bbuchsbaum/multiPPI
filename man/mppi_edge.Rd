@@ -4,7 +4,7 @@
 \alias{mppi_edge}
 \title{Compute a single edge from a basis fit}
 \usage{
-mppi_edge(fit, k, i, j)
+mppi_edge(fit, k, i, j, mode = NULL)
 }
 \arguments{
 \item{fit}{result of \code{mppi_fit()} with a basis}
@@ -14,7 +14,9 @@ mppi_edge(fit, k, i, j)
 \item{i}{ROI row index to evaluate}
 
 \item{j}{ROI column index to evaluate}
+
+\item{mode}{scale (\code{"raw"}, \code{"amplitude"}, \code{"normalized"}); \code{NULL} uses the fit's own scale}
 }
 \description{
-Compute a single edge from a basis fit
+Back-projects as in \code{\link[=mppi_reconstruct_delta]{mppi_reconstruct_delta()}}.
 }

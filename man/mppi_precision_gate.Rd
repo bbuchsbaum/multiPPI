@@ -8,21 +8,29 @@ mppi_precision_gate(
   fit,
   mode = c("normalized", "amplitude", "raw"),
   Theta0 = NULL,
-  ridge = 1e-04
+  ridge = NULL
 )
 }
 \arguments{
 \item{fit}{\code{mppi_fit} object}
 
-\item{mode}{interaction scale (\code{"normalized"}, \code{"amplitude"}, or \code{"raw"})}
+\item{mode}{interaction scale (\code{"normalized"} or \code{"raw"}; \code{"amplitude"} errors)}
 
-\item{Theta0}{optional baseline precision matrix; defaults to the inverse of \code{fit$Sigma0}}
+\item{Theta0}{optional baseline precision matrix on the scale of \code{mode};
+defaults to the ridged inverse of \code{fit$Sigma0} on that scale}
 
-\item{ridge}{small positive ridge added to the baseline covariance before inversion}
+\item{ridge}{ridge added to the baseline covariance before inversion; defaults
+to \code{fit$partial_lambda}, the ridge used for \code{fit$partial}}
 }
 \value{
 list with per-condition precision deltas and a summary data frame
 }
 \description{
-Precision gating summary \eqn{\Delta\Theta_k = -\Theta_0 M_k \Theta_0}
+\eqn{M_k} is the full slope (diagonal kept, whatever \code{zero_diag} was), as in
+\code{fit$partial}. In \code{"raw"} mode \eqn{\Sigma_0} and \eqn{M_k} are in data units
+and, with the default ridge, \eqn{\Delta\Theta_k} equals
+\code{fit$partial[[k]]$DeltaTheta} of a \code{scale = "cov"} fit. In \code{"normalized"} mode
+both are rescaled to correlation scale by \code{fit$sigma}
+(\eqn{D^{-1} \Sigma_0 D^{-1}}, \eqn{D^{-1} M_k D^{-1}}), so the result is unitless.
+\code{"amplitude"} slopes are not symmetric covariances and are rejected.
 }

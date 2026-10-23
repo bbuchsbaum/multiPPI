@@ -28,7 +28,10 @@ inst_corr(
 \code{"zero"} (default), \code{"edge"}, or \code{"na"}.}
 }
 \value{
-Numeric vector of length \code{length(x)} containing the streaming correlation.
+Numeric vector of length \code{length(x)} containing the streaming
+(uncentered) correlation. Samples where \code{x} or the shifted \code{y} is not finite
+(\code{NA}, \code{NaN}, \code{Inf}) are skipped: they return \code{NA} and only decay the
+running moments. Values are \code{NA} while either running moment is zero.
 }
 \description{
 Exponentially weighted instantaneous correlation

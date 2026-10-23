@@ -1,5 +1,4 @@
 test_that("seed_ppi_mcca runs with prewhitening and run-centering", {
-  skip_if_not_installed("fmriAR")
   set.seed(2025)
   Tn <- 120
   V  <- 50

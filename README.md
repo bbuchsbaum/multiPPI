@@ -5,6 +5,17 @@ family of task-modulated covariance estimators for fMRI. The two families have
 different estimands: conventional PPI fits seed-by-task interaction regressors;
 `mppi_fit()` estimates task-modulated covariance slopes.
 
+## Installation
+
+```r
+# install.packages("remotes")
+remotes::install_github("bbuchsbaum/multiPPI")
+```
+
+The default HRF (`fmrihrf`) and temporal noise model (`fmriAR`) are installed
+from GitHub automatically. Optional adapters for `fmridesign`, `fmridataset`
+and `fmrireg` objects need `dependencies = TRUE`.
+
 ## Conventional PPI
 
 ```r

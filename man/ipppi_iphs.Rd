@@ -4,9 +4,23 @@
 \alias{ipppi_iphs}
 \title{Instantaneous phase synchrony aggregator}
 \usage{
-ipppi_iphs(U, pk, fs, band, tau_half = 10)
+ipppi_iphs(
+  U,
+  pk,
+  fs,
+  band,
+  tau_half = 10,
+  index = seq_len(nrow(U)),
+  segments = rep(1L, nrow(U))
+)
 }
 \description{
-Instantaneous phase synchrony aggregator
+End-weighted slope of instantaneous phase locking on each psychological
+regressor, \eqn{\sum_t w_t p_t \cos(\phi_{t,i} - \phi_{t,j}) / \sum_t w_t p_t^2}
+with \eqn{w_t = 2^{(t - t_{end})/h}} on the acquisition grid \code{index}, as for
+the EWM estimator. Phases are band-limited Hilbert phases computed within
+each contiguous segment (consecutive \code{index} values sharing a \code{segments}
+label); rows without a phase are skipped pairwise. With \code{pk = 1} this is the
+end-weighted mean phase locking.
 }
 \keyword{internal}

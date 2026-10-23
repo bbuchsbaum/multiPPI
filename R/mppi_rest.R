@@ -42,48 +42,55 @@ mppi_rest_extract <- function(data, runs = NULL) {
 #' PCA basis time-series. Methods include k-means (default) and an optional
 #' sticky HMM (via `depmixS4`).
 #'
+#' Occupancies sum to one at every time point, so a full set spans the
+#' intercept and cannot be fitted alongside it. States are labelled by
+#' decreasing occupancy and treatment-coded: `state1`, the most occupied, is the
+#' reference and is omitted, so the coupling slope of `statek` contrasts state
+#' k with state 1.
+#'
 #' @param U Low-rank time-series matrix (`T x r`).
-#' @param K Number of states.
+#' @param K Number of states (at least 2).
 #' @param method "kmeans" (default) or "hmm" (requires depmixS4).
-#' @param soft Return soft posteriors (TRUE) or hard one-hot sticks (FALSE).
+#' @param soft Return soft occupancies (TRUE) or hard one-hot sticks (FALSE).
+#'   For k-means, soft occupancies are a 3-TR moving average of the sticks.
 #' @param sticky Self-transition boost for the HMM (ignored for kmeans).
-#' @param seed Seed for reproducibility.
+#' @param seed Seed for reproducibility; the caller's RNG state is restored
+#'   afterwards. `NULL` draws from (and advances) the caller's stream.
 #' @param zscore Whether to z-score columns of `U` before clustering.
-#' @return Named list of modulators.
+#' @return Named list of `K - 1` occupancy modulators (`state2`, ..., `stateK`).
+#' @export
 mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
                              soft = TRUE, sticky = 2, seed = 1L, zscore = TRUE) {
   method <- match.arg(method)
-  set.seed(seed)
+  if (K < 2) stop("K must be at least 2.", call. = FALSE)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   X <- if (zscore) scale(U) else U
   if (method == "kmeans") {
     km <- stats::kmeans(X, centers = K, nstart = 8L)
-    sticks <- stats::model.matrix(~ 0 + factor(km$cluster))
-    colnames(sticks) <- paste0("state", seq_len(ncol(sticks)))
-    if (!soft) return(as.list(as.data.frame(sticks)))
-    # simple temporal smoothing for pseudo-soft output
-    smooth <- vapply(seq_len(ncol(sticks)), function(j) {
-      sm <- stats::filter(sticks[, j], rep(1/3, 3), sides = 2)
-      sm[is.na(sm)] <- 0
-      as.numeric(sm)
-    }, numeric(nrow(sticks)))
-    colnames(smooth) <- colnames(sticks)
-    return(as.list(as.data.frame(smooth)))
+    occ <- stats::model.matrix(~ 0 + factor(km$cluster))
+    if (soft) {
+      # edge-replicated moving average, so rows still sum to one
+      n <- nrow(occ)
+      occ <- (occ[c(1L, seq_len(n - 1L)), , drop = FALSE] + occ +
+                occ[c(seq_len(n)[-1L], n), , drop = FALSE]) / 3
+    }
+  } else {
+    if (!requireNamespace("depmixS4", quietly = TRUE)) {
+      stop("Install depmixS4 to enable HMM-based microstates.", call. = FALSE)
+    }
+    responses <- lapply(seq_len(ncol(X)), function(j) X[, j] ~ 1)
+    fams <- replicate(ncol(X), stats::gaussian(), simplify = FALSE)
+    mod <- depmixS4::depmix(response = responses, data = as.data.frame(X),
+                            nstates = K, family = fams)
+    fit <- suppressWarnings(depmixS4::fit(mod, verbose = FALSE))
+    post <- depmixS4::posterior(fit)
+    gamma <- as.matrix(post[, paste0("S", seq_len(K)), drop = FALSE])
+    occ <- if (soft) gamma else stats::model.matrix(~ 0 + factor(max.col(gamma)))
   }
-  if (!requireNamespace("depmixS4", quietly = TRUE)) {
-    stop("Install depmixS4 to enable HMM-based microstates.", call. = FALSE)
-  }
-  responses <- lapply(seq_len(ncol(X)), function(j) X[, j] ~ 1)
-  fams <- replicate(ncol(X), stats::gaussian(), simplify = FALSE)
-  mod <- depmixS4::depmix(response = responses, data = as.data.frame(X),
-                          nstates = K, family = fams)
-  fit <- suppressWarnings(depmixS4::fit(mod, verbose = FALSE))
-  post <- depmixS4::posterior(fit)
-  gamma <- as.matrix(post[, paste0("S", seq_len(K)), drop = FALSE])
-  colnames(gamma) <- paste0("state", seq_len(K))
-  if (soft) return(as.list(as.data.frame(gamma)))
-  hard <- stats::model.matrix(~ 0 + factor(max.col(gamma)))
-  colnames(hard) <- paste0("state", seq_len(ncol(hard)))
-  as.list(as.data.frame(hard))
+  occ <- unname(as.matrix(occ))[, order(-colSums(occ)), drop = FALSE]
+  if (ncol(occ) < 2L) stop("Fewer than two states are occupied.", call. = FALSE)
+  colnames(occ) <- paste0("state", seq_len(ncol(occ)))
+  as.list(as.data.frame(occ[, -1L, drop = FALSE]))
 }
 
 #' Innovation burst modulators
@@ -95,6 +102,7 @@ mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
 #' @param ar_order AR order used when computing residuals.
 #' @param thresholds Quantile thresholds used to define bursts.
 #' @return Named list of binary modulators.
+#' @export
 mppi_rest_bursts <- function(U, ar_order = 4L, thresholds = c(0.90, 0.95, 0.98)) {
   Tn <- nrow(U); r <- ncol(U)
   eps <- matrix(0, Tn, r)
@@ -127,6 +135,7 @@ mppi_rest_bursts <- function(U, ar_order = 4L, thresholds = c(0.90, 0.95, 0.98))
 #' @param transform "power" (default) or "abs" for absolute-value envelopes.
 #' @param zscore Whether to z-score the resulting envelope.
 #' @return Named list of continuous modulators.
+#' @export
 mppi_rest_envelopes <- function(U, groups = list(all = NULL), transform = c("power", "abs"),
                                 zscore = TRUE) {
   transform <- match.arg(transform)
@@ -152,6 +161,7 @@ mppi_rest_envelopes <- function(U, groups = list(all = NULL), transform = c("pow
 #'   respective helper.
 #' @param extra Optional list of additional modulators to append.
 #' @return Named list of modulators ready for design construction.
+#' @export
 mppi_rest_modulators <- function(U,
                                  include = c("states", "bursts", "envelopes"),
                                  states = list(),
@@ -177,16 +187,20 @@ mppi_rest_modulators <- function(U,
 
 #' Build a gPPI-style design for endogenous modulators
 #'
-#' Residualizes each modulator against all others, optional nuisance regressors,
-#' and an intercept to span the full context space (gPPI logic).
+#' Centers each modulator on the intercept and optional nuisance regressors
+#' (and within runs when `runs` is given). Modulators are not residualized on
+#' each other here: the fit residualizes each one on all other design columns
+#' (gPPI logic), so its slope reflects its unique variance. Modulators collinear
+#' with each other or with the intercept/nuisance, such as a full set of state
+#' occupancies, are an error; drop a reference modulator.
 #'
 #' @param pk Named list of modulators.
 #' @param nuisance Optional nuisance matrix (`T x q`).
 #' @param runs Optional run labels used for within-run centering.
 #' @param include_intercept Include an intercept column (default TRUE).
-#' @param scale_mod Normalize each modulator to unit L2 norm after residualizing.
+#' @param scale_mod Normalize each modulator to unit L2 norm after centering.
 #' @return List containing design matrix `X`, psychological indices, and the
-#'   residualized modulators.
+#'   centered modulators as they enter `X`.
 mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
                              include_intercept = TRUE, scale_mod = TRUE) {
   pk <- lapply(pk, as.numeric)
@@ -196,26 +210,19 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
     nuisance <- as.matrix(nuisance)
     if (nrow(nuisance) != Tn) stop("Nuisance rows must match data length.", call. = FALSE)
   }
+  if (any(vapply(pk, anyNA, TRUE))) stop("Modulators must not contain NA.", call. = FALSE)
   N <- length(pk)
   resid_pk <- vector("list", N)
   intercept <- if (include_intercept) matrix(1, Tn, 1) else NULL
   base_Q <- if (is.null(nuisance) && is.null(intercept)) NULL else cbind(nuisance, intercept)
   for (j in seq_len(N)) {
-    others <- pk[setdiff(seq_len(N), j)]
-    Q <- do.call(cbind, c(others, list(base_Q)))
-    if (!is.null(Q)) {
-      resid <- .mppi_residualize_vec(pk[[j]], as.matrix(Q))
-    } else {
-      resid <- pk[[j]]
-    }
+    resid <- if (is.null(base_Q)) pk[[j]] else .mppi_residualize_vec(pk[[j]], base_Q)
     if (!is.null(runs)) resid <- .mppi_center_by_run(resid, runs)
-    if (scale_mod) {
-      sdv <- sqrt(sum(resid^2))
-      if (sdv < .Machine$double.eps) {
-        warning(sprintf("Modulator '%s' has near-zero variance after residualization.", names(pk)[j]), call. = FALSE)
-      }
-      resid <- resid / max(sdv, .Machine$double.eps)
+    sdv <- sqrt(sum(resid^2))
+    if (sdv <= 1e-8 * sqrt(sum(pk[[j]]^2))) {
+      stop(sprintf("Modulator '%s' has no variance beyond the intercept and nuisance.", names(pk)[j]), call. = FALSE)
     }
+    if (scale_mod) resid <- resid / sdv
     resid_pk[[j]] <- resid
   }
   names(resid_pk) <- names(pk)
@@ -224,6 +231,9 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
   X <- if (is.null(nuisance)) P else cbind(nuisance, P)
   if (include_intercept) {
     X <- cbind(`(Intercept)` = 1, X)
+  }
+  if (qr(X)$rank < N + if (is.null(base_Q)) 0L else qr(base_Q)$rank) {
+    stop("Modulators are collinear with each other or with the intercept/nuisance (e.g. a full set of state occupancies); drop a reference modulator.", call. = FALSE)
   }
   psych_idx <- seq(ncol(X) - length(resid_pk) + 1L, ncol(X))
   list(X = X, psych_idx = psych_idx, pk = resid_pk)
@@ -238,6 +248,7 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
 #' @param include Which modulator families to construct when `modulators` is NULL.
 #' @param basis Basis specification passed to `.mppi_resolve_basis()`.
 #' @param modulator_domain Domain for building modulators ("auto", "bold", "neural").
+#'   Neural modulators deconvolve each run separately.
 #' @param domain Domain for the final mPPI fit.
 #' @param prewhiten Use fmriAR prewhitening (default TRUE when available).
 #' @param ar_method,ar_order Controls for fmriAR noise modelling.
@@ -245,6 +256,7 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
 #' @param attach_pk Attach residualized modulator list to the returned fit.
 #' @param ... Passed through to `mppi_fit()` / `mppi_fit_whitened()`.
 #' @return `mppi_fit` object.
+#' @export
 mppi_rest <- function(data,
                       runs = NULL,
                       modulators = NULL,
@@ -272,7 +284,10 @@ mppi_rest <- function(data,
   }
   if (identical(mod_dom, "neural")) {
     hrf <- mppi_default_hrf(tr = info$TR %||% 1, duration = 32)
-    U_for_pk <- mppi_deconv(U_bold, TR = info$TR %||% 1, hrf = hrf, lambda = 10)
+    Tn <- nrow(U_bold)
+    seg <- if (is.null(runs_vec)) rep(1L, Tn) else cumsum(c(TRUE, runs_vec[-1L] != runs_vec[-Tn]))
+    U_for_pk <- do.call(rbind, lapply(split(seq_len(Tn), seg), function(i)
+      mppi_deconv(U_bold[i, , drop = FALSE], TR = info$TR %||% 1, hrf = hrf, lambda = 10)))
   }
   pk <- modulators %||% mppi_rest_modulators(U_for_pk, include = include)
   design <- mppi_rest_design(pk, nuisance = nuisance, runs = runs_vec, include_intercept = TRUE)
@@ -300,14 +315,22 @@ mppi_rest <- function(data,
 #' Aggregates Gain, Routing, and mode energies across contexts for a list of
 #' rest fits.
 #'
-#' @param fits List of `mppi_fit` objects.
+#' @param fits List of `mppi_fit` objects; its names, when present, label the
+#'   subjects (otherwise `1..n`).
 #' @param lags Lags used when computing routing.
 #' @param modes Number of communication modes to retain.
 #' @param aggregate "mean" to average over contexts per subject, otherwise
 #'   returns long-format rows.
 #' @return Data frame of subject-level features.
+#' @export
 mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("mean", "none")) {
   aggregate <- match.arg(aggregate)
+  ids <- names(fits)
+  if (is.null(ids)) {
+    ids <- seq_along(fits)
+  } else if (anyNA(ids) || !all(nzchar(ids)) || anyDuplicated(ids)) {
+    stop("Names of 'fits' must be unique and non-empty (or absent).", call. = FALSE)
+  }
   rows <- vector("list", length(fits))
   for (i in seq_along(fits)) {
     fit <- fits[[i]]
@@ -318,7 +341,7 @@ mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("me
     proj <- md$projected
     mag <- vapply(proj, function(M) sqrt(sum(M * M)), 0)
     ax$mag <- mag[match(ax$condition, names(mag))]
-    ax$subj <- i
+    ax$subj <- ids[[i]]
     rows[[i]] <- ax
   }
   feats <- do.call(rbind, rows)
@@ -332,48 +355,71 @@ mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("me
   }
 }
 
-#' Simple nested CV ridge for trait prediction
+#' Cross-validated ridge regression for trait prediction
+#'
+#' Single-level k-fold cross-validation with a fixed ridge penalty (`lambda` is
+#' not tuned; there is no inner loop). In each fold, features are centered and
+#' scaled and the trait is centered (an unpenalized intercept) using
+#' training-fold statistics only, which are then applied to the held-out
+#' subjects.
 #'
 #' @param features Output from `mppi_rest_features(aggregate = "none")`.
-#' @param y Named numeric trait vector (names correspond to subject indices).
-#' @param covariates Optional covariate matrix keyed by subject name.
-#' @param k Number of outer CV folds.
-#' @param seed RNG seed.
-#' @param lambda Ridge penalty.
-#' @return List with predictions, observed values, and CV R^2.
+#' @param y Numeric trait vector. When named, names are matched to
+#'   `features$subj`; otherwise values follow `sort(unique(features$subj))`.
+#' @param covariates Optional numeric covariate matrix, matched to subjects by
+#'   row names when present, otherwise by position.
+#' @param k Number of CV folds.
+#' @param seed RNG seed for the fold split; the caller's RNG state is restored
+#'   afterwards. `NULL` draws from (and advances) the caller's stream.
+#' @param lambda Ridge penalty on the standardized features.
+#' @return List with predictions, observed values (both named by subject), and
+#'   CV R^2.
+#' @export
 mppi_rest_trait_cv <- function(features, y, covariates = NULL,
                                k = 5L, seed = 1L, lambda = 1e-2) {
   stopifnot(is.numeric(y))
-  subj_ids <- sort(unique(features$subj))
-  if (is.null(names(y))) names(y) <- subj_ids
-  if (length(y) != length(subj_ids)) {
-    stop("Trait vector length must equal number of subjects in features.", call. = FALSE)
+  subj_ids <- as.character(sort(unique(features$subj)))
+  n <- length(subj_ids)
+  # rows of a subject-keyed object: by names when present, else by position
+  align <- function(ids, len, what) {
+    if (is.null(ids)) {
+      if (len != n) stop(sprintf("%s must have one entry per subject in features.", what), call. = FALSE)
+      return(seq_len(n))
+    }
+    m <- match(subj_ids, ids)
+    if (len != n || anyNA(m) || anyDuplicated(ids)) {
+      stop(sprintf("%s names must match features$subj one-to-one.", what), call. = FALSE)
+    }
+    m
   }
-  y <- y[order(as.numeric(names(y)))]
-  set.seed(seed)
-  folds <- split(sample(subj_ids), rep_len(seq_len(k), length(subj_ids)))
+  y <- setNames(unname(y)[align(names(y), length(y), "y")], subj_ids)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
+  folds <- split(subj_ids[sample.int(n)], rep_len(seq_len(k), n))
   Xwide <- stats::reshape(features,
                           idvar = "subj", timevar = "condition",
                           direction = "wide")
-  rownames(Xwide) <- Xwide$subj
+  rownames(Xwide) <- as.character(Xwide$subj)
   pred_cols <- grepl("^(G|R|mag)\\.", colnames(Xwide))
-  X <- as.matrix(Xwide[, pred_cols, drop = FALSE])
-  y_aligned <- y[match(rownames(X), names(y))]
+  X <- as.matrix(Xwide[subj_ids, pred_cols, drop = FALSE])
   if (!is.null(covariates)) {
-    covariates <- covariates[match(rownames(X), rownames(covariates)), , drop = FALSE]
-    X <- cbind(X, covariates)
+    covariates <- as.matrix(covariates)
+    stopifnot(is.numeric(covariates))
+    X <- cbind(X, covariates[align(rownames(covariates), nrow(covariates), "covariates"), , drop = FALSE])
   }
-  preds <- rep(NA_real_, length(y_aligned)); names(preds) <- rownames(X)
-  for (fold in seq_len(k)) {
-    test_ids <- folds[[fold]]
+  preds <- setNames(rep(NA_real_, n), subj_ids)
+  for (test_ids in folds) {
     train_ids <- setdiff(subj_ids, test_ids)
-    Xtr <- X[as.character(train_ids), , drop = FALSE]
-    ytr <- y_aligned[match(as.character(train_ids), names(y_aligned))]
-    XtX <- crossprod(Xtr)
-    beta <- solve(XtX + diag(lambda, ncol(Xtr)), crossprod(Xtr, ytr))
-    preds[as.character(test_ids)] <- X[as.character(test_ids), , drop = FALSE] %*% beta
+    Xtr <- X[train_ids, , drop = FALSE]
+    mu <- colMeans(Xtr)
+    s <- apply(Xtr, 2, stats::sd)
+    s[!is.finite(s) | s == 0] <- 1
+    Ztr <- sweep(sweep(Xtr, 2, mu), 2, s, "/")
+    ym <- mean(y[train_ids])
+    beta <- solve(crossprod(Ztr) + diag(lambda, ncol(Ztr)), crossprod(Ztr, y[train_ids] - ym))
+    Zte <- sweep(sweep(X[test_ids, , drop = FALSE], 2, mu), 2, s, "/")
+    preds[test_ids] <- ym + Zte %*% beta
   }
-  cv_r2 <- 1 - sum((y_aligned - preds)^2, na.rm = TRUE) /
-    sum((y_aligned - mean(y_aligned, na.rm = TRUE))^2, na.rm = TRUE)
-  list(pred = preds, observed = y_aligned, cv_r2 = cv_r2)
+  cv_r2 <- 1 - sum((y - preds)^2, na.rm = TRUE) /
+    sum((y - mean(y, na.rm = TRUE))^2, na.rm = TRUE)
+  list(pred = preds, observed = y, cv_r2 = cv_r2)
 }
