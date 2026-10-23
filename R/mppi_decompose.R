@@ -5,6 +5,7 @@
 #' @param pk residualized psychological regressor (validated for compatibility; DeltaSigma is supplied)
 #' @param DeltaSigma raw covariance slope matrix including its diagonal
 #' @return list with Delta_rho (approx), var_terms (matrix), and note
+#' @export
 mppi_decompose_variance <- function(R, pk, DeltaSigma) {
   if (!is.matrix(R) || !is.numeric(R) || !nrow(R) || any(!is.finite(R)) || !is.numeric(pk) || length(pk) != nrow(R) || any(!is.finite(pk)) || !is.matrix(DeltaSigma) || !identical(dim(DeltaSigma), c(ncol(R), ncol(R))) || any(!is.finite(DeltaSigma))) stop("R, pk and DeltaSigma must be finite and conformable")
   Sigma0 <- crossprod(R) / nrow(R)

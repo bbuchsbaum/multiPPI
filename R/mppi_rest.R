@@ -58,6 +58,7 @@ mppi_rest_extract <- function(data, runs = NULL) {
 #'   afterwards. `NULL` draws from (and advances) the caller's stream.
 #' @param zscore Whether to z-score columns of `U` before clustering.
 #' @return Named list of `K - 1` occupancy modulators (`state2`, ..., `stateK`).
+#' @export
 mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
                              soft = TRUE, sticky = 2, seed = 1L, zscore = TRUE) {
   method <- match.arg(method)
@@ -101,6 +102,7 @@ mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
 #' @param ar_order AR order used when computing residuals.
 #' @param thresholds Quantile thresholds used to define bursts.
 #' @return Named list of binary modulators.
+#' @export
 mppi_rest_bursts <- function(U, ar_order = 4L, thresholds = c(0.90, 0.95, 0.98)) {
   Tn <- nrow(U); r <- ncol(U)
   eps <- matrix(0, Tn, r)
@@ -133,6 +135,7 @@ mppi_rest_bursts <- function(U, ar_order = 4L, thresholds = c(0.90, 0.95, 0.98))
 #' @param transform "power" (default) or "abs" for absolute-value envelopes.
 #' @param zscore Whether to z-score the resulting envelope.
 #' @return Named list of continuous modulators.
+#' @export
 mppi_rest_envelopes <- function(U, groups = list(all = NULL), transform = c("power", "abs"),
                                 zscore = TRUE) {
   transform <- match.arg(transform)
@@ -158,6 +161,7 @@ mppi_rest_envelopes <- function(U, groups = list(all = NULL), transform = c("pow
 #'   respective helper.
 #' @param extra Optional list of additional modulators to append.
 #' @return Named list of modulators ready for design construction.
+#' @export
 mppi_rest_modulators <- function(U,
                                  include = c("states", "bursts", "envelopes"),
                                  states = list(),
@@ -252,6 +256,7 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
 #' @param attach_pk Attach residualized modulator list to the returned fit.
 #' @param ... Passed through to `mppi_fit()` / `mppi_fit_whitened()`.
 #' @return `mppi_fit` object.
+#' @export
 mppi_rest <- function(data,
                       runs = NULL,
                       modulators = NULL,
@@ -317,6 +322,7 @@ mppi_rest <- function(data,
 #' @param aggregate "mean" to average over contexts per subject, otherwise
 #'   returns long-format rows.
 #' @return Data frame of subject-level features.
+#' @export
 mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("mean", "none")) {
   aggregate <- match.arg(aggregate)
   ids <- names(fits)
@@ -368,6 +374,7 @@ mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("me
 #' @param lambda Ridge penalty on the standardized features.
 #' @return List with predictions, observed values (both named by subject), and
 #'   CV R^2.
+#' @export
 mppi_rest_trait_cv <- function(features, y, covariates = NULL,
                                k = 5L, seed = 1L, lambda = 1e-2) {
   stopifnot(is.numeric(y))

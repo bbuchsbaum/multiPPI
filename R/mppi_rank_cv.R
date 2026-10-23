@@ -17,9 +17,13 @@
 #' @param R_reps Number of random splits.
 #' @param runs Optional contiguous run labels; each run contributes one held-out block.
 #' @param gap Number of scans excluded from training on each side of a held-out block.
+#' @param zero_diag Score the held-out loss off the diagonal only, matching fits
+#'   that zero the diagonal (the default for [mppi_fit()]).
 #' @details R and pk are externally preprocessed; this is not nested preprocessing CV.
 #' @return List with the selected rank `r`, per-rank losses, and the rank grid.
-mppi_rank_cv <- function(R, pk, Delta = NULL, holdout_frac = 0.2, R_reps = 3, runs = NULL, gap = 0L) {
+#' @export
+mppi_rank_cv <- function(R, pk, Delta = NULL, holdout_frac = 0.2, R_reps = 3, runs = NULL, gap = 0L,
+                         zero_diag = TRUE) {
   if (!is.matrix(R) || !is.numeric(R) || !nrow(R) || !ncol(R) || any(!is.finite(R)) || !is.numeric(pk) || length(pk) != nrow(R) || any(!is.finite(pk))) stop("R and pk must be finite numeric data with matching rows")
   if (length(holdout_frac) != 1L || !is.finite(holdout_frac) || holdout_frac <= 0 || holdout_frac >= 1) stop("holdout_frac must be between zero and one")
   if (length(R_reps) != 1L || !is.finite(R_reps) || R_reps < 1 || R_reps != floor(R_reps)) stop("R_reps must be a positive integer")
@@ -33,6 +37,7 @@ mppi_rank_cv <- function(R, pk, Delta = NULL, holdout_frac = 0.2, R_reps = 3, ru
   rmax <- min(50L, V)
   ranks <- 0:rmax
   losses <- matrix(0, nrow = R_reps, ncol = length(ranks))
+  scored <- if (isTRUE(zero_diag) && V > 1L) row(diag(V)) != col(diag(V)) else matrix(TRUE, V, V)
   for (rep in seq_len(R_reps)) {
     H <- K <- integer()
     for (block in blocks) {
@@ -45,17 +50,8 @@ mppi_rank_cv <- function(R, pk, Delta = NULL, holdout_frac = 0.2, R_reps = 3, ru
     if (!length(K)) stop("gap and holdout leave no training observations")
     splits[[rep]] <- list(train = K, test = H)
     if (sum(pk[K]^2) < .Machine$double.eps || sum(pk[H]^2) < .Machine$double.eps) stop("psychological regressor has no energy in a split")
-    denomK <- sum(pk[K]^2); denomH <- sum(pk[H]^2)
-    DeltaK <- if (denomK < .Machine$double.eps) {
-      matrix(0, V, V)
-    } else {
-      crossprod(R[K, , drop = FALSE], pk[K] * R[K, , drop = FALSE]) / denomK
-    }
-    targetH <- if (denomH < .Machine$double.eps) {
-      matrix(0, V, V)
-    } else {
-      crossprod(R[H, , drop = FALSE], pk[H] * R[H, , drop = FALSE]) / denomH
-    }
+    DeltaK <- crossprod(R[K, , drop = FALSE], pk[K] * R[K, , drop = FALSE]) / sum(pk[K]^2)
+    targetH <- crossprod(R[H, , drop = FALSE], pk[H] * R[H, , drop = FALSE]) / sum(pk[H]^2)
     sK <- svd(DeltaK, nu = min(rmax, V), nv = min(rmax, V))
     effective_rank <- sum(sK$d > max(sK$d) * V * .Machine$double.eps)
     for (j in seq_along(ranks)) {
@@ -67,7 +63,7 @@ mppi_rank_cv <- function(R, pk, Delta = NULL, holdout_frac = 0.2, R_reps = 3, ru
           diag(sK$d[1:r], nrow = r, ncol = r) %*%
           t(sK$v[, 1:r, drop = FALSE])
       }
-      losses[rep, j] <- mean((targetH - approx)^2, na.rm = TRUE)
+      losses[rep, j] <- mean((targetH - approx)[scored]^2, na.rm = TRUE)
     }
   }
   rstar <- ranks[ which.min(colMeans(losses)) ]

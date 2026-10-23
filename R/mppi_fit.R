@@ -120,6 +120,7 @@
 #'   retained rows of `R` (`NULL` for one block): blocks break at run boundaries
 #'   and at censored scans, so adjacent rows within a block are adjacent scans;
 #'   `observation_index` gives each retained row's acquisition position.
+#' @export
 mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                      zero_diag = TRUE, scale = c("normalized","cov","corr"),
                      center_by = c("none","run"), na_action = c("omit_tr","error"),
@@ -534,6 +535,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 #' @param dataset fmrireg dataset supplying Y
 #' @param psych regex patterns or column indices identifying psychological regressors
 #' @inheritParams mppi_fit
+#' @export
 mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("normalized","cov","corr"), zero_diag = TRUE,
                                   runs = NULL, center_by = c("none","run"), na_action = c("omit_tr","error"),
                                   backend = c("blas","accumulate","chunked"), chunk_size = NULL,

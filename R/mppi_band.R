@@ -10,6 +10,7 @@
 #' @param high lowpass cutoff in (0, 0.5) cycles/TR; NULL for none
 #' @param order filter order for Butterworth if 'signal' present
 #' @param runs optional run labels; filtering does not cross run boundaries
+#' @export
 mppi_bandpass <- function(x, low = NULL, high = 0.1, order = 2L, runs = NULL) {
   stopifnot(is.matrix(x))
   if (is.null(low) && is.null(high)) return(x)
@@ -64,6 +65,7 @@ mppi_bandpass <- function(x, low = NULL, high = 0.1, order = 2L, runs = NULL) {
 #' @param zero_diag logical; zero the diagonal of ΔΣ for each band
 #' @param scale summary scale for returned fits (`"normalized"`, `"cov"`, or `"corr"`)
 #' @param runs optional run labels, used for filtering and passed to `mppi_fit()`
+#' @export
 mppi_fit_multi_band <- function(Y, X, psych_idx, bands,
                                 zero_diag = TRUE, scale = c("normalized","cov","corr"),
                                 runs = NULL) {

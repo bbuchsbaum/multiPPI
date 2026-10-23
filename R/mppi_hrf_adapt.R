@@ -9,6 +9,7 @@
 #' @param pk_norms optional vector of ||pk||^2 to normalize columns
 #' @param normalize logical; if TRUE, normalize Gram by pk_norms
 #' @return list with Delta (combined), weights, Gram matrix M
+#' @export
 mppi_hrf_adapt <- function(deltas_list, pk_norms = NULL, normalize = TRUE) {
   stopifnot(is.list(deltas_list), length(deltas_list) >= 1)
   B <- length(deltas_list)

@@ -32,6 +32,7 @@
 #' @param lags Integer vector of lags to include (defaults to `0L`).
 #' @param lag_blocklens Optional integer vector of block lengths for lagged
 #'   fits.
+#' @export
 mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               ar_method = "ar", p = "auto",
                               zero_diag = TRUE, scale = c("normalized","cov","corr"),

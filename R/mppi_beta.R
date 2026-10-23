@@ -5,6 +5,7 @@
 #' For a data.frame, trial/ROI cells with no row, and NA betas, are NA in the
 #' result; duplicate trial/ROI cells are an error.
 #' @param obj matrix, data.frame with (trial, roi, beta), or list of numeric vectors
+#' @export
 mppi_coerce_beta <- function(obj) {
   if (is.matrix(obj)) return(obj)
   if (is.data.frame(obj)) {
@@ -43,6 +44,7 @@ mppi_coerce_beta <- function(obj) {
 #' @param packed logical; return packed upper-triangle matrices
 #' @param chunk_size optional chunk size when using the chunked backend
 #' @return list with Delta, names, RB, pk (residualized regressors), and meta information per regressor
+#' @export
 mppi_fit_beta <- function(B, Pbeta, Cbeta = NULL, runs = NULL,
                           zero_diag = TRUE, scale = c("cov","corr"),
                           center_by = c("none","run"), na_action = c("omit_tr","error"),
@@ -138,6 +140,7 @@ mppi_fit_beta <- function(B, Pbeta, Cbeta = NULL, runs = NULL,
 #' @param Bperm number of permutations to draw
 #' @param seed optional RNG seed for reproducibility
 #' @param method permutation strategy (`"auto"`, `"block_flip"`, or `"permute"`)
+#' @export
 mppi_beta_permute <- function(B, Pbeta, Cbeta = NULL, run_trial = NULL,
                               blksize = NULL, Bperm = 999L, zero_diag = TRUE,
                               seed = NULL, method = c("auto","block_flip","permute")) {

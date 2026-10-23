@@ -3,6 +3,7 @@
 #' MultiPPI generic
 #' @param x object containing either time series or a prepared design
 #' @param ... additional arguments passed to class-specific methods
+#' @export
 mppi <- function(x, ...) {
   UseMethod("mppi")
 }
@@ -252,19 +253,6 @@ mppi.default <- function(x, ...) {
 # Constructors --------------------------------------------------------------
 
 # Print / summary ----------------------------------------------------------
-
-#' @export
-print.mppi_design <- function(x, ...) {
-  cat(sprintf("mppi_design: %d time points x %d regressors (%d psychological)\n",
-              nrow(x$X), ncol(x$X), length(x$psych_idx)))
-  if (!is.null(colnames(x$X))) {
-    preview <- head(colnames(x$X)[x$psych_idx], 5L)
-    cat("Psychological columns: ", paste(preview, collapse = ", "))
-    if (length(x$psych_idx) > length(preview)) cat(", ...")
-    cat("\n")
-  }
-  invisible(x)
-}
 
 #' @export
 print.mppi_fit <- function(x, ...) {

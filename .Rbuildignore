@@ -9,9 +9,5 @@
 ^vignettes/.*\.(html|knit\.md)$
 ^vignettes/tmp_.*$
 ^vignettes/test_.*$
-^README\.txt$
 ^external_docs$
-^multiPPI_0\.4\.0_subspace\.zip$
-^neural_addon\.R$
-^repomix-output\.(txt|xml)$
 ^vignettes/archive$

@@ -3,6 +3,7 @@
 #' Psychological-regressor shifts for covariance modulation
 #' @param x object containing a design or fit to dispatch on
 #' @param ... additional arguments passed to methods
+#' @export
 mppi_lagged <- function(x, ...) UseMethod("mppi_lagged")
 
 #' @rdname mppi_lagged
@@ -61,6 +62,7 @@ mppi_lagged.default <- function(x, X, psych_idx, lags = -2:2, blocklens = NULL,
 #' @param scale compute covariance (`"cov"`) or correlation (`"corr"`) slopes
 #' @param targets optional subset of psychological regressors (names or indices)
 #' @param zero_diag logical; zero the diagonal of returned matrices
+#' @export
 mppi_lag_select <- function(Y, X, psych_idx, lags = -2:2, blocklens = NULL, B = 499L,
                             blksize = 10L, scale = c("cov","corr"), targets = NULL,
                             zero_diag = TRUE) {

@@ -11,7 +11,8 @@ mppi_rank_cv(
   holdout_frac = 0.2,
   R_reps = 3,
   runs = NULL,
-  gap = 0L
+  gap = 0L,
+  zero_diag = TRUE
 )
 }
 \arguments{
@@ -29,6 +30,9 @@ compatibility but recomputed internally from \code{R}/\code{pk} in each split.}
 \item{runs}{Optional contiguous run labels; each run contributes one held-out block.}
 
 \item{gap}{Number of scans excluded from training on each side of a held-out block.}
+
+\item{zero_diag}{Score the held-out loss off the diagonal only, matching fits
+that zero the diagonal (the default for \code{\link[=mppi_fit]{mppi_fit()}}).}
 }
 \value{
 List with the selected rank \code{r}, per-rank losses, and the rank grid.

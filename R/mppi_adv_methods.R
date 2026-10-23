@@ -284,7 +284,8 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
 #' mode the series is filtered run by run (censored fits are refused).
 #'
 #' @param fit multiPPI fit (neural or BOLD domain)
-#' @param k condition index
+#' @param k condition index; not used in the computation (trials are defined by
+#'   `onsets_idx` alone), kept for interface compatibility
 #' @param onsets_idx integer TR indices for events (acquisition grid)
 #' @param runs run label per row of the fit's series; defaults to `fit$runs`
 #' @param Wpre number of TRs in pre-event window

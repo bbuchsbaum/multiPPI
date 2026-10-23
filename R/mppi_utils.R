@@ -216,38 +216,6 @@
   }
 }
 
-.mppi_phase_randomize_seg <- function(x) {
-  n <- length(x)
-  if (n <= 2L) return(x)
-  Fx <- fft(x)
-  half <- floor(n / 2)
-  for (k in seq.int(2L, half)) {
-    angle <- runif(1, 0, 2 * pi)
-    mag <- Mod(Fx[k])
-    Fx[k] <- mag * exp(1i * angle)
-    conj_idx <- n - k + 2L
-    if (conj_idx <= length(Fx)) {
-      Fx[conj_idx] <- Conj(Fx[k])
-    }
-  }
-  if (n %% 2 == 0) {
-    idx <- half + 1L
-    Fx[idx] <- Mod(Fx[idx]) * exp(1i * runif(1, 0, 2 * pi))
-  }
-  Re(fft(Fx, inverse = TRUE) / n)
-}
-
-.mppi_phase_randomize <- function(pk, runs = NULL) {
-  if (is.null(runs)) runs <- rep(1L, length(pk))
-  stopifnot(length(pk) == length(runs))
-  out <- pk
-  idx <- split(seq_along(pk), runs)
-  for (g in idx) {
-    out[g] <- .mppi_phase_randomize_seg(pk[g])
-  }
-  out
-}
-
 # Internal: detect if a design already contains an intercept-like column
 .mppi_has_intercept <- function(X) {
   stopifnot(is.matrix(X))
@@ -289,17 +257,13 @@
   list(X = X_new, psych_idx = if (is.null(p_idx)) p_idx else p_idx + 1L, intercept_added = TRUE)
 }
 
-# Backwards-compatible helper used by legacy code paths
-.mppi_with_intercept <- function(X) {
-  .mppi_prepare_design_matrix(X)$X
-}
-
 # Public helper: select psychological regressors by name or regex
 #' Select psychological regressors from a design matrix
 #' @param X design matrix (T x q)
 #' @param patterns character vector of regex patterns (applied to colnames(X))
 #' @param names_or_idx specific names or integer indices
 #' @return integer vector of column indices
+#' @export
 mppi_select_psych <- function(X, patterns = NULL, names_or_idx = NULL) {
   stopifnot(is.matrix(X))
   if (!is.null(names_or_idx)) {

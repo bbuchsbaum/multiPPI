@@ -129,10 +129,20 @@ Phase 4 notes (user-visible behaviour changes):
 
 ## Phase 6 — P5: quality and hygiene
 
-- [ ] 6.1 NAMESPACE hand-maintained and drifted from roxygen (`mppi_deconv_dct`, `pwf_stack`).
-- [ ] 6.2 Remove generated clutter (`repomix-output.*`, rendered `vignettes/*.html`) and settle the remaining loose files.
-- [ ] 6.3 Dead or stale code: `src/init.cpp` (`R_init_mppiDeconv`), `.mppi_phase_randomize`, `.mppi_with_intercept`, duplicate `print.mppi_design`, unreachable branches.
-- [ ] 6.4 `deconv_dct_multi` silently ignores a wrong-length `q`.
-- [ ] 6.5 `mppi_rank_cv` loss includes the diagonal although fits zero it.
-- [ ] 6.7 `mppi_sdppi_fit` documents `k` as a condition index but trials come only from `onsets_idx`; document or drop it (found during 4.6).
-- [ ] 6.6 Replace mock-only tests that hid real bugs (routing, state prediction, sdPPI) with tests on fitted objects.
+- [x] 6.1 NAMESPACE hand-maintained and drifted from roxygen (`mppi_deconv_dct`, `pwf_stack`). 34 exported functions lacked `@export`; tags added and NAMESPACE is now roxygen-generated, identical to the hand-written one except that the two documented functions are exported and the unused `xtabs` import is dropped.
+- [x] 6.2 Remove generated clutter (`repomix-output.*`, rendered `vignettes/*.html`) and settle the remaining loose files. Also removed, as decided: `multiPPI_0.4.0_subspace.zip`, `neural_addon.R`, `README.txt`, stale `docs/` site.
+- [x] 6.3 Dead or stale code: `src/init.cpp` (`R_init_mppiDeconv`), `.mppi_phase_randomize`, `.mppi_with_intercept`, duplicate `print.mppi_design`, unreachable branches.
+- [x] 6.4 `deconv_dct_multi` silently ignores a wrong-length `q`.
+- [x] 6.5 `mppi_rank_cv` loss includes the diagonal although fits zero it (new `zero_diag = TRUE`).
+- [x] 6.7 `mppi_sdppi_fit` documents `k` as a condition index but trials come only from `onsets_idx`; documented as unused (kept for interface compatibility).
+- [x] 6.6 Replace mock-only tests that hid real bugs (routing, state prediction, sdPPI) with tests on fitted objects. Done in Phases 3-4; remaining hand-built fits test arithmetic on known inputs.
+
+## Final verification
+
+`R CMD build` and `R CMD check --no-manual` (R 4.3.3, Ubuntu 24.04) on the final
+tree with fmrihrf, fmriAR and fmridesign installed: all code, documentation,
+S3, Rd, example and vignette checks pass. The remaining check findings come
+from packages this environment cannot install: one test that needs neuroim2,
+neuroim2 removed from Imports in the check copy, and unavailable suggested
+packages (fmridataset, fmrireg, fmrilss, limma, signal, depmixS4). Paths that
+need those packages, and the HMM and Butterworth branches, are not exercised.

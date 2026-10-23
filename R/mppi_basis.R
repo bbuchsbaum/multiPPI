@@ -6,6 +6,7 @@
 #' @param orthonormalize logical; orthonormalize columns via QR (default TRUE).
 #'   Row names (ROI labels, used as seed labels) are kept.
 #' @return object of class 'mppi_basis'
+#' @export
 as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
   V <- as.matrix(V)
   if (orthonormalize) {
@@ -124,6 +125,7 @@ as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
 #' Extract a basis-space interaction matrix
 #' @param fit result of `mppi_fit()`
 #' @param k regressor index or name to extract
+#' @export
 mppi_get_M <- function(fit, k) {
   if (is.character(k)) idx <- match(k, fit$names) else idx <- k
   if (is.na(idx) || idx < 1 || idx > length(fit$Delta)) stop("Invalid regressor index")
@@ -219,6 +221,7 @@ mppi_get_M_lag <- function(fit, k, lag = 0L) {
 #' @param rows optional subset of row indices in ROI space
 #' @param cols optional subset of column indices in ROI space
 #' @param mode scale (`"raw"`, `"amplitude"`, `"normalized"`); `NULL` uses the fit's own scale
+#' @export
 mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL, mode = NULL) {
   if (is.null(fit$basis)) {
     D <- if (is.null(mode)) mppi_get_M(fit, k) else mppi_get_M_scaled(fit, k, mode)
@@ -241,6 +244,7 @@ mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL, mode = NULL
 #' @param i ROI row index to evaluate
 #' @param j ROI column index to evaluate
 #' @param mode scale (`"raw"`, `"amplitude"`, `"normalized"`); `NULL` uses the fit's own scale
+#' @export
 mppi_edge <- function(fit, k, i, j, mode = NULL) {
   if (is.null(fit$basis)) stop("mppi_edge() requires a basis-aware fit.")
   as.numeric(.mppi_basis_slice(fit, k, i, j, .mppi_basis_mode(fit, mode)))

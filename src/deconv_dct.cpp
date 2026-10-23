@@ -89,9 +89,8 @@ Rcpp::List deconv_dct_multi(const arma::mat &Y,     // T x R signals (prewhitene
   vec q = arma::ones<vec>(K);
   if (q_in.isNotNull()) {
     Rcpp::NumericVector qR(q_in);
-    if ((int)qR.size() == K) {
-      for (int i = 0; i < K; ++i) q(i) = std::max(1e-12, (double)qR[i]);
-    }
+    if ((int)qR.size() != K) stop("q must have one prior weight per DCT component (length K)");
+    for (int i = 0; i < K; ++i) q(i) = std::max(1e-12, (double)qR[i]);
   }
   // A = Q^{-1/2} G Q^{-1/2} = (D * G * D), with D = diag(1/sqrt(q))
   vec invsqrtq = 1.0 / arma::sqrt(q);

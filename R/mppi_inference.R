@@ -84,6 +84,7 @@
 #' @param method Randomization method; Freedman-Lane is unavailable.
 #' @param seed Optional random seed.
 #' @return Per-regressor statistics and experimental randomization metadata.
+#' @export
 mppi_omnibus <- function(fit, blksize = 10L, B = 999L, wild = c("rademacher","mammen","none"),
                          method = c("block_flip","phase","freedman_lane"), seed = NULL) {
   wild <- match.arg(wild); method <- match.arg(method)
@@ -114,6 +115,7 @@ mppi_omnibus <- function(fit, blksize = 10L, B = 999L, wild = c("rademacher","ma
 #' @param k Regressor index or name.
 #' @param studentize Must be FALSE until a valid variance estimator is available.
 #' @return Matrix of experimental edgewise randomization values.
+#' @export
 mppi_permute <- function(fit, k = 1L, blksize = 10L, B = 999L,
                          wild = c("rademacher","mammen","none"), studentize = FALSE,
                          method = c("block_flip","phase","freedman_lane"), seed = NULL) {

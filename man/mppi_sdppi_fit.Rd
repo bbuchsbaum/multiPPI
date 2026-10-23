@@ -24,7 +24,8 @@ mppi_sdppi_fit(
 \arguments{
 \item{fit}{multiPPI fit (neural or BOLD domain)}
 
-\item{k}{condition index}
+\item{k}{condition index; not used in the computation (trials are defined by
+\code{onsets_idx} alone), kept for interface compatibility}
 
 \item{onsets_idx}{integer TR indices for events (acquisition grid)}
 
