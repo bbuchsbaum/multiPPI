@@ -11,7 +11,9 @@ ppi_contrast(fit, contrast, test = c("t", "F"))
 
 \item{contrast}{Named numeric vector or matrix with one contrast per row.
 Names may be complete design-column names, or condition names. Condition
-weights select interaction columns and average equally across runs.
+weights select interaction columns and average equally across the runs in
+which that column is not identically zero; runs where the condition is
+absent, or constant so that centering removes it, are skipped.
 Unspecified weights are zero. Mixing the two naming conventions is an error.}
 
 \item{test}{\code{"t"} for individual rows or \code{"F"} for a joint test.}

@@ -161,7 +161,9 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
 #' @param fit A `ppi_fit`.
 #' @param contrast Named numeric vector or matrix with one contrast per row.
 #'   Names may be complete design-column names, or condition names. Condition
-#'   weights select interaction columns and average equally across runs.
+#'   weights select interaction columns and average equally across the runs in
+#'   which that column is not identically zero; runs where the condition is
+#'   absent, or constant so that centering removes it, are skipped.
 #'   Unspecified weights are zero. Mixing the two naming conventions is an error.
 #' @param test `"t"` for individual rows or `"F"` for a joint test.
 #' @return List of estimates, standard errors (t tests), statistics, p-values,
@@ -211,8 +213,12 @@ ppi_contrast <- function(fit, contrast, test = c("t", "F")) {
   conditions <- unique(terms$condition[terms$type == "interaction"])
   if (all(nm %in% colnames(X))) L[, nm] <- contrast
   else if (all(nm %in% conditions)) {
+    observed <- X[fit$design$keep, , drop = FALSE]
     for (j in seq_along(nm)) {
       idx <- which(terms$type == "interaction" & terms$condition == nm[j])
+      # Skip runs where the condition has no interaction term at all.
+      present <- idx[colSums(abs(observed[, idx, drop = FALSE])) > 0]
+      if (length(present)) idx <- present
       L[, idx] <- contrast[, j] / length(idx)
     }
   } else stop("contrast names must all be design columns or all be interaction conditions")

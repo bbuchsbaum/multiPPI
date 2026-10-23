@@ -45,8 +45,11 @@ zero-duration events have area equal to amplitude in their containing bin.}
 function evaluated on that grid from zero to 32 seconds. The default is
 \code{fmrihrf::hrf_spmg1} evaluated on the same grid. Zeros are preserved.}
 
-\item{deconv}{List with optional positive \code{lambda} (default 0.1) and integer
-\code{n_basis} (default min(64, number of scans) per run).}
+\item{deconv}{List with optional positive \code{lambda} (default 1) and integer
+\code{n_basis} (default: the number of scans in each run, one DCT component per
+scan). The ridge penalty is \code{lambda} times the mean diagonal of the
+observed basis Gram matrix, so the deconvolved seed and interaction terms
+do not depend on HRF amplitude or the microtime grid.}
 
 \item{censor}{Logical vector marking excluded scans. The full time grid is
 retained and deconvolution uses only observed seed values.}

@@ -100,3 +100,14 @@ test_that("README conventional example runs with the default HRF and noise model
   expect_true(all(is.finite(est)))
   expect_s3_class(ppi_fit(Y, design)$noise_plan, "fmriAR_plan")
 })
+
+test_that("condition contrasts average only over runs where the condition occurs", {
+  set.seed(5); n <- 120; runs <- rep(1:2, each = 60)
+  ps <- cbind(A = rep(rep(0:1, each = 6), 10), C = c(rep(c(0, 0, 0, 1, 1, 1), 10), rep(0, 60)))
+  d <- ppi_design(rnorm(n), psych = ps, TR = 2, hrf = c(0, 1, 0.5), microtime = 1, runs = runs)
+  f <- ppi_fit(matrix(rnorm(n * 3), n), d, noise = "iid")
+  expect_equal(ppi_contrast(f, c(C = 1))$estimate, ppi_contrast(f, c("interaction:C:1" = 1))$estimate)
+  expect_true(all(is.finite(ppi_contrast(f, c(A = 1, C = -1))$estimate)))
+  both <- ppi_contrast(f, c("interaction:A:1" = 0.5, "interaction:A:2" = 0.5))$estimate
+  expect_equal(ppi_contrast(f, c(A = 1))$estimate, both)
+})

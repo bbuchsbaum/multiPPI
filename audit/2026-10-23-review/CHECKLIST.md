@@ -15,9 +15,16 @@ instead of a silently wrong result), `[-]` deferred with a reason.
 
 ## Phase 2 — P1: conventional PPI correctness
 
-- [ ] 2.1 `ppi_design`: deconvolution ridge invariant to HRF scale, microtime and TR (currently absolute `lambda = 0.1`).
-- [ ] 2.2 `ppi_design`: default `n_basis` must not low-pass long runs (currently `min(64, scans)`).
-- [ ] 2.3 `ppi_contrast`: condition-named contrasts average only over runs where the condition occurs (currently `NA` if absent from any run).
+- [x] 2.1 `ppi_design`: deconvolution ridge invariant to HRF scale, microtime and TR (currently absolute `lambda = 0.1`).
+- [x] 2.2 `ppi_design`: default `n_basis` must not low-pass long runs (currently `min(64, scans)`).
+- [x] 2.3 `ppi_contrast`: condition-named contrasts average only over runs where the condition occurs (currently `NA` if absent from any run).
+
+Phase 2 note: `deconv$lambda` is now relative to the mean diagonal of the
+observed basis Gram matrix (default 1, chosen by simulation across TR, run
+length, neural timescale and seed noise), and `n_basis` defaults to one
+component per scan. Receipts under `audit/2026-10-23-ppi/` and validation
+scripts that pass an explicit `lambda` were produced under the old absolute
+definition; rerunning them will not reproduce those numbers exactly.
 
 ## Phase 3 — P2: silently wrong scientific output (legacy and peripheral)
 
