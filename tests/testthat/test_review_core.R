@@ -96,24 +96,42 @@ test_that("rank-reduced basis back-projects the in-subspace slope with voxel SDs
   expect_equal(mppi_reconstruct_delta(bas, 1L), raw / tcrossprod(s), tolerance = 1e-10)
 })
 
-test_that("dataset path matches the direct design path and propagates its TR", {
+# Layout of fmridataset (<= 0.10) matrix_dataset() and the accessors mppi.fmri_dataset
+# calls, as defined there (fmridataset >= 0.11 has no fmri_dataset class and is not
+# installable here). Real objects carry no $Y/$runs fields.
+.legacy_fmri_dataset <- function(Y, TR, run_length) {
+  structure(list(datamat = Y, TR = TR, nruns = length(run_length), event_table = data.frame(),
+                 sampling_frame = fmrihrf::sampling_frame(blocklens = run_length, TR = TR),
+                 mask = rep(TRUE, ncol(Y))), class = c("matrix_dataset", "fmri_dataset", "list"))
+}
+.legacy_fmridataset_fn <- function(name) switch(name,
+  get_data_matrix = function(x, ...) x$datamat,
+  get_TR = function(x, ...) x$sampling_frame$TR[1],
+  blockids = function(x, ...) rep(seq_along(x$sampling_frame$blocklens), times = x$sampling_frame$blocklens))
+
+test_that("dataset path reads fmridataset accessors and propagates TR and runs", {
   set.seed(4)
   Tn <- 200L; V <- 6L
   X <- cbind(`(Intercept)` = 1, A = rbinom(Tn, 1, 0.4))
   Y <- matrix(rnorm(Tn * V), Tn, V)
-  # fmridataset is not installed here: a minimal object with the fields mppi.fmri_dataset reads
-  ds <- structure(list(Y = Y, TR = 2, runs = rep(1L, Tn)), class = "fmri_dataset")
+  ds <- .legacy_fmri_dataset(Y, 2, c(120L, 80L))
+  runs <- rep(1:2, c(120L, 80L))
   des <- structure(list(X = X, psych_idx = 2L, runs = rep(1L, Tn), basis = NULL), class = "mppi_design")
+  if (!requireNamespace("fmridataset", quietly = TRUE)) expect_error(mppi(ds, des), "requires the fmridataset package")
+  local_mocked_bindings(.mppi_fmridataset_fn = .legacy_fmridataset_fn)
   fit <- mppi(ds, des)
   expect_null(fit$basis)
-  expect_equal(fit$Delta, mppi(des, Y = Y)$Delta)
+  expect_equal(fit$runs, runs)
+  expect_equal(fit$Delta, mppi(des, Y = Y, runs = runs)$Delta)
   dc <- list(K = 40, method = "fixed", lambda = 0.1)
   fn <- mppi(ds, des, domain = "neural", deconv = dc)
   expect_equal(fn$deconv$tr, 2)
   expect_equal(fn$deconv$hrf, mppi_default_hrf(tr = 2))
-  expect_equal(fn$Delta, mppi(des, Y = Y, domain = "neural", deconv = c(dc, tr = 2))$Delta)
+  expect_equal(fn$Delta, mppi(des, Y = Y, runs = runs, domain = "neural", deconv = c(dc, tr = 2))$Delta)
   expect_error(mppi(ds, des, domain = "neural", deconv = c(dc, tr = 1)), "TR mismatch")
   expect_equal(mppi(ds, des, basis = list(type = "pca", r = 3L))$basis$r, 3L)
+  ds$censor <- c(1, rep(0, Tn - 1L))
+  expect_error(mppi(ds, des), "Censored")
 })
 
 test_that("precision gate matches fit$partial and is unit-free when normalized", {

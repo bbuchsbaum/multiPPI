@@ -18,7 +18,8 @@
   project_chunk_cols = NULL,
   prewhiten = FALSE,
   ar_method = "ar",
-  ar_order = "auto"
+  ar_order = "auto",
+  lag_blocklens = NULL
 )
 }
 \description{
@@ -26,7 +27,8 @@ Runs the closed-form engine (\code{mppi_fit()}, or \code{mppi_fit_whitened()} wh
 \code{prewhiten = TRUE}) and returns its prepared quantities, so alternative
 engines (e.g. instantaneous) share its run-local deconvolution, censoring
 rules, prewhitening and rank-safe evidence. \code{index} and \code{segments} give
-each retained row's acquisition position and contiguous run segment, for
-lag pairs on the acquisition grid.
+each retained row's acquisition position and run segment (from
+\code{lag_blocklens} when given, as in \code{mppi_fit()}, else from \code{runs}), for
+lag pairs and filtering on the acquisition grid.
 }
 \keyword{internal}

@@ -10,13 +10,16 @@ mppi_sdppi(
   select = NULL,
   pre_window = 10L,
   lags = -2:2,
-  mode = c("normalized", "amplitude", "raw")
+  mode = c("normalized", "amplitude", "raw"),
+  onsets = NULL
 )
 }
 \arguments{
-\item{fit}{\code{mppi_fit} object}
+\item{fit}{\code{mppi_fit} object (uncensored)}
 
-\item{fd}{\code{fmridesign} supplying event sticks (used to locate trials)}
+\item{fd}{\code{fmridesign}, \code{event_model} or \code{mppi_design} supplying the
+psychological regressors used to locate trials; column names must match
+\code{fit$names} (or their \code{"s:"}-prefixed neural-domain names)}
 
 \item{select}{optional regex restricting conditions}
 
@@ -25,10 +28,41 @@ mppi_sdppi(
 \item{lags}{integer lags for routing index (excluding zero)}
 
 \item{mode}{interaction scale (\code{"normalized"}, \code{"amplitude"}, or \code{"raw"})}
+
+\item{onsets}{optional list of onset scans (row indices of the fit) named by
+condition, or a vector when one condition is selected; replaces detection
+(conditions without an entry are skipped)}
 }
 \value{
 data frame with per-trial summaries (condition, trial index, onset, magnitude, gain, routing, effective rank, v1 dominance)
 }
 \description{
-Trial-level state-dependent PPI summaries
+Trials of each selected psychological column of \code{fd} start at \code{onsets} or,
+by default, at rising edges of the regressor from (near) zero: the first
+scan of a run, or after a scan at or below it, whose value exceeds \code{1e-3}
+of the column's maximum. Each isolated event on a stick, boxcar or
+convolved regressor is counted once (on a convolved regressor the onset is
+the first scan of the response). When the responses of successive events
+overlap, so the regressor rises again before returning to zero, events
+cannot be told apart and the function stops; supply \code{onsets}, as also for
+neural-domain fits, whose working regressors are deconvolved. A trial spans
+its onset to the scan before the next onset of that condition in the run,
+or the run end.
+}
+\details{
+Each trial's matrix is a covariance modulation of the series behind
+\code{fit$Delta} (\code{fit$R}, which for \code{domain = "innovations"} holds the
+innovations; \code{fit$Z} for basis fits): the slope of \eqn{x_t x_t^T} on the
+fit's regressor \code{fit$pk[[k]]} restricted to the trial, after residualizing
+that weight on an intercept and on the rest of the regressor (least-squares
+separate). Data with activation but no modulation thus give matrices near
+zero, and with an intercept in the design a trial covering every scan gives
+\code{fit$Delta[[k]]}. The diagonal
+follows the fit's \code{zero_diag}. \code{magnitude} is the Frobenius norm of the
+matrix on the scale of \code{mode} and \code{gain} its alignment with the leading
+eigenvector of \code{fit$Sigma0} (on the correlation scale unless
+\code{mode = "raw"}). \code{routing} is the directedness of the trial's
+lead-lag energy over the nonzero \code{lags}, in \eqn{[0, 1]}, as \code{R} in
+\code{\link[=mppi_lagged]{mppi_lagged()}}. Pre-onset features use the \code{pre_window} scans before the
+onset in the same run.
 }

@@ -42,7 +42,7 @@ test_that("instant prewhitening follows the closed whitened path", {
   X <- cbind(int = 1, run1 = runs == 1, run2 = runs == 2, task = rnorm(n)); Y <- matrix(rnorm(n * 3), n)
   fc <- mppi(Y, X, psych_idx = 4, runs = runs, prewhiten = TRUE, p = 1, scale = "cov", zero_diag = FALSE)
   fi <- mppi(Y, X, psych_idx = 4, runs = runs, prewhiten = TRUE, ar_order = 1, scale = "cov",
-             engine = "instant", instant = list(tau_half = 1e12))
+             engine = "instant", zero_diag = FALSE, instant = list(tau_half = 1e12))
   expect_equal(c(mppi_get_M(fi, 1)), c(mppi_get_M(fc, 1)), tolerance = 1e-8)
   expect_equal(fi$domain, "whitened_bold")
   expect_error(mppi(Y, X, psych_idx = 4, runs = runs, prewhiten = TRUE, ar_order = 1, domain = "neural",
@@ -54,7 +54,7 @@ test_that("instant lag pairs use acquisition distances across censored scans", {
   X <- cbind(1, task = rnorm(n)); Y <- matrix(rnorm(n * 3), n)
   Y[15, 1] <- NA; Y[31, 2] <- NA
   fc <- mppi(Y, X, 2, runs = runs, lags = c(-1, 2), zero_diag = FALSE, scale = "cov")
-  fi <- mppi(Y, X, 2, runs = runs, engine = "instant", scale = "cov",
+  fi <- mppi(Y, X, 2, runs = runs, engine = "instant", scale = "cov", zero_diag = FALSE,
              instant = list(tau_half = 1e12, offsets = c(-1L, 2L)))
   for (lg in c(-1L, 2L)) expect_equal(c(mppi_get_M_lag(fi, 1, lg)), c(mppi_get_M_lag(fc, 1, lg)), tolerance = 1e-8)
   expect_equal(fi$observation_index, fc$observation_index)
@@ -67,7 +67,7 @@ test_that("EWM slopes converge to the closed engine as tau_half grows, lag orien
   Y <- matrix(rnorm(n * 3), n)
   for (t in 2:n) Y[t, 2] <- Y[t, 2] + 2 * task[t - 1] * Y[t - 1, 1]
   fc <- mppi(Y, X, 3, runs = runs, lags = c(-2, 1), zero_diag = FALSE, scale = "cov")
-  fi <- mppi(Y, X, 3, runs = runs, engine = "instant", scale = "cov",
+  fi <- mppi(Y, X, 3, runs = runs, engine = "instant", scale = "cov", zero_diag = FALSE,
              instant = list(tau_half = 1e12, offsets = c(-2L, 1L)))
   for (lg in c(-2L, 0L, 1L)) expect_equal(c(mppi_get_M_lag(fi, 1, lg)), c(mppi_get_M_lag(fc, 1, lg)), tolerance = 1e-8)
   expect_equal(c(fi$Delta_normalized[[1]]), c(fc$Delta_normalized[[1]]), tolerance = 1e-8)
@@ -79,7 +79,7 @@ test_that("EWM slopes halve their weight every tau_half scans back from the end"
   set.seed(21); n <- 80; runs <- rep(1:2, each = 40)
   X <- cbind(1, task = rnorm(n)); Y <- matrix(rnorm(n * 3), n); Y[30, 2] <- NA
   tau <- 7
-  fi <- mppi(Y, X, 2, runs = runs, engine = "instant", scale = "cov",
+  fi <- mppi(Y, X, 2, runs = runs, engine = "instant", scale = "cov", zero_diag = FALSE,
              instant = list(tau_half = tau, offsets = c(0L, 2L)))
   keep <- setdiff(seq_len(n), 30); R <- fi$R; p <- fi$pk[[1]]; w <- 2^((keep - n) / tau)
   expect_equal(c(mppi_get_M(fi, 1)), c(crossprod(R, w * p * R) / sum(w * p^2)))

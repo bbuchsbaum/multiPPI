@@ -180,7 +180,8 @@ mppi_group_glm <- function(fits, design, contrast = NULL, coef = NULL,
   subj_names <- stack_obj$subjects
   if (!is.null(subj_names)) {
     rownames(Y) <- subj_names
-    if (!is.null(rownames(design))) {
+    # Default row names (as from model.matrix) carry no subject identity.
+    if (!is.null(rownames(design)) && !identical(rownames(design), as.character(seq_len(nrow(design))))) {
       idx <- match(subj_names, rownames(design))
       if (any(is.na(idx))) stop("Design rows must be named for all subjects in the stack.", call. = FALSE)
       design <- design[idx, , drop = FALSE]

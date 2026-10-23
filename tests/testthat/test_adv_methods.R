@@ -94,7 +94,8 @@ test_that("state-dependent PPI returns trial summaries with nuisances", {
   sd <- mppi_sdppi_fit(fit, 1L, onsets_idx = onsets, runs = runs,
                        Wpre = 4L, Wpost = 4L, mode = "neural",
                        nuisance_ts = list(GS = gs))
-  expect_equal(nrow(sd$data), length(onsets))
+  # onsets 20 and 40 end their runs: one post-window scan, so they are skipped
+  expect_equal(nrow(sd$data), 3L)
   expect_true(all(c("pre_lambda1_share", "ppi_energy", "run") %in% colnames(sd$data)))
   expect_true(ncol(sd$data) >= 10)
   expect_s3_class(sd$model_ppi, "lm")
@@ -104,7 +105,7 @@ test_that("state-dependent PPI returns trial summaries with nuisances", {
   sd_innov <- mppi_sdppi_fit(fit, 1L, onsets_idx = onsets, runs = runs,
                              Wpre = 4L, Wpost = 4L, mode = "innov",
                              protect = "lowHz", f_cut = 0.05)
-  expect_equal(nrow(sd_innov$data), length(onsets))
+  expect_equal(nrow(sd_innov$data), 3L)
 })
 
 test_that("null onsets avoid guarded windows", {

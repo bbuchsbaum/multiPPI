@@ -24,7 +24,8 @@ row names when present, otherwise by position.}
 
 \item{k}{Number of CV folds.}
 
-\item{seed}{RNG seed.}
+\item{seed}{RNG seed for the fold split; the caller's RNG state is restored
+afterwards. \code{NULL} draws from (and advances) the caller's stream.}
 
 \item{lambda}{Ridge penalty on the standardized features.}
 }

@@ -18,14 +18,24 @@ mppi_instant_fit(
   scale = c("normalized", "cov", "corr"),
   ar_method = "ar",
   ar_order = "auto",
+  zero_diag = TRUE,
+  lags = 0L,
+  lag_blocklens = NULL,
   instant = list(),
   ...
 )
 }
 \arguments{
+\item{lags}{Integer lags, an alternative to \code{instant$offsets} (they must
+agree when both are given).}
+
+\item{lag_blocklens, zero_diag}{As in \code{mppi_fit()}.}
+
 \item{instant}{list of engine options: \code{method} (\code{"ewm"}, \code{"iphs"} or
 \code{"pwi"}), \code{tau_half} (half-life in scans), \code{offsets} (integer lags, 0 is
-always included), \code{band}, \code{weight}, \code{robust} and \code{fs}.}
+always included; \code{"ewm"} only), \code{band}, \code{weight}, \code{robust} and \code{fs}.}
+
+\item{...}{Not supported: other \code{mppi_fit()} arguments are an error.}
 }
 \description{
 Prepares data exactly as \code{mppi_fit()}, or \code{mppi_fit_whitened()} when
@@ -44,6 +54,19 @@ and orientation match \code{mppi_fit()}'s \code{Delta} and \code{lagged} (row \e
 column \eqn{j} for \eqn{\tau > 0}), and as \code{tau_half} grows the estimate
 converges to them. It is end-weighted (runs are concatenated in order): the
 effective window is a few \code{tau_half} scans before the last scan, not the
-whole acquisition. Diagonals are not zeroed.
+whole acquisition.
+
+\code{method = "iphs"} (contemporaneous only) uses the same weights for the slope
+of instantaneous phase locking \eqn{\cos(\phi_{t,i} - \phi_{t,j})} on
+\eqn{p_t} (see \code{ipppi_iphs()}); it is stored as a normalized-scale matrix
+(\code{scale = "cov"} multiplies it by the residual SDs). \code{method = "pwi"} gives
+differences of instantaneous-frequency slopes in rad/s per unit psych, which
+are amplitude-free, so every scale holds the same matrix. Both filter and
+Hilbert-transform each contiguous stretch of retained scans within a run
+separately, so censored gaps and run boundaries are never bridged.
+
+As in \code{mppi_fit()}, \code{zero_diag} zeroes the diagonal of every returned matrix
+and \code{lag_blocklens} (run lengths on the acquisition grid) override \code{runs}
+for lag pairs and filtering segments.
 }
 \keyword{internal}

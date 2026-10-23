@@ -40,6 +40,7 @@
   Q <- qr.Q(qrV)
   rank <- qrV$rank
   Q <- Q[, seq_len(rank), drop = FALSE]
+  rownames(Q) <- rownames(V)
   structure(list(V = Q, name = name, r = ncol(Q)), class = "mppi_basis")
 }
 
@@ -257,20 +258,35 @@
   sqrt(sum(residual^2)) <= 1e-8 * sqrt(nrow(X))
 }
 
-# Prepare a design matrix, ensuring an intercept column and adjusting indices.
+# Unique design column names: missing, empty or duplicated names become
+# psych1..psychK (psychological columns, in index order) or x<j> (others).
+.mppi_design_colnames <- function(X, psych_idx = NULL) {
+  nm <- colnames(X) %||% character(ncol(X))
+  nm[is.na(nm)] <- ""
+  bad <- !nzchar(nm) | nm %in% nm[duplicated(nm)]
+  if (!any(bad)) return(nm)
+  def <- paste0("x", seq_along(nm))
+  p <- psych_idx[psych_idx >= 1L & psych_idx <= length(nm)]
+  def[p] <- paste0("psych", seq_along(p))
+  nm[bad] <- utils::tail(make.unique(c(nm[!bad], def[bad])), sum(bad))
+  nm
+}
+
+# Prepare a design matrix, ensuring an intercept column, unique column names
+# (see .mppi_design_colnames) and adjusting indices.
 # A prewhitened design (attr "mppi_whitened") already carries its whitened intercept.
 .mppi_prepare_design_matrix <- function(X, psych_idx = NULL) {
   stopifnot(is.matrix(X))
   whitened <- isTRUE(attr(X, "mppi_whitened"))
   attr(X, "mppi_whitened") <- NULL
+  p_idx <- if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx)))
+  colnames(X) <- .mppi_design_colnames(X, p_idx)
   if (whitened || .mppi_has_intercept(X)) {
-    return(list(X = X,
-                psych_idx = if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx))),
-                intercept_added = FALSE))
+    return(list(X = X, psych_idx = p_idx, intercept_added = FALSE))
   }
   X_new <- cbind(`(Intercept)` = 1, X)
-  idx_new <- if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx))) + 1L
-  list(X = X_new, psych_idx = idx_new, intercept_added = TRUE)
+  colnames(X_new) <- make.unique(colnames(X_new))
+  list(X = X_new, psych_idx = if (is.null(p_idx)) p_idx else p_idx + 1L, intercept_added = TRUE)
 }
 
 # Backwards-compatible helper used by legacy code paths

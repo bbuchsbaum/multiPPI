@@ -17,7 +17,8 @@ mppi.matrix <- function(x, X, psych_idx, runs = NULL, prewhiten = FALSE,
   if (identical(engine, "instant")) {
     res <- mppi_instant_fit(Y = x, X = X, psych_idx = psych_idx, runs = runs,
                             prewhiten = prewhiten, basis = basis, domain = domain,
-                            deconv = deconv, instant = instant, ...)
+                            deconv = deconv, lags = lags, lag_blocklens = lag_blocklens,
+                            instant = instant, ...)
   } else if (prewhiten) {
     if (is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.")
     res <- mppi_fit_whitened(Y = x, X = X, runs = runs, psych_idx = psych_idx,
@@ -59,6 +60,11 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
       if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between design and deconvolution.", call. = FALSE)
       deconv$tr <- tr
     }
+    model_hrf <- .mppi_deconv_hrf(mppi_hrf(x$event_model))
+    if (!is.null(model_hrf) && is.null(deconv$hrf)) {
+      deconv <- deconv %||% list()
+      deconv$hrf <- model_hrf
+    }
   }
   runs <- runs %||% x$runs
   if (is.null(runs) && !is.null(x$event_model)) {
@@ -67,7 +73,8 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
   if (identical(engine, "instant")) {
     res <- mppi_instant_fit(Y = Y, X = x$X, psych_idx = x$psych_idx, runs = runs,
                             prewhiten = prewhiten, basis = basis_obj, domain = domain,
-                            deconv = deconv, instant = instant, ...)
+                            deconv = deconv, lags = lags, lag_blocklens = lag_blocklens,
+                            instant = instant, ...)
   } else if (prewhiten) {
     if (is.null(runs)) runs <- x$runs
     if (is.null(runs)) stop("'runs' must be provided for prewhitening.")
@@ -144,7 +151,8 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
                           class = "mppi_design")
 
   deconv_args <- deconv %||% list()
-  if (!is.null(info$hrf) && is.null(deconv_args$hrf)) deconv_args$hrf <- info$hrf
+  design_hrf <- .mppi_deconv_hrf(info$hrf)
+  if (!is.null(design_hrf) && is.null(deconv_args$hrf)) deconv_args$hrf <- design_hrf
   if (!is.null(info$TR)) {
     if (is.null(deconv_args$TR)) deconv_args$TR <- info$TR
     if (is.null(deconv_args$tr)) deconv_args$tr <- info$TR
@@ -165,31 +173,35 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
   fit
 }
 
+# Accessor of the pre-frame fmridataset API (<= 0.10), which defined fmri_dataset;
+# fmridataset >= 0.11 replaced it by fmri_frame (see mppi.fmri_frame).
+.mppi_fmridataset_fn <- function(name) {
+  if (!requireNamespace("fmridataset", quietly = TRUE)) stop("mppi() on an fmri_dataset requires the fmridataset package.", call. = FALSE)
+  fn <- tryCatch(getExportedValue("fmridataset", name), error = function(e) NULL)
+  if (!is.function(fn)) stop(sprintf("The installed fmridataset does not provide %s(); fmri_dataset objects need fmridataset <= 0.10. Convert newer data to an fmri_frame.", name), call. = FALSE)
+  fn
+}
+
+# Data via get_data_matrix(), TR via get_TR() and runs via blockids() (overridden
+# by `runs`); censored datasets are rejected, as in mppi.fmri_frame.
 #' @export
 mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","innovations"),
                               prewhiten = FALSE, runs = NULL, deconv = NULL,
                               r = NULL, engine = c("closed", "instant"), instant = list(), ...) {
   domain <- match.arg(domain)
   engine <- match.arg(engine)
-  Y <- NULL
-  TR_ds <- NULL
-  runs_ds <- runs
-  if (is.null(Y)) {
-    Y <- x$Y %||% x$timeseries %||% x$X
-  }
-  if (!is.matrix(Y)) stop("fmri_dataset must supply a matrix field (or support fmridataset accessors).")
+  Y <- as.matrix(.mppi_fmridataset_fn("get_data_matrix")(x))
   T <- nrow(Y)
-  if (!is.null(runs_ds) && length(runs_ds) != T) stop("Dataset runs have incompatible length.")
-  if (is.null(runs_ds)) runs_ds <- x$runs %||% attr(x, "runs")
-  if (!is.null(runs_ds) && length(runs_ds) != T) stop("Dataset runs have incompatible length.")
-  if (!is.null(runs_ds)) runs_ds <- as.integer(runs_ds)
-  TR_ds <- TR_ds %||% x$TR %||% attr(x, "TR")
-  TR_fd <- tryCatch(mppi_tr(fd), error = function(e) NULL)
-  if (!is.null(TR_ds) && !is.null(TR_fd) && abs(TR_ds - TR_fd) > 1e-6) {
+  if (!is.null(x$censor) && any(x$censor != 0)) stop("Censored fmri_dataset scans are unsupported by this adapter.", call. = FALSE)
+  runs_ds <- runs %||% .mppi_fmridataset_fn("blockids")(x)
+  if (length(runs_ds) != T) stop("Dataset runs have incompatible length.")
+  tr <- as.numeric(.mppi_fmridataset_fn("get_TR")(x))
+  if (length(unique(x$sampling_frame$TR)) > 1L || length(tr) != 1L || !is.finite(tr) || tr <= 0) stop("fmri_dataset requires one common TR.", call. = FALSE)
+  TR_fd <- tryCatch(mppi_tr(fd), error = function(e) NA_real_)
+  if (length(TR_fd) == 1L && is.finite(TR_fd) && abs(tr - TR_fd) > 1e-6) {
     stop("TR mismatch between dataset and design.", call. = FALSE)
   }
-  tr <- TR_ds %||% TR_fd
-  if (domain != "bold" && !is.null(tr)) {
+  if (domain != "bold") {
     deconv <- deconv %||% list()
     supplied <- deconv$tr %||% deconv$TR
     if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between dataset and deconvolution.", call. = FALSE)

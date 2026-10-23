@@ -159,10 +159,10 @@ mppi_lagged.mppi_fit <- function(x, k, lags = -2:2, mode = c("neural", "innov"),
        estimand = "directed_signal_lag_covariance", observation_index = inp$index)
 }
 
-.mppi_adv_lag_input <- function(fit, mode, TR, protect, K_keep, f_cut, ar_order, p) {
+.mppi_adv_lag_input <- function(fit, mode, TR, protect, K_keep, f_cut, ar_order, p, runs = NULL) {
   X <- .mppi_adv_X(fit)
   if (!is.null(attr(X, "TR"))) TR <- attr(X, "TR")
-  runs <- fit$runs %||% rep(1L, nrow(X))
+  runs <- runs %||% fit$runs %||% rep(1L, nrow(X))
   index <- fit$observation_index %||% seq_len(nrow(X))
   if (length(runs) != nrow(X) || length(index) != nrow(X) || anyNA(runs) || anyNA(index)) stop("Invalid run or acquisition indices.")
   if (mode == "innov") {
@@ -211,7 +211,9 @@ mppi_lagged.mppi_fit <- function(x, k, lags = -2:2, mode = c("neural", "innov"),
 #' @param lags lags for routing index
 #' @param mode innovations mode passed to `mppi_lagged`
 #' @param B number of permutations for null distribution
-#' @param seed RNG seed
+#' @param seed RNG seed for the circular shifts (reproducible by default); the
+#'   caller's RNG state is restored afterwards. `NULL` draws from, and
+#'   advances, the caller's stream.
 #' @return list with indices, p-values, and label
 #' @export
 mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
@@ -232,7 +234,7 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
     crossprod(Xi, pk * Xi) / (sum(pk^2) + 1e-12)
   } else Mk_neural
   I_ratio <- sqrt(sum(Mk_innov^2)) / (sqrt(sum(Mk_neural^2)) + 1e-12)
-  set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   perm <- .mppi_adv_perm_shift(pk, B)
   G_null <- C_null <- I_null <- D_null <- numeric(B)
   TR_attr <- attr(X, "TR") %||% NULL
@@ -282,10 +284,18 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
 
 #' Trial-resolved state-dependent PPI analysis
 #'
+#' Windows live on the acquisition grid (`fit$observation_index`) and within
+#' the onset's run: the pre-event window is the `Wpre` scans before the onset,
+#' the post-event window the `Wpost` scans from the onset. Windows are
+#' truncated at run boundaries and censored scans are left out; trials with
+#' fewer than 3 usable scans in either window, or whose onset scan cannot be
+#' placed in a run (a censored scan between runs), are skipped. In `"innov"`
+#' mode the series is filtered run by run (censored fits are refused).
+#'
 #' @param fit multiPPI fit (neural or BOLD domain)
 #' @param k condition index
-#' @param onsets_idx integer TR indices for events
-#' @param runs run label per TR
+#' @param onsets_idx integer TR indices for events (acquisition grid)
+#' @param runs run label per row of the fit's series; defaults to `fit$runs`
 #' @param Wpre number of TRs in pre-event window
 #' @param Wpost number of TRs in post-event window
 #' @param mode "neural" or "innov"
@@ -298,30 +308,27 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
 #' @param nuisance_ts named list of nuisance timeseries (length T)
 #' @return list with trial data, models, and cross-validated correlation
 #' @export
-mppi_sdppi_fit <- function(fit, k, onsets_idx, runs,
+mppi_sdppi_fit <- function(fit, k, onsets_idx, runs = NULL,
                            Wpre = 8L, Wpost = 12L,
                            mode = c("neural", "innov"),
                            TR = NULL, protect = "lowK", K_keep = 8L,
                            f_cut = 0.03, ar_order = "auto", p = 4L,
                            nuisance_ts = NULL) {
   mode <- match.arg(mode)
-  X <- .mppi_adv_X(fit)
-  if (!is.null(attr(X, "TR"))) TR <- attr(X, "TR")
-  stopifnot(length(runs) == nrow(X))
-  if (mode == "innov") {
-    X <- mppi_innovations(X, TR = TR, protect = protect,
-                          K_keep = K_keep, f_cut = f_cut,
-                          ar_order = ar_order, p = p, center = FALSE)
-  }
+  inp <- .mppi_adv_lag_input(fit, mode, TR, protect, K_keep, f_cut, ar_order, p, runs = runs)
+  X <- inp$X; runs <- inp$runs; index <- inp$index
   Tn <- nrow(X)
   r <- ncol(X)
   Theta0 <- solve(crossprod(X) / Tn + diag(1e-3, r))
   rows <- list()
-  out_runs <- integer(0)
+  out_rows <- integer(0)
   for (idx in seq_along(onsets_idx)) {
     t0 <- as.integer(onsets_idx[idx])
-    pre_idx <- .mppi_adv_window(Tn, t0, Wpre, pre = TRUE)
-    post_idx <- .mppi_adv_window(Tn, t0, Wpost, pre = FALSE)
+    before <- which(index <= t0); after <- which(index >= t0)
+    if (!length(before) || !length(after) || runs[before[length(before)]] != runs[after[1L]]) next
+    in_run <- runs == runs[after[1L]]
+    pre_idx <- which(in_run & index >= t0 - Wpre & index < t0)
+    post_idx <- which(in_run & index >= t0 & index < t0 + Wpost)
     if (length(pre_idx) < 3 || length(post_idx) < 3) next
     Sw <- crossprod(X[pre_idx, , drop = FALSE]) / length(pre_idx)
     eig <- eigen(0.5 * (Sw + t(Sw)), symmetric = TRUE)
@@ -352,12 +359,12 @@ mppi_sdppi_fit <- function(fit, k, onsets_idx, runs,
              cond_energy_delta = cond_delta,
              nuis)
     rows[[length(rows) + 1L]] <- row
-    out_runs <- c(out_runs, runs[t0])
+    out_rows <- c(out_rows, after[1L])
   }
   if (!length(rows)) stop("No valid trials for sdPPI analysis.")
   mat <- do.call(rbind, rows)
   data <- as.data.frame(mat)
-  data$run <- out_runs
+  data$run <- runs[out_rows]
   resp_vars <- c("ppi_energy", "cond_energy", "ppi_energy_delta", "cond_energy_delta")
   predictors <- setdiff(colnames(data), c("run", resp_vars))
   lm_ppi <- stats::lm(ppi_energy ~ ., data = data[, c("ppi_energy", predictors), drop = FALSE])
@@ -395,9 +402,14 @@ mppi_make_null_onsets <- function(Tlen, onsets_idx, n = length(onsets_idx), guar
 
 #' Cross-validated mapping from pre-state predictors to anchors
 #'
+#' Leave-one-run-out: each run is predicted from a model fitted on the others
+#' (folds with fewer than 5 training trials are skipped).
+#'
 #' @param sd_df output data frame from `mppi_sdppi_fit`
-#' @param y response vector (numeric or binary factor)
-#' @param runs run ids for cross-validation
+#' @param y response vector: numeric for `"gaussian"`; for `"binomial"` any
+#'   two-class vector (numeric, logical, character or factor), whose second
+#'   factor level (the larger value) is the positive class
+#' @param runs run labels (any type) for cross-validation; defaults to `sd_df$run`
 #' @param family "gaussian" for lm, "binomial" for logistic
 #' @return list with cv_r (gaussian) or cv_auc (binomial)
 #' @export
@@ -405,27 +417,28 @@ mppi_state_predict <- function(sd_df, y, runs = NULL,
                                family = c("gaussian", "binomial")) {
   family <- match.arg(family)
   X <- sd_df[, grepl("^pre_", names(sd_df)), drop = FALSE]
+  if (length(y) != nrow(X)) stop("y must have one value per row of sd_df.", call. = FALSE)
   if (is.null(runs)) runs <- sd_df$run %||% rep(1L, nrow(sd_df))
-  runs <- as.integer(runs)
-  uniq <- sort(unique(runs))
+  if (length(runs) != nrow(X) || anyNA(runs)) stop("runs must give one nonmissing label per row of sd_df.", call. = FALSE)
+  if (family == "binomial") {
+    yf <- factor(y)
+    if (nlevels(yf) > 2L) stop("binomial y must have two classes.", call. = FALSE)
+    if (nlevels(yf) < 2L) return(list(cv_auc = NA_real_))
+    y <- as.integer(yf == levels(yf)[2L])
+  } else if (!is.numeric(y)) {
+    stop("gaussian y must be numeric.", call. = FALSE)
+  }
   preds <- numeric(0)
-  obs <- y[0]
-  for (rr in uniq) {
+  obs <- numeric(0)
+  for (rr in unique(runs)) {
     idx_tr <- which(runs != rr)
     idx_te <- which(runs == rr)
     if (length(idx_tr) < 5 || length(idx_te) < 1) next
     dat_tr <- data.frame(y = y[idx_tr], X[idx_tr, , drop = FALSE])
-    dat_te <- data.frame(y = y[idx_te], X[idx_te, , drop = FALSE])
-    if (family == "gaussian") {
-      fit <- stats::lm(y ~ ., data = dat_tr)
-      mm <- model.matrix(~ ., data = dat_te)[, -1, drop = FALSE]
-      preds <- c(preds, as.numeric(coef(fit)[1] + mm %*% coef(fit)[-1]))
-      obs <- c(obs, y[idx_te])
-    } else {
-      fit <- stats::glm(y ~ ., family = stats::binomial(), data = dat_tr)
-      preds <- c(preds, as.numeric(stats::predict(fit, newdata = dat_te, type = "response")))
-      obs <- c(obs, y[idx_te])
-    }
+    fit <- if (family == "gaussian") stats::lm(y ~ ., data = dat_tr) else
+      stats::glm(y ~ ., family = stats::binomial(), data = dat_tr)
+    preds <- c(preds, as.numeric(stats::predict(fit, newdata = X[idx_te, , drop = FALSE], type = "response")))
+    obs <- c(obs, y[idx_te])
   }
   if (family == "gaussian") {
     cv_r <- if (length(preds) > 1) stats::cor(preds, obs) else NA_real_
@@ -433,7 +446,7 @@ mppi_state_predict <- function(sd_df, y, runs = NULL,
   } else {
     if (length(unique(obs)) != 2) return(list(cv_auc = NA_real_))
     ranks <- rank(preds)
-    pos <- obs == max(obs)
+    pos <- obs == 1
     n_pos <- sum(pos)
     n_neg <- sum(!pos)
     if (n_pos == 0 || n_neg == 0) return(list(cv_auc = NA_real_))
@@ -575,14 +588,6 @@ mppi_gate_by_theta <- function(fits, k, lambda = 1e-3, controls = NULL) {
   }, numeric(Tn))
 }
 
-.mppi_adv_window <- function(Tn, center, width, pre = TRUE) {
-  if (pre) {
-    seq.int(max(1L, center - width), max(1L, center - 1L))
-  } else {
-    seq.int(center, min(Tn, center + width - 1L))
-  }
-}
-
 .mppi_adv_indicator <- function(Tn, idx) {
   v <- numeric(Tn)
   v[idx] <- 1
@@ -599,11 +604,9 @@ mppi_gate_by_theta <- function(fits, k, lambda = 1e-3, controls = NULL) {
 }
 
 .mppi_adv_cv_r <- function(data, runs, response, predictors) {
-  runs <- as.integer(runs)
-  uniq <- sort(unique(runs))
   preds <- numeric(0)
   obs <- numeric(0)
-  for (rr in uniq) {
+  for (rr in unique(runs)) {
     idx_tr <- which(runs != rr)
     idx_te <- which(runs == rr)
     if (length(idx_tr) < 5 || length(idx_te) < 1) next

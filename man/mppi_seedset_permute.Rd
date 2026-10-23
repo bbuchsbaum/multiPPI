@@ -37,7 +37,8 @@ mppi_seedset_permute(
 
 \item{B}{Number of permutations.}
 
-\item{seed}{Optional RNG seed (restored afterwards).}
+\item{seed}{Optional RNG seed; the caller's RNG state is restored afterwards.
+\code{NULL} draws from, and advances, the caller's stream.}
 
 \item{keep_draws}{Logical; store the seed-set maps for each permutation.}
 }

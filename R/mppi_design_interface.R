@@ -3,6 +3,9 @@
 .mppi_null_coalesce <- function(a, b) if (!is.null(a)) a else b
 .mppi_stopif <- function(cond, msg) if (!cond) stop(msg, call. = FALSE)
 
+# Integer run codes; character labels are numbered in order of appearance.
+.mppi_run_ints <- function(r) if (is.character(r)) match(r, unique(r)) else as.integer(r)
+
 .mppi_as_matrix <- function(obj) {
   if (is.null(obj)) return(NULL)
   if (is.matrix(obj)) return(obj)
@@ -72,7 +75,7 @@ mppi_tr.mppi_design <- function(x, ...) mppi_tr(x$event_model)
 
 #' @export
 mppi_runs.mppi_design <- function(x, T = NULL, ...) {
-  if (!is.null(x$runs)) return(as.integer(x$runs))
+  if (!is.null(x$runs)) return(.mppi_run_ints(x$runs))
   mppi_runs(x$event_model, T = T)
 }
 
@@ -142,9 +145,23 @@ mppi_psych.event_model <- function(x, T, TR = mppi_tr(x), runs = mppi_runs(x, T)
 
 #' @export
 mppi_hrf.event_model <- function(x, ...) {
-  if (!requireNamespace("fmridesign", quietly = TRUE)) return(NULL)
-  spec <- tryCatch(fmridesign::hrf(x), error = function(e) NULL)
-  if (!is.null(spec$hrf)) spec$hrf else NULL
+  # Read each term's own HRF; fmridesign::hrf() would build a new default spec.
+  terms <- tryCatch(stats::terms(x), error = function(e) NULL)
+  hrfs <- Filter(Negate(is.null), lapply(terms, function(term) attr(term, "hrfspec")$hrf))
+  if (!length(hrfs)) return(NULL)
+  grid <- seq(0, 32, length.out = 257L)
+  ref <- hrfs[[1L]](grid)
+  if (!all(vapply(hrfs, function(h) isTRUE(all.equal(h(grid), ref, tolerance = 1e-12)), logical(1))))
+    stop("Event-model terms use different HRFs; supply deconv$hrf explicitly.", call. = FALSE)
+  hrfs[[1L]]
+}
+
+# A design HRF usable for deconvolution: single-basis only. Multi-basis models
+# have no single kernel, so deconvolution keeps its default canonical HRF.
+.mppi_deconv_hrf <- function(h) {
+  if (is.null(h)) return(NULL)
+  nb <- if (is.function(h)) fmrihrf::nbasis(h) else NCOL(h)
+  if (identical(as.integer(nb), 1L)) h else NULL
 }
 
 #' @export
@@ -191,7 +208,7 @@ mppi_runs.fmridesign <- function(x, T = NULL, ...) {
     if (!is.null(T)) return(rep_len(1L, T))
     return(NULL)
   }
-  as.integer(r)
+  .mppi_run_ints(r)
 }
 
 #' @export

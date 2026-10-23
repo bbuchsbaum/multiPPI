@@ -66,38 +66,52 @@ ipppi_analytic_signal <- function(x) {
   fft(X * h, inverse = TRUE) / N
 }
 
-ipppi_iphs_phase <- function(U, fs, band) {
-  Ubp <- ipppi_bandpass_fft(U, fs, band)
-  apply(Ubp, 2, function(col) Arg(ipppi_analytic_signal(col)))
+# Labels of maximal runs of rows that are consecutive scans of one segment.
+.ipppi_contiguous <- function(index, segments) {
+  cumsum(c(TRUE, diff(index) != 1L | diff(segments) != 0L))
+}
+
+# Band-limited Hilbert phase, computed within each contiguous segment (NA in
+# single-row segments).
+ipppi_iphs_phase <- function(U, fs, band, segments = rep(1L, nrow(U))) {
+  phi <- matrix(NA_real_, nrow(U), ncol(U))
+  for (idx in split(seq_len(nrow(U)), segments)) {
+    if (length(idx) < 2L) next
+    Ubp <- ipppi_bandpass_fft(U[idx, , drop = FALSE], fs, band)
+    phi[idx, ] <- apply(Ubp, 2, function(col) Arg(ipppi_analytic_signal(col)))
+  }
+  phi
 }
 
 #' Instantaneous phase synchrony aggregator
 #'
+#' End-weighted slope of instantaneous phase locking on each psychological
+#' regressor, \eqn{\sum_t w_t p_t \cos(\phi_{t,i} - \phi_{t,j}) / \sum_t w_t p_t^2}
+#' with \eqn{w_t = 2^{(t - t_{end})/h}} on the acquisition grid `index`, as for
+#' the EWM estimator. Phases are band-limited Hilbert phases computed within
+#' each contiguous segment (consecutive `index` values sharing a `segments`
+#' label); rows without a phase are skipped pairwise. With `pk = 1` this is the
+#' end-weighted mean phase locking.
+#'
 #' @keywords internal
-ipppi_iphs <- function(U, pk, fs, band, tau_half = 10) {
-  stopifnot(is.matrix(U), is.matrix(pk))
+ipppi_iphs <- function(U, pk, fs, band, tau_half = 10,
+                       index = seq_len(nrow(U)), segments = rep(1L, nrow(U))) {
+  stopifnot(is.matrix(U), is.matrix(pk), length(index) == nrow(U), length(segments) == nrow(U))
   if (nrow(U) != nrow(pk)) stop("U and pk must share the same number of rows.", call. = FALSE)
-  phi <- ipppi_iphs_phase(U, fs, band)
-  T <- nrow(phi)
-  r <- ncol(phi)
-  K <- ncol(pk)
-  eta <- log(2) / tau_half
-  const_a <- exp(-eta)
-  one_minus_a <- 1 - const_a
-  out <- vector("list", K)
-  for (k in seq_len(K)) {
-    M <- matrix(0, r, r)
-    for (t in seq_len(T)) {
-      g <- pk[t, k]
-      if (is.na(g)) {
-        M <- const_a * M
-        next
-      }
-      ct <- cos(outer(phi[t, ], phi[t, ], `-`))
-      M <- const_a * M + one_minus_a * g * ct
-    }
-    out[[k]] <- M
-  }
+  phi <- ipppi_iphs_phase(U, fs, band, .ipppi_contiguous(index, segments))
+  ok <- is.finite(phi) + 0
+  C <- ifelse(ok > 0, cos(phi), 0)
+  S <- ifelse(ok > 0, sin(phi), 0)
+  w <- 2^((index - max(index)) / tau_half)
+  out <- lapply(seq_len(ncol(pk)), function(k) {
+    p <- pk[, k]
+    p[!is.finite(p)] <- 0
+    wp <- w * p
+    denom <- crossprod(ok, wp * p * ok)
+    M <- (crossprod(C, wp * C) + crossprod(S, wp * S)) / denom
+    M[!is.finite(denom) | denom < .Machine$double.eps] <- NA_real_
+    M
+  })
   if (!is.null(colnames(pk))) names(out) <- colnames(pk)
   out
 }
@@ -209,7 +223,10 @@ ipppi_pwi <- function(U, pk, fs, band, runs = NULL,
 #' @param warmup Optional number of initial samples to treat as warm-up (returned as `NA`).
 #' @param fill Fill strategy for out-of-range samples when applying `offset`:
 #'   `"zero"` (default), `"edge"`, or `"na"`.
-#' @return Numeric vector of length `length(x)` containing the streaming correlation.
+#' @return Numeric vector of length `length(x)` containing the streaming
+#'   (uncentered) correlation. Samples where `x` or the shifted `y` is not finite
+#'   (`NA`, `NaN`, `Inf`) are skipped: they return `NA` and only decay the
+#'   running moments. Values are `NA` while either running moment is zero.
 #' @export
 inst_corr <- function(x, y, tau_half, offset = 0L, warmup = NULL, fill = c("zero", "edge", "na")) {
   fill <- match.arg(fill)

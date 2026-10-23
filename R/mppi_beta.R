@@ -160,20 +160,9 @@ mppi_beta_permute <- function(B, Pbeta, Cbeta = NULL, run_trial = NULL,
   idx_blocks <- make_blocks()
   res <- vector("list", length(fit$names))
   names(res) <- fit$names
-  rng_pre <- RNGkind()
-  seed_pre <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv, inherits = FALSE) else NULL
-  if (!is.null(seed)) set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   rng_used <- RNGkind()
   init_seed <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv, inherits = FALSE) else NULL
-  on.exit({
-    do.call(RNGkind, as.list(rng_pre))
-    if (is.null(seed_pre)) {
-      if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
-        rm(".Random.seed", envir = .GlobalEnv)
-    } else {
-      assign(".Random.seed", seed_pre, envir = .GlobalEnv)
-    }
-  }, add = TRUE)
   for (nm in fit$names) {
     pk0 <- fit$pk[[nm]]
     denom0 <- sum(pk0^2)

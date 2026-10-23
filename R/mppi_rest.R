@@ -54,14 +54,15 @@ mppi_rest_extract <- function(data, runs = NULL) {
 #' @param soft Return soft occupancies (TRUE) or hard one-hot sticks (FALSE).
 #'   For k-means, soft occupancies are a 3-TR moving average of the sticks.
 #' @param sticky Self-transition boost for the HMM (ignored for kmeans).
-#' @param seed Seed for reproducibility.
+#' @param seed Seed for reproducibility; the caller's RNG state is restored
+#'   afterwards. `NULL` draws from (and advances) the caller's stream.
 #' @param zscore Whether to z-score columns of `U` before clustering.
 #' @return Named list of `K - 1` occupancy modulators (`state2`, ..., `stateK`).
 mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
                              soft = TRUE, sticky = 2, seed = 1L, zscore = TRUE) {
   method <- match.arg(method)
   if (K < 2) stop("K must be at least 2.", call. = FALSE)
-  set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   X <- if (zscore) scale(U) else U
   if (method == "kmeans") {
     km <- stats::kmeans(X, centers = K, nstart = 8L)
@@ -243,6 +244,7 @@ mppi_rest_design <- function(pk, nuisance = NULL, runs = NULL,
 #' @param include Which modulator families to construct when `modulators` is NULL.
 #' @param basis Basis specification passed to `.mppi_resolve_basis()`.
 #' @param modulator_domain Domain for building modulators ("auto", "bold", "neural").
+#'   Neural modulators deconvolve each run separately.
 #' @param domain Domain for the final mPPI fit.
 #' @param prewhiten Use fmriAR prewhitening (default TRUE when available).
 #' @param ar_method,ar_order Controls for fmriAR noise modelling.
@@ -277,7 +279,10 @@ mppi_rest <- function(data,
   }
   if (identical(mod_dom, "neural")) {
     hrf <- mppi_default_hrf(tr = info$TR %||% 1, duration = 32)
-    U_for_pk <- mppi_deconv(U_bold, TR = info$TR %||% 1, hrf = hrf, lambda = 10)
+    Tn <- nrow(U_bold)
+    seg <- if (is.null(runs_vec)) rep(1L, Tn) else cumsum(c(TRUE, runs_vec[-1L] != runs_vec[-Tn]))
+    U_for_pk <- do.call(rbind, lapply(split(seq_len(Tn), seg), function(i)
+      mppi_deconv(U_bold[i, , drop = FALSE], TR = info$TR %||% 1, hrf = hrf, lambda = 10)))
   }
   pk <- modulators %||% mppi_rest_modulators(U_for_pk, include = include)
   design <- mppi_rest_design(pk, nuisance = nuisance, runs = runs_vec, include_intercept = TRUE)
@@ -305,7 +310,8 @@ mppi_rest <- function(data,
 #' Aggregates Gain, Routing, and mode energies across contexts for a list of
 #' rest fits.
 #'
-#' @param fits List of `mppi_fit` objects.
+#' @param fits List of `mppi_fit` objects; its names, when present, label the
+#'   subjects (otherwise `1..n`).
 #' @param lags Lags used when computing routing.
 #' @param modes Number of communication modes to retain.
 #' @param aggregate "mean" to average over contexts per subject, otherwise
@@ -313,6 +319,12 @@ mppi_rest <- function(data,
 #' @return Data frame of subject-level features.
 mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("mean", "none")) {
   aggregate <- match.arg(aggregate)
+  ids <- names(fits)
+  if (is.null(ids)) {
+    ids <- seq_along(fits)
+  } else if (anyNA(ids) || !all(nzchar(ids)) || anyDuplicated(ids)) {
+    stop("Names of 'fits' must be unique and non-empty (or absent).", call. = FALSE)
+  }
   rows <- vector("list", length(fits))
   for (i in seq_along(fits)) {
     fit <- fits[[i]]
@@ -323,7 +335,7 @@ mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("me
     proj <- md$projected
     mag <- vapply(proj, function(M) sqrt(sum(M * M)), 0)
     ax$mag <- mag[match(ax$condition, names(mag))]
-    ax$subj <- i
+    ax$subj <- ids[[i]]
     rows[[i]] <- ax
   }
   feats <- do.call(rbind, rows)
@@ -351,7 +363,8 @@ mppi_rest_features <- function(fits, lags = -2:2, modes = 10L, aggregate = c("me
 #' @param covariates Optional numeric covariate matrix, matched to subjects by
 #'   row names when present, otherwise by position.
 #' @param k Number of CV folds.
-#' @param seed RNG seed.
+#' @param seed RNG seed for the fold split; the caller's RNG state is restored
+#'   afterwards. `NULL` draws from (and advances) the caller's stream.
 #' @param lambda Ridge penalty on the standardized features.
 #' @return List with predictions, observed values (both named by subject), and
 #'   CV R^2.
@@ -373,7 +386,7 @@ mppi_rest_trait_cv <- function(features, y, covariates = NULL,
     m
   }
   y <- setNames(unname(y)[align(names(y), length(y), "y")], subj_ids)
-  set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   folds <- split(subj_ids[sample.int(n)], rep_len(seq_len(k), n))
   Xwide <- stats::reshape(features,
                           idvar = "subj", timevar = "condition",

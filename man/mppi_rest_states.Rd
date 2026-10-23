@@ -26,7 +26,8 @@ For k-means, soft occupancies are a 3-TR moving average of the sticks.}
 
 \item{sticky}{Self-transition boost for the HMM (ignored for kmeans).}
 
-\item{seed}{Seed for reproducibility.}
+\item{seed}{Seed for reproducibility; the caller's RNG state is restored
+afterwards. \code{NULL} draws from (and advances) the caller's stream.}
 
 \item{zscore}{Whether to z-score columns of \code{U} before clustering.}
 }

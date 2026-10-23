@@ -8,7 +8,7 @@ mppi_sdppi_fit(
   fit,
   k,
   onsets_idx,
-  runs,
+  runs = NULL,
   Wpre = 8L,
   Wpost = 12L,
   mode = c("neural", "innov"),
@@ -26,9 +26,9 @@ mppi_sdppi_fit(
 
 \item{k}{condition index}
 
-\item{onsets_idx}{integer TR indices for events}
+\item{onsets_idx}{integer TR indices for events (acquisition grid)}
 
-\item{runs}{run label per TR}
+\item{runs}{run label per row of the fit's series; defaults to \code{fit$runs}}
 
 \item{Wpre}{number of TRs in pre-event window}
 
@@ -54,5 +54,11 @@ mppi_sdppi_fit(
 list with trial data, models, and cross-validated correlation
 }
 \description{
-Trial-resolved state-dependent PPI analysis
+Windows live on the acquisition grid (\code{fit$observation_index}) and within
+the onset's run: the pre-event window is the \code{Wpre} scans before the onset,
+the post-event window the \code{Wpost} scans from the onset. Windows are
+truncated at run boundaries and censored scans are left out; trials with
+fewer than 3 usable scans in either window, or whose onset scan cannot be
+placed in a run (a censored scan between runs), are skipped. In \code{"innov"}
+mode the series is filtered run by run (censored fits are refused).
 }

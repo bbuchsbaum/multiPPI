@@ -3,7 +3,8 @@
 #' Create an mPPI basis object
 #' @param V matrix (V x r) whose columns span the desired subspace
 #' @param name optional label for reporting
-#' @param orthonormalize logical; orthonormalize columns via QR (default TRUE)
+#' @param orthonormalize logical; orthonormalize columns via QR (default TRUE).
+#'   Row names (ROI labels, used as seed labels) are kept.
 #' @return object of class 'mppi_basis'
 as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
   V <- as.matrix(V)
@@ -11,7 +12,9 @@ as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
     qrV <- qr(V)
     Q <- qr.Q(qrV)
     rank <- qrV$rank
-    V <- Q[, seq_len(rank), drop = FALSE]
+    Q <- Q[, seq_len(rank), drop = FALSE]
+    rownames(Q) <- rownames(V)
+    V <- Q
   }
   structure(list(V = V, name = name, r = ncol(V)), class = "mppi_basis")
 }
@@ -36,6 +39,7 @@ as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
   sv <- La.svd(Yc, nu = 0L, nv = r)
   V <- t(sv$vt)
   if (ncol(V) > r) V <- V[, seq_len(r), drop = FALSE]
+  rownames(V) <- colnames(Y)
   basis_name <- sprintf("%s(r=%d)", name, ncol(V))
   as_mppi_basis(V, name = basis_name)
 }

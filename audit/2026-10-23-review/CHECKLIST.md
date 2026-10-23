@@ -70,29 +70,53 @@ Phase 3 notes (user-visible behaviour changes):
 
 ## Phase 4 — P3: crashes or wrong results on plausible paths
 
-- [ ] 4.1 Unseeded randomization restores `.Random.seed`, so repeated calls give identical nulls (`mppi_inference.R:69,104`; also `mppi_beta_permute`, `mppi_seedset`); unconditional `set.seed()` in `mppi_classify`, `mppi_rest_states` and `mppi_rest_trait_cv` clobbers the caller's stream.
-- [ ] 4.2 Two incompatible HRF-function conventions; default HRFs differ in normalization (`mppi_fit.R:47`, `mppi_helpers.R:316`).
-- [ ] 4.3 Unnamed designs: lagged result names collide; regressors named `""` (`mppi_lag.R:46`, `mppi_fit.R:190`).
-- [ ] 4.4 Factor run labels crash `rle()` (`mppi_fit.R:161` and others).
-- [ ] 4.5 `mppi_sdppi` counts each event several times on convolved regressors (`mppi_helpers.R:195`).
-- [ ] 4.6 sdPPI pre/post windows cross run boundaries (`mppi_adv_methods.R:302`).
-- [ ] 4.7 `mppi_state_predict`: gaussian path crashes, factor `y` crashes, character runs give NA (`mppi_adv_methods.R:400`).
-- [ ] 4.8 `mppi_seedset_slopes(lag != 0)` errors for `scale = "cov"/"corr"` fits (`mppi_seedset.R:107`).
-- [ ] 4.9 `mppi_group_seedset` reports design column 1 (intercept) (`mppi_seedset.R:439`).
-- [ ] 4.10 `mppi_group_glm` rejects plain `model.matrix()` designs (`mppi_group_ebayes.R:183`).
-- [ ] 4.11 `mppi_sim_rest_dataset` pads the wrong end, leaving leading NA rows (`mppi_sim_rest.R:199`).
-- [ ] 4.12 `ewm_gated_cross_rcpp` clamps out-of-range lag indices instead of skipping (`src/instant.cpp:189`); since 3.5 it has no callers — delete it.
-- [ ] 4.13 `inst_corr_rcpp` treats NaN as data; one NaN poisons the rest of the series (`src/instant.cpp:302`).
-- [ ] 4.14 `seed_ppi_mcca` silently drops out-of-range neighbourhood indices (`seed_ppi_mcca.R:141`).
+- [x] 4.1 Unseeded randomization restores `.Random.seed`, so repeated calls give identical nulls (`mppi_inference.R:69,104`; also `mppi_beta_permute`, `mppi_seedset`); unconditional `set.seed()` in `mppi_classify`, `mppi_rest_states` and `mppi_rest_trait_cv` clobbers the caller's stream.
+- [x] 4.2 Two incompatible HRF-function conventions; default HRFs differ in normalization (`mppi_fit.R:47`, `mppi_helpers.R:316`).
+- [x] 4.3 Unnamed designs: lagged result names collide; regressors named `""` (`mppi_lag.R:46`, `mppi_fit.R:190`).
+- [x] 4.4 Factor run labels crash `rle()` (`mppi_fit.R:161` and others).
+- [x] 4.5 `mppi_sdppi` counts each event several times on convolved regressors (`mppi_helpers.R:195`).
+- [x] 4.6 sdPPI pre/post windows cross run boundaries (`mppi_adv_methods.R:302`).
+- [x] 4.7 `mppi_state_predict`: gaussian path crashes, factor `y` crashes, character runs give NA (`mppi_adv_methods.R:400`).
+- [x] 4.8 `mppi_seedset_slopes(lag != 0)` errors for `scale = "cov"/"corr"` fits (`mppi_seedset.R:107`).
+- [x] 4.9 `mppi_group_seedset` reports design column 1 (intercept) (`mppi_seedset.R:439`).
+- [x] 4.10 `mppi_group_glm` rejects plain `model.matrix()` designs (`mppi_group_ebayes.R:183`).
+- [x] 4.11 `mppi_sim_rest_dataset` pads the wrong end, leaving leading NA rows (`mppi_sim_rest.R:199`).
+- [x] 4.12 `ewm_gated_cross_rcpp` clamps out-of-range lag indices instead of skipping (`src/instant.cpp:189`); since 3.5 it has no callers — delete it.
+- [x] 4.13 `inst_corr_rcpp` treats NaN as data; one NaN poisons the rest of the series (`src/instant.cpp:302`).
+- [x] 4.14 `seed_ppi_mcca` silently drops out-of-range neighbourhood indices (`seed_ppi_mcca.R:141`).
 - [x] 4.15 Frame adapters read `schema$block_ids` where `ppi_fit` uses `schema$run_ids` (`mppi_s3.R:221`, `mppi_fit.R:533`) — not a defect: in fmridataset both are per-scan vectors (`block_ids` is the integer run index).
-- [ ] 4.16 Neural rest modulators deconvolve concatenated runs (`mppi_rest.R:275`).
-- [ ] 4.17 Censored fits store compressed run lengths in `fit$lag_blocklens` (`mppi_fit.R:160`).
-- [ ] 4.18 Instant `iphs`/`pwi` methods filter across censored gaps and runs; `ipppi_iphs` returns an unnormalized final filter state (found during 3.5).
-- [ ] 4.19 `mppi.matrix(engine = "instant")` silently drops `lags`/`lag_blocklens` and `zero_diag` (found during 3.5).
-- [ ] 4.20 `mppi.fmri_dataset` reads `x$Y`/`x$timeseries`, which real fmridataset objects may not provide (found during 3.3).
-- [ ] 4.21 Trial summaries in `mppi_helpers.R` prefer `fit$U` and compute positive-vs-negative routing, which is identically zero (found during 3.8).
-- [ ] 4.22 `mppi_rest_features` labels subjects 1..n even when the fits list is named (found during 3.15).
-- [ ] 4.23 `.mppi_check_basis` drops basis row names, losing seed labels (found during 3.2).
+- [x] 4.16 Neural rest modulators deconvolve concatenated runs (`mppi_rest.R:275`).
+- [x] 4.17 Censored fits store compressed run lengths in `fit$lag_blocklens` (`mppi_fit.R:160`).
+- [x] 4.18 Instant `iphs`/`pwi` methods filter across censored gaps and runs; `ipppi_iphs` returns an unnormalized final filter state (found during 3.5).
+- [x] 4.19 `mppi.matrix(engine = "instant")` silently drops `lags`/`lag_blocklens` and `zero_diag` (found during 3.5).
+- [x] 4.20 `mppi.fmri_dataset` reads `x$Y`/`x$timeseries`, which real fmridataset objects may not provide (found during 3.3).
+- [x] 4.21 Trial summaries in `mppi_helpers.R` prefer `fit$U` and compute positive-vs-negative routing, which is identically zero (found during 3.8).
+- [x] 4.22 `mppi_rest_features` labels subjects 1..n even when the fits list is named (found during 3.15).
+- [x] 4.23 `.mppi_check_basis` drops basis row names, losing seed labels (found during 3.2).
+- [x] 4.24 Event-model and design fits never passed the model's HRF into neural-domain deconvolution; `mppi_hrf.event_model` returned a fresh default spec (found during 4.2).
+- [x] 4.25 `mppi_sdppi` gain compared a raw-scale baseline eigenvector with normalized trial matrices, so it changed with ROI units (found during 4.5).
+
+Phase 4 notes (user-visible behaviour changes):
+- One HRF convention: a function HRF is a function of time in seconds; the old
+  `f(tr=, duration=, oversample=)` form no longer works. Fixed MAP/DCT `lambda`
+  is relative to the operator scale (MAP neural estimates are smoothed less by
+  default; `mppi_deconv()` output changes); GCV is exactly scale-free.
+- Unnamed regressors are `psych1..K` (`s:psych1..` in the neural domain).
+- `fit$lag_blocklens` describes contiguous blocks of retained rows (breaks at
+  censored gaps); factor run labels are accepted (stored as character).
+- `mppi.fmri_dataset` uses the fmridataset accessor API, which current
+  fmridataset (0.11) no longer has; current users go through `mppi.fmri_frame`.
+- The instant engine zeroes diagonals by default, honours `lags`, rejects
+  unknown arguments, and its `iphs`/`pwi` outputs changed (per-segment
+  filtering; `iphs` is an end-weighted slope; PWI is not divided by sigma).
+- `mppi_sdppi` counts each event once, stops on overlapping responses unless
+  `onsets` is given, reports a genuine modulation, and refuses censored fits;
+  sdPPI windows no longer cross runs.
+- `mppi_group_seedset` reports the last design column by default (as
+  `mppi_group_glm`) and takes `coef`/`contrast`.
+- Seeded randomization and rest/classify helpers no longer change the
+  caller's RNG stream; unseeded randomization draws from it.
+- `inst_corr` skips non-finite samples and is scale invariant.
 
 ## Phase 5 — P4: efficiency
 
@@ -110,4 +134,5 @@ Phase 3 notes (user-visible behaviour changes):
 - [ ] 6.3 Dead or stale code: `src/init.cpp` (`R_init_mppiDeconv`), `.mppi_phase_randomize`, `.mppi_with_intercept`, duplicate `print.mppi_design`, unreachable branches.
 - [ ] 6.4 `deconv_dct_multi` silently ignores a wrong-length `q`.
 - [ ] 6.5 `mppi_rank_cv` loss includes the diagonal although fits zero it.
+- [ ] 6.7 `mppi_sdppi_fit` documents `k` as a condition index but trials come only from `onsets_idx`; document or drop it (found during 4.6).
 - [ ] 6.6 Replace mock-only tests that hid real bugs (routing, state prediction, sdPPI) with tests on fitted objects.

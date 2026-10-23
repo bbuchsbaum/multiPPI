@@ -22,6 +22,20 @@
   list(blocks = blocks, segments = segments)
 }
 
+# With a seed, draw from a reproducible stream and return a function restoring
+# the caller's RNG state. Without one, the caller's stream simply advances.
+.mppi_seed_rng <- function(seed) {
+  if (is.null(seed)) return(function() invisible(NULL))
+  kind <- RNGkind()
+  saved <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
+  set.seed(seed)
+  function() {
+    do.call(RNGkind, as.list(kind))
+    if (!is.null(saved)) assign(".Random.seed", saved, .GlobalEnv)
+    else if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) rm(".Random.seed", envir=.GlobalEnv)
+  }
+}
+
 .mppi_random_weights <- function(n, wild) {
   if (wild == "rademacher") return(sample(c(-1, 1), n, replace = TRUE))
   a <- (1 - sqrt(5))/2; b <- (1 + sqrt(5))/2
@@ -65,9 +79,7 @@ mppi_omnibus <- function(fit, blksize = 10L, B = 999L, wild = c("rademacher","ma
                          method = c("block_flip","phase","freedman_lane"), seed = NULL) {
   wild <- match.arg(wild); method <- match.arg(method)
   setup <- .mppi_randomization_setup(fit, blksize, B, method, wild)
-  old_kind <- RNGkind(); old_seed <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
-  on.exit({do.call(RNGkind, as.list(old_kind)); if (is.null(old_seed)) {if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) rm(".Random.seed", envir=.GlobalEnv)} else assign(".Random.seed", old_seed, .GlobalEnv)}, add=TRUE)
-  if (!is.null(seed)) set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add=TRUE)
   initial <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
   out <- setNames(vector("list", length(fit$names)), fit$names)
   for (i in seq_along(out)) {
@@ -100,9 +112,7 @@ mppi_permute <- function(fit, k = 1L, blksize = 10L, B = 999L,
   setup <- .mppi_randomization_setup(fit, blksize, B, method, wild)
   pk <- fit$pk[[k]]; denom <- sum(pk^2)
   if (!is.finite(denom) || denom <= .Machine$double.eps) stop("Psychological regressor has zero or invalid energy.", call.=FALSE)
-  old_kind <- RNGkind(); old_seed <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
-  on.exit({do.call(RNGkind, as.list(old_kind)); if (is.null(old_seed)) {if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) rm(".Random.seed", envir=.GlobalEnv)} else assign(".Random.seed", old_seed, .GlobalEnv)}, add=TRUE)
-  if (!is.null(seed)) set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add=TRUE)
   initial <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
   D <- .mppi_wcp(fit$R, pk)/denom; diag(D) <- 0
   count <- matrix(0, ncol(fit$R), ncol(fit$R))

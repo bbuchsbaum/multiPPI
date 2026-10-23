@@ -9,9 +9,11 @@ mppi_state_predict(sd_df, y, runs = NULL, family = c("gaussian", "binomial"))
 \arguments{
 \item{sd_df}{output data frame from \code{mppi_sdppi_fit}}
 
-\item{y}{response vector (numeric or binary factor)}
+\item{y}{response vector: numeric for \code{"gaussian"}; for \code{"binomial"} any
+two-class vector (numeric, logical, character or factor), whose second
+factor level (the larger value) is the positive class}
 
-\item{runs}{run ids for cross-validation}
+\item{runs}{run labels (any type) for cross-validation; defaults to \code{sd_df$run}}
 
 \item{family}{"gaussian" for lm, "binomial" for logistic}
 }
@@ -19,5 +21,6 @@ mppi_state_predict(sd_df, y, runs = NULL, family = c("gaussian", "binomial"))
 list with cv_r (gaussian) or cv_auc (binomial)
 }
 \description{
-Cross-validated mapping from pre-state predictors to anchors
+Leave-one-run-out: each run is predicted from a model fitted on the others
+(folds with fewer than 5 training trials are skipped).
 }

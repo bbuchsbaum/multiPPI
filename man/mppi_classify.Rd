@@ -30,7 +30,9 @@ mppi_classify(
 
 \item{B}{number of permutations for null distribution}
 
-\item{seed}{RNG seed}
+\item{seed}{RNG seed for the circular shifts (reproducible by default); the
+caller's RNG state is restored afterwards. \code{NULL} draws from, and
+advances, the caller's stream.}
 }
 \value{
 list with indices, p-values, and label

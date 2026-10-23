@@ -28,11 +28,15 @@ mppi_fit(
 \arguments{
 \item{Y}{T x V matrix of time series (preprocessed)}
 
-\item{X}{T x q design matrix (intercept + confounds + psychological mains)}
+\item{X}{T x q design matrix (intercept + confounds + psychological mains).
+Missing, empty or duplicated column names are replaced by unique defaults:
+\code{psych1}, ..., \code{psychK} for the psychological columns (in index order) and
+\verb{x<j>} for column \code{j} otherwise; these name the returned regressors.}
 
 \item{psych_idx}{integer indices of psychological columns in X}
 
-\item{runs}{optional integer vector the same length as the rows of \code{Y} indicating run membership}
+\item{runs}{optional run labels (integer, character or factor), one per row
+of \code{Y}; factors are stored as character labels}
 
 \item{zero_diag}{logical; zero the diagonal of ΔΣ. With a \code{basis}, the stored
 r x r matrices are component-space summaries; ROI-space edges come from
@@ -59,14 +63,28 @@ back-project the full component slope and apply \code{zero_diag} and scaling in 
 
 \item{domain}{working domain (\code{"bold"}, \code{"neural"}, or \code{"innovations"}); enables deconvolution if not bold}
 
-\item{deconv}{optional deconvolution configuration list used when \code{domain != "bold"}}
+\item{deconv}{optional deconvolution configuration list used when \code{domain != "bold"}:
+\code{tr}; \code{hrf}, a numeric kernel sampled at \code{tr} from lag zero or a function of
+time in seconds (e.g. an fmrihrf HRF) evaluated on \code{seq(0, span, by = tr)},
+\code{span} being its \code{span} attribute, else \code{duration} (default 32 s); default
+\code{\link[=mppi_default_hrf]{mppi_default_hrf()}}; \code{type} (\code{"dct"} or \code{"map"}); \code{lambda}, relative to the
+operator scale so results do not depend on HRF amplitude: for \code{"map"} the
+first-difference penalty is \code{lambda} (default 10) times the mean diagonal of
+\eqn{H'H} (see \code{\link[=mppi_deconv]{mppi_deconv()}}), for \code{"dct"} with \code{method = "fixed"} the ridge
+is \code{lambda} (default 0.1) times the mean diagonal of the convolved-basis Gram
+matrix (GCV is scale-free); \code{method}, \code{K}, \code{q}, \code{groups}, \code{psych}.}
 
 \item{lags}{Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes)}
 
-\item{lag_blocklens}{Optional run lengths for lagged computations when \code{runs} is unavailable}
+\item{lag_blocklens}{Optional run lengths on the acquisition grid (summing to
+\code{nrow(Y)}) for lagged computations when \code{runs} is unavailable}
 }
 \value{
-list with contemporaneous and lagged slope matrices plus residual metadata
+list with contemporaneous and lagged slope matrices plus residual
+metadata. \code{lag_blocklens} holds the lengths of the contiguous blocks of the
+retained rows of \code{R} (\code{NULL} for one block): blocks break at run boundaries
+and at censored scans, so adjacent rows within a block are adjacent scans;
+\code{observation_index} gives each retained row's acquisition position.
 }
 \description{
 Matrix-PPI estimator from raw matrices

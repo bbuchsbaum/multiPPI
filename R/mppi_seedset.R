@@ -102,12 +102,13 @@ mppi_seedset_slopes <- function(fit, seeds, k, target_idx = NULL,
   } else if (lag == 0L) {
     Mk <- mppi_get_M_scaled(fit, k, mode)
   } else {
-    stored_mode <- fit$scale %||% "normalized"
     Mk_lag <- mppi_get_M_lag(fit, k, lag)
-    Mk <- if (mode == stored_mode) {
-      Mk_lag
-    } else {
-      .mppi_convert_scale(Mk_lag, fit$sigma, stored_mode, mode)
+    Mk <- attr(Mk_lag, mode)
+    if (is.null(Mk)) {
+      # scale = "cov" stores raw slopes, "corr" normalized ones
+      stored_mode <- fit$scale %||% "normalized"
+      stored_mode <- switch(stored_mode, cov = "raw", corr = "normalized", stored_mode)
+      Mk <- .mppi_convert_scale(Mk_lag, fit$sigma, stored_mode, mode)
     }
   }
   slopes <- .mppi_seedset_slice(Mk, fit, seed_idx, target_idx, k = k, mode = mode, lag = lag)
@@ -264,7 +265,8 @@ print.mppi_seedset_map <- function(x, ...) {
 #' @param Theta0 Optional precision matrix for `aggregate = "precision"`.
 #' @param blksize Block length for permutations (TRs).
 #' @param B Number of permutations.
-#' @param seed Optional RNG seed (restored afterwards).
+#' @param seed Optional RNG seed; the caller's RNG state is restored afterwards.
+#'   `NULL` draws from, and advances, the caller's stream.
 #' @param keep_draws Logical; store the seed-set maps for each permutation.
 #' @return Stops with an explanatory error; no p-values are computed.
 #' @export
@@ -330,19 +332,9 @@ mppi_seedset_permute <- function(fit, seeds, k,
     obs_map <- obs_map_check
   }
   perm_maps <- matrix(NA_real_, nrow = B, ncol = length(obs_map))
-  rng_pre <- RNGkind()
-  seed_pre <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv, inherits = FALSE) else NULL
-  if (!is.null(seed)) set.seed(seed)
+  restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   rng_used <- RNGkind()
   init_seed <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv, inherits = FALSE) else NULL
-  on.exit({
-    do.call(RNGkind, as.list(rng_pre))
-    if (is.null(seed_pre)) {
-      if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) rm(".Random.seed", envir = .GlobalEnv)
-    } else {
-      assign(".Random.seed", seed_pre, envir = .GlobalEnv)
-    }
-  }, add = TRUE)
   for (b in seq_len(B)) {
     perm_idx <- unlist(sample(idx_blocks))
     perm_vec <- drop(crossprod(pkc, outer_centered[perm_idx, , drop = FALSE]) / denom0)
@@ -395,7 +387,12 @@ mppi_seedset_permute <- function(fit, seeds, k,
 #' @param Theta0_list Optional list of precision matrices (one per subject) used when
 #'   `aggregate = "precision"`.
 #' @param target_idx Optional shared target indices.
-#' @return List with coefficient, t- and p-maps plus metadata.
+#' @param contrast Optional contrast vector over the columns of
+#'   `model.matrix(formula, design)`.
+#' @param coef Optional coefficient index or name tested when `contrast` is
+#'   `NULL`; defaults to the last column, as in [mppi_group_glm()] (the group
+#'   mean for `~ 1`, the last covariate effect otherwise).
+#' @return List with coefficient, t- and p-maps, the `contrast` tested, plus metadata.
 #' @export
 mppi_group_seedset <- function(fits, seeds, k,
                                aggregate = c("svd", "mean", "precision"),
@@ -403,7 +400,9 @@ mppi_group_seedset <- function(fits, seeds, k,
                                design,
                                formula = ~ 1,
                                Theta0_list = NULL,
-                               target_idx = NULL) {
+                               target_idx = NULL,
+                               contrast = NULL,
+                               coef = NULL) {
   if (!length(fits)) stop("Provide at least one fit for group analysis.", call. = FALSE)
   aggregate <- match.arg(aggregate)
   mode <- match.arg(mode)
@@ -434,21 +433,31 @@ mppi_group_seedset <- function(fits, seeds, k,
     stop("Model matrix rows must match number of subjects.", call. = FALSE)
   }
   qrX <- qr(X)
+  if (qrX$rank < ncol(X)) stop("Design matrix is rank deficient.", call. = FALSE)
+  if (!is.null(contrast)) {
+    if (!is.null(coef)) warning("Ignoring 'coef' because 'contrast' was supplied.", call. = FALSE)
+    contrast <- as.numeric(contrast)
+    if (length(contrast) != ncol(X)) stop("contrast must have length equal to ncol(model.matrix(formula, design)).", call. = FALSE)
+  } else {
+    coef_idx <- if (is.null(coef)) ncol(X) else if (is.character(coef)) match(coef, colnames(X)) else as.integer(coef)
+    if (length(coef_idx) != 1L || is.na(coef_idx) || coef_idx < 1L || coef_idx > ncol(X)) stop("Invalid 'coef' specification.", call. = FALSE)
+    contrast <- rep(0, ncol(X))
+    contrast[coef_idx] <- 1
+  }
+  names(contrast) <- colnames(X)
   betahat <- qr.coef(qrX, M)
   fitted_vals <- X %*% betahat
   resid <- M - fitted_vals
   df <- nrow(X) - qrX$rank
   sigma2 <- colSums(resid^2) / pmax(df, 1L)
-  contrast <- rep(0, ncol(X))
-  contrast[1L] <- 1
   XtX_inv <- chol2inv(qr.R(qrX))
   c_var <- drop(t(contrast) %*% XtX_inv %*% contrast)
-  coef <- drop(contrast %*% betahat)
+  est <- drop(contrast %*% betahat)
   se <- sqrt(pmax(sigma2, 0) * c_var)
-  tval <- coef / se
+  tval <- est / se
   pval <- 2 * stats::pt(-abs(tval), df = df)
   list(
-    coef = setNames(coef, target_names),
+    coef = setNames(est, target_names),
     t = setNames(tval, target_names),
     p = setNames(pval, target_names),
     df = df,
@@ -457,6 +466,7 @@ mppi_group_seedset <- function(fits, seeds, k,
     mode = mode,
     design = design,
     formula = formula,
+    contrast = contrast,
     weights = weights,
     maps = maps
   )

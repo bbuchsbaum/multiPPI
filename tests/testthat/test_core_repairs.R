@@ -25,7 +25,7 @@ test_that("deconvolution preserves HRF timing", {
   h <- c(0,0,1,.5,0)
   H <- outer(seq_len(30),seq_len(30),function(i,j) ifelse(i >= j & i-j < length(h), h[pmax(1,pmin(length(h),i-j+1))],0))
   D <- diff(diag(30))
-  expected <- solve(crossprod(H)+2*crossprod(D),crossprod(H,y))
+  expected <- solve(crossprod(H)+2*mean(diag(crossprod(H)))*crossprod(D),crossprod(H,y))
   expect_equal(mppi_deconv(y,TR=1,hrf=h,lambda=2), expected, tolerance=1e-9)
 })
 
