@@ -45,6 +45,7 @@
     R_work = fit$R,
     R_unscaled = fit$R_raw,
     sigma = fit$sigma,
+    sigma_roi = fit$sigma_roi,
     pk_list = fit$pk,
     pk_names = fit$names,
     denoms = fit$denom,

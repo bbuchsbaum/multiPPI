@@ -128,6 +128,8 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                               lag_blocklens = lag_blocklens)
 
   core <- .mppi_instant_core(state, opts)
+  # EWM slopes are linear in the data, so basis fits can back-project them exactly.
+  if (opts$method == "ewm") core$covariance_diagonal <- lapply(core$Delta_raw, diag)
   if (isTRUE(zero_diag)) core <- .mppi_instant_zero_diag(core)
 
   fit <- .mppi_instant_build_fit(state, core, opts, prewhiten = prewhiten)
@@ -137,7 +139,11 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
 
 .mppi_instant_zero_diag <- function(core) {
   z <- function(M) {
-    if (!all(is.na(M))) diag(M) <- 0
+    if (all(is.na(M))) return(M)
+    diag(M) <- 0
+    for (a in c("raw", "amplitude", "normalized")) if (!is.null(attr(M, a))) {
+      A <- attr(M, a); diag(A) <- 0; attr(M, a) <- A
+    }
     M
   }
   for (nm in c("Delta_raw", "Delta_amplitude", "Delta_normalized")) core[[nm]] <- lapply(core[[nm]], z)
@@ -176,7 +182,11 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
         raw_mat <- offset_list[[nm]]
         amp_mat <- if (all(is.na(raw_mat))) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "amplitude")
         norm_mat <- if (all(is.na(raw_mat))) raw_mat else .mppi_scale_matrix(raw_mat, sigma, "normalized")
-        lag_sel[[nm]] <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+        sel <- .mppi_instant_select_scale(raw_mat, amp_mat, norm_mat, scale_choice)
+        # As in mppi_fit(): every scale and the pre-zeroing diagonal, for basis back-projection.
+        attr(sel, "raw") <- raw_mat; attr(sel, "amplitude") <- amp_mat; attr(sel, "normalized") <- norm_mat
+        attr(sel, "diagonal") <- diag(raw_mat)
+        lag_sel[[nm]] <- sel
         if (nm == "0") {
           Delta_raw[[k]] <- raw_mat
           Delta_amp[[k]] <- amp_mat
@@ -296,6 +306,8 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
     Delta_amplitude = Delta_amplitude,
     Delta_normalized = Delta_normalized,
     sigma = state$sigma,
+    sigma_roi = state$sigma_roi,
+    covariance_diagonal = core$covariance_diagonal,
     pk = state$pk_list,
     scale = scale_choice,
     dropped = state$dropped,

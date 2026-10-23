@@ -145,15 +145,31 @@ mppi_psych.event_model <- function(x, T, TR = mppi_tr(x), runs = mppi_runs(x, T)
 
 #' @export
 mppi_hrf.event_model <- function(x, ...) {
-  # Read each term's own HRF; fmridesign::hrf() would build a new default spec.
+  # Terms with different HRFs have no single model HRF.
+  hrfs <- .mppi_event_hrfs(x)
+  if (!length(hrfs) || !.mppi_same_hrfs(hrfs)) return(NULL)
+  hrfs[[1L]]
+}
+
+# Each term's own HRF; fmridesign::hrf() would build a new default spec.
+.mppi_event_hrfs <- function(x) {
   terms <- tryCatch(stats::terms(x), error = function(e) NULL)
-  hrfs <- Filter(Negate(is.null), lapply(terms, function(term) attr(term, "hrfspec")$hrf))
-  if (!length(hrfs)) return(NULL)
+  Filter(Negate(is.null), lapply(terms, function(term) attr(term, "hrfspec")$hrf))
+}
+
+.mppi_same_hrfs <- function(hrfs) {
   grid <- seq(0, 32, length.out = 257L)
   ref <- hrfs[[1L]](grid)
-  if (!all(vapply(hrfs, function(h) isTRUE(all.equal(h(grid), ref, tolerance = 1e-12)), logical(1))))
+  all(vapply(hrfs, function(h) isTRUE(all.equal(h(grid), ref, tolerance = 1e-12)), logical(1)))
+}
+
+# Deconvolution needs one HRF: an explicit kernel wins; otherwise a model whose
+# terms use different HRFs is an error rather than a silent default.
+.mppi_require_single_hrf <- function(event_model, deconv) {
+  if (is.null(event_model) || !is.null(deconv$hrf)) return(invisible())
+  hrfs <- .mppi_event_hrfs(event_model)
+  if (length(hrfs) > 1L && !.mppi_same_hrfs(hrfs))
     stop("Event-model terms use different HRFs; supply deconv$hrf explicitly.", call. = FALSE)
-  hrfs[[1L]]
 }
 
 # A design HRF usable for deconvolution: single-basis only. Multi-basis models

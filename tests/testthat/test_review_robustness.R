@@ -69,3 +69,19 @@ test_that("neural fits deconvolve with the event model's own HRF", {
   m3 <- fmridesign::event_model(onset ~ hrf(cond, basis = "spmg3"), data = ev, block = ~run, sampling_frame = sf)
   expect_silent(mppi(as_mppi_design(event = m3), Y = Y, domain = "neural", deconv = list(type = "map")))
 })
+
+test_that("models with different term HRFs need deconv$hrf only for deconvolution", {
+  skip_if_not_installed("fmridesign")
+  hrf <- fmridesign::hrf
+  sf <- fmridesign::sampling_frame(c(60, 60), TR = 2)
+  ev <- data.frame(onset = rep(seq(4, 100, by = 16), 2), a = factor(rep(c("x", "y"), 7)),
+                   b = factor(rep(c("u", "v"), each = 7)), run = rep(1:2, each = 7))
+  m <- fmridesign::event_model(onset ~ hrf(a) + hrf(b, basis = "gaussian"), data = ev, block = ~run, sampling_frame = sf)
+  expect_null(mppi_hrf(m))
+  d <- as_mppi_design(event = m)
+  set.seed(4); Y <- matrix(rnorm(120 * 3), 120)
+  expect_silent(mppi(d, Y = Y))
+  expect_error(mppi(d, Y = Y, domain = "neural", deconv = list(type = "map")), "different HRFs")
+  h <- attr(stats::terms(m)[[1]], "hrfspec")$hrf
+  expect_silent(mppi(d, Y = Y, domain = "neural", deconv = list(type = "map", hrf = h)))
+})

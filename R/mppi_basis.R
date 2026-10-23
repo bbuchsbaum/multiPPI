@@ -186,7 +186,7 @@ mppi_get_M_lag <- function(fit, k, lag = 0L) {
     M <- attr(Ml, "raw")
     d <- attr(Ml, "diagonal")
   }
-  if (is.null(M) || is.null(d)) stop("Basis back-projection needs the component-space slope diagonal; refit with mppi_fit().", call. = FALSE)
+  if (is.null(M) || is.null(d)) stop(if (identical(fit$engine, "instant")) "Basis back-projection is exact only for linear slopes; instant 'iphs'/'pwi' estimates cannot be back-projected." else "Basis back-projection needs the component-space slope diagonal; refit with mppi_fit().", call. = FALSE)
   diag(M) <- d
   V <- fit$basis$V
   out <- V[rows, , drop = FALSE] %*% M %*% t(V[cols, , drop = FALSE])

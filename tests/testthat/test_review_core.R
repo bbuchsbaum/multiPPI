@@ -175,3 +175,21 @@ test_that("whitened fit is GLS on the fmriAR-whitened design", {
   expect_equal(unname(fit_noint$R), unname(lm.fit(w2$X, w2$Y)$residuals), tolerance = 1e-8)
   expect_equal(fit_noint$names, "A")
 })
+
+test_that("instant EWM basis fits back-project exactly; phase-based ones refuse", {
+  d <- .review_basis_data()
+  for (zd in c(TRUE, FALSE)) {
+    args <- list(d$Y, d$X, 2L, engine = "instant", zero_diag = zd, instant = list(tau_half = 40, offsets = c(0L, 1L)))
+    roi <- do.call(mppi, args)
+    bas <- do.call(mppi, c(args, list(basis = d$basis)))
+    for (m in c("raw", "normalized")) {
+      expect_equal(mppi_reconstruct_delta(bas, 1L, mode = m), mppi_get_M_scaled(roi, 1L, m), tolerance = 1e-10, check.attributes = FALSE)
+      expect_equal(mppi_edge(bas, 1L, 2L, 5L, mode = m), mppi_get_M_scaled(roi, 1L, m)[2, 5], tolerance = 1e-10)
+    }
+    for (m in c("raw", "normalized")) for (lg in 0:1)
+      expect_equal(mppi_seedset_slopes(bas, seeds = 1:2, k = 1L, mode = m, lag = lg),
+                   mppi_seedset_slopes(roi, seeds = 1:2, k = 1L, mode = m, lag = lg), tolerance = 1e-10)
+  }
+  iphs <- mppi(d$Y, d$X, 2L, engine = "instant", basis = d$basis, instant = list(method = "iphs", tau_half = 40))
+  expect_error(mppi_reconstruct_delta(iphs, 1L), "linear slopes")
+})

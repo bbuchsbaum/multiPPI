@@ -61,8 +61,9 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
       if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between design and deconvolution.", call. = FALSE)
       deconv$tr <- tr
     }
-    model_hrf <- .mppi_deconv_hrf(mppi_hrf(x$event_model))
-    if (!is.null(model_hrf) && is.null(deconv$hrf)) {
+    .mppi_require_single_hrf(x$event_model, deconv)
+    model_hrf <- if (is.null(deconv$hrf)) .mppi_deconv_hrf(mppi_hrf(x$event_model))
+    if (!is.null(model_hrf)) {
       deconv <- deconv %||% list()
       deconv$hrf <- model_hrf
     }
@@ -152,6 +153,7 @@ mppi.fmridesign <- function(x, Y, basis = NULL, domain = c("bold","neural","inno
                           class = "mppi_design")
 
   deconv_args <- deconv %||% list()
+  if (domain != "bold") .mppi_require_single_hrf(x$event_model, deconv_args)
   design_hrf <- .mppi_deconv_hrf(info$hrf)
   if (!is.null(design_hrf) && is.null(deconv_args$hrf)) deconv_args$hrf <- design_hrf
   if (!is.null(info$TR)) {
