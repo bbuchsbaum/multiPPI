@@ -1,0 +1,74 @@
+fmrihrf 
+                                                         Version 
+                                                    "0.4.0.9000" 
+                                                           Built 
+"R 4.5.1; aarch64-apple-darwin20; 2026-10-19 03:43:26 UTC; unix" 
+                                                       RemoteSha 
+                      "5b63d6ad325e2b12c4d57c604cbef8d8f1272dca" 
+                                                      GithubSHA1 
+                      "5b63d6ad325e2b12c4d57c604cbef8d8f1272dca" 
+                                                       RemoteRef 
+                                                          "HEAD" 
+fmridesign 
+                                   Version 
+                              "0.6.1.9000" 
+                                     Built 
+"R 4.5.1; ; 2026-10-16 11:35:04 UTC; unix" 
+                                 RemoteSha 
+"005606d72d1a5492292d51d3d7b755b3434e2f1c" 
+                                GithubSHA1 
+"005606d72d1a5492292d51d3d7b755b3434e2f1c" 
+                                 RemoteRef 
+"005606d72d1a5492292d51d3d7b755b3434e2f1c" 
+fmrireg 
+                                                         Version 
+                                                    "0.3.0.9000" 
+                                                           Built 
+"R 4.5.1; aarch64-apple-darwin20; 2026-10-19 03:43:51 UTC; unix" 
+                                                       RemoteSha 
+                      "576a2f6dc251006215b823916a6cfe068d68fb3f" 
+                                                      GithubSHA1 
+                      "576a2f6dc251006215b823916a6cfe068d68fb3f" 
+                                                       RemoteRef 
+                                                          "HEAD" 
+fmridataset 
+                                   Version 
+                             "0.11.0.9000" 
+                                     Built 
+"R 4.5.1; ; 2026-09-26 21:15:23 UTC; unix" 
+                                 RemoteSha 
+"419d9eae1704d839e0152ec77957c2fc69ea0b5b" 
+                                GithubSHA1 
+"419d9eae1704d839e0152ec77957c2fc69ea0b5b" 
+                                 RemoteRef 
+                                    "HEAD" 
+fmriAR 
+                                                         Version 
+                                                         "0.4.2" 
+                                                           Built 
+"R 4.5.1; aarch64-apple-darwin20; 2026-10-19 03:43:36 UTC; unix" 
+                                                       RemoteSha 
+                      "bb0789c7d1e720aab318965519ac0f343e4419fe" 
+                                                      GithubSHA1 
+                      "bb0789c7d1e720aab318965519ac0f343e4419fe" 
+                                                       RemoteRef 
+                                                          "HEAD" 
+Rcpp 
+                                                         Version 
+                                                         "1.1.2" 
+                                                           Built 
+"R 4.5.2; aarch64-apple-darwin20; 2026-07-05 10:20:17 UTC; unix" 
+RcppArmadillo 
+                                                         Version 
+                                                      "15.6.2-1" 
+                                                           Built 
+"R 4.5.2; aarch64-apple-darwin20; 2026-10-17 07:58:25 UTC; unix" 
+testthat 
+                                                         Version 
+                                                         "3.3.2" 
+                                                           Built 
+"R 4.5.2; aarch64-apple-darwin20; 2026-01-11 11:36:07 UTC; unix" 
+ sysname  release  machine 
+"Darwin" "23.3.0"  "arm64" 
+       OMP_NUM_THREADS   OPENBLAS_NUM_THREADS VECLIB_MAXIMUM_THREADS 
+                    ""                     ""                     "" 

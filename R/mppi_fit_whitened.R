@@ -22,6 +22,8 @@
 #'   supported.
 #' @param basis Optional `mppi_basis` object for projecting into a subspace.
 #' @param domain Domain for the fit (`"neural"` or `"bold"`).
+#' @param deconv Reserved deconvolution specification; prewhitened neural
+#'   construction is unsupported and rejected.
 #' @param project_backend Backend for projecting residuals into the basis.
 #' @param project_chunk_cols Chunk width for column-wise projection when
 #'   `project_backend = "chunked"`.
@@ -34,7 +36,7 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               center_by = c("none","run"), na_action = c("omit_tr","error"),
                               backend = c("blas","accumulate","chunked"), chunk_size = NULL,
                               packed = FALSE, basis = NULL,
-                              domain = c("neural","bold"),
+                              domain = c("bold","neural","innovations"), deconv = NULL,
                               project_backend = c("blas","chunked"), project_chunk_cols = NULL,
                               lags = 0L, lag_blocklens = NULL) {
   if (!requireNamespace("fmriAR", quietly = TRUE)) {
@@ -43,16 +45,18 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
   stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
   scale_choice <- match.arg(scale)
   domain <- match.arg(domain)
+  if (domain != "bold") stop("Prewhitening before neural deconvolution is unsupported; use domain=\"bold\" or disable prewhitening.", call. = FALSE)
+  if (anyNA(Y) || anyNA(X)) stop("Prewhitening with missing observations is unsupported.", call. = FALSE)
   center_by <- match.arg(center_by)
   na_action <- match.arg(na_action)
   backend <- match.arg(backend)
   project_backend <- match.arg(project_backend)
   # Initial residuals for noise fit
   qrX <- qr(X)
-  res  <- Y - X %*% qr.coef(qrX, Y)
+  res  <- qr.resid(qrX, Y)
   plan <- fmriAR::fit_noise(res, runs = runs, method = ar_method, p = p)
   xyw  <- fmriAR::whiten_apply(plan, X = X, Y = Y, runs = runs)
-  mppi_fit(Y = xyw$Y, X = xyw$X, psych_idx = psych_idx, runs = runs,
+  fit <- mppi_fit(Y = xyw$Y, X = xyw$X, psych_idx = psych_idx, runs = runs,
            zero_diag = zero_diag, scale = scale_choice,
            center_by = center_by, na_action = na_action,
            backend = backend, chunk_size = chunk_size, packed = packed,
@@ -60,4 +64,8 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
            project_chunk_cols = project_chunk_cols,
            domain = domain,
            lags = lags, lag_blocklens = lag_blocklens)
+  fit$domain <- "whitened_bold"
+  fit$deconv$domain <- "whitened_bold"
+  fit$noise_plan <- plan
+  fit
 }

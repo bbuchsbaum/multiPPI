@@ -7,7 +7,7 @@
 \title{Short-lag task-gated coupling matrices}
 \usage{
 \method{mppi_lagged}{mppi_fit}(
-  fit,
+  x,
   k,
   lags = -2:2,
   mode = c("neural", "innov"),
@@ -16,27 +16,29 @@
   f_cut = 0.03,
   TR = NULL,
   ar_order = "auto",
-  p = 4L
+  p = 4L,
+  ...
 )
 
 mppi_lagged(x, ...)
 
 \method{mppi_lagged}{default}(
-  Y,
+  x,
   X,
   psych_idx,
   lags = -2:2,
   blocklens = NULL,
   zero_diag = TRUE,
-  scale = c("cov", "corr")
+  scale = c("cov", "corr"),
+  ...
 )
 }
 \arguments{
-\item{fit}{multiPPI fit}
+\item{x}{T x V data matrix}
 
 \item{k}{condition index}
 
-\item{lags}{integer vector of lags (e.g., -2:2). Positive = delay p_k.}
+\item{lags}{integer vector of lags (e.g., -2:2). Positive values delay \code{pk}}
 
 \item{mode}{"neural" uses stored series; "innov" applies \code{mppi_innovations}}
 
@@ -52,13 +54,17 @@ mppi_lagged(x, ...)
 
 \item{p}{maximum AR order}
 
-\item{Y}{T x V data}
+\item{...}{additional arguments passed to methods}
 
-\item{X}{T x q design}
+\item{X}{T x q design matrix}
 
 \item{psych_idx}{indices of psychological main effects}
 
 \item{blocklens}{integer vector of run lengths (TR units) to prevent cross-run spillover}
+
+\item{zero_diag}{logical; zero the diagonal of returned matrices}
+
+\item{scale}{compute covariance (\code{"cov"}) or correlation (\code{"corr"}) slopes}
 }
 \value{
 list with matrices per lag and routing index R
@@ -66,5 +72,5 @@ list with matrices per lag and routing index R
 \description{
 Short-lag task-gated coupling matrices
 
-Lagged Matrix-PPI (directed)
+Psychological-regressor shifts for covariance modulation
 }

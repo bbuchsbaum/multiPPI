@@ -14,7 +14,17 @@ mppi_fit_multi_band(
 )
 }
 \arguments{
-\item{bands}{list of lists: each with low, high, name}
+\item{Y}{T x V data matrix}
+
+\item{X}{T x q design matrix}
+
+\item{psych_idx}{psychological regressor indices}
+
+\item{bands}{list of band definitions, each with \code{low}, \code{high}, and \code{name}}
+
+\item{zero_diag}{logical; zero the diagonal of ΔΣ for each band}
+
+\item{scale}{summary scale for returned fits (\code{"normalized"}, \code{"cov"}, or \code{"corr"})}
 }
 \description{
 Fit ΔΣ per frequency band and optionally combine

@@ -1,0 +1,121 @@
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+adv_methods: 
+Advanced mechanistic methods: .......................................
+algorithms: ..............................
+band_beta_hrf: 
+Bandpass, beta-series, HRF adaptive helpers: ...........
+band_partial: ......
+basis: 
+Basis handling and chunked ops: ...........
+beta_lag: ...............
+core: 
+Core mPPI shapes: ..
+design_interface: 
+Design interface generics: .......1
+evidence: ....................
+gap_fill: .......................
+group: 
+Group-level utilities: .
+group_directed: ..........
+group_glm: 
+Group-level wrappers: ..........
+helpers: .............
+hrf: 
+HRF grouping and adaptive blending: ...
+instant_engine: ...........................
+kernels: 
+Kernel helpers: ..............
+mechanistic: 
+Mechanistic helpers: .............
+neural: 
+Neural-domain defaults and grouping: ................
+permutation: ..........
+prewhiten: ....
+pwi: SSSS
+pwi_definitive: S
+rest: .........
+rest_misc: ............
+rest_sim: .......
+run_centering: ...S
+scale_axes: .........
+seed_ppi_mcca: .....
+seed_ppi_mcca_known: .......
+seed_ppi_mcca_whiten: S
+seedset: ...............
+sim_multippi: 
+Simulation diagnostics for multiPPI: 
+Simulation diagnostics for neural vs BOLD PPI, gPPI, lagged routing, iPPI: .........
+utils_extra: ................
+
+== Skipped =====================================================================
+1. PWI recovers directed modulation of instantaneous frequency ('test_pwi.R:2:3') - Reason: On CRAN
+
+2. Instantaneous frequency resets at run boundaries ('test_pwi.R:25:3') - Reason: On CRAN
+
+3. PWI handles disjoint event islands without drift ('test_pwi.R:41:3') - Reason: On CRAN
+
+4. PWI skips NA psych frames ('test_pwi.R:66:3') - Reason: On CRAN
+
+5. (code run outside of `test_that()`) ('test_pwi_definitive.R:1:1') - Reason: On CRAN
+
+6. mppi_fit_from_fmrireg requires fmrireg package ('test_run_centering.R:29:5') - Reason: fmrireg available; dependency error path not triggered
+
+7. seed_ppi_mcca runs with prewhitening and run-centering ('test_seed_ppi_mcca_whiten.R:31:5') - Reason: fmriAR::fit_noise failed to fit AR model; skipping prewhiten path test
+
+== Failed ======================================================================
+-- 1. Error ('test_design_interface.R:63:3'): mppi() handles fmridesign and fmri
+Error: 'matrix_dataset' is not an exported object from 'namespace:fmridataset'
+
+== DONE ========================================================================
+Frustration is a natural part of programming :)
+     nb  failed skipped   error warning  passed 
+    383       0       6       1       0     377 
+R version 4.5.1 (2025-06-13)
+Platform: aarch64-apple-darwin20
+Running under: macOS Sonoma 14.3
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] C
+
+time zone: America/Toronto
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] fmridesign_0.6.1.9000 multiPPI_0.1.0        testthat_3.3.2       
+
+loaded via a namespace (and not attached):
+ [1] gtable_0.3.6            delarr_0.2.0            ggplot2_4.0.3          
+ [4] processx_3.9.0          lattice_0.22-7          callr_3.8.0            
+ [7] bigassertr_0.2.0        numDeriv_2016.8-1.1     vctrs_0.7.3            
+[10] tools_4.5.1             generics_0.1.4          parallel_4.5.1         
+[13] tibble_3.3.1            pkgconfig_2.0.3         fmridataset_0.11.0.9000
+[16] Matrix_1.7-3            data.table_1.18.6.1     RColorBrewer_1.1-3     
+[19] bigstatsr_1.6.2         S7_0.2.2                desc_1.4.3             
+[22] RcppParallel_6.2.1      assertthat_0.2.1        lifecycle_1.0.5        
+[25] compiler_4.5.1          neuroim2_0.19.1         farver_2.1.2           
+[28] stringr_1.6.0           fmriAR_0.4.2            brio_1.1.5             
+[31] RNifti_1.10.0           bigparallelr_0.3.2      neurotabs_0.0.0.9000   
+[34] codetools_0.2-20        yaml_2.3.12             deflist_0.2.0          
+[37] pillar_1.11.1           tidyr_1.3.2             RNiftyReg_2.8.6        
+[40] MASS_7.3-65             cachem_1.1.0            dbscan_1.2.7           
+[43] iterators_1.0.14        foreach_1.5.2           tidyselect_1.2.1       
+[46] stringi_1.8.9           dplyr_1.2.1             purrr_1.2.2            
+[49] RcppArmadillo_15.6.2-1  splines_4.5.1           cowplot_1.2.0          
+[52] rprojroot_2.1.1         fastmap_1.2.0           grid_4.5.1             
+[55] mmap_0.6-26             cli_3.6.6               magrittr_2.0.5         
+[58] pkgbuild_1.4.8          withr_3.0.3             fmrihrf_0.4.0.9000     
+[61] fmrigds_0.1.0           waldo_0.6.2             scales_1.4.0           
+[64] matrixStats_1.5.0       rmio_0.4.0              signal_1.8-1           
+[67] otel_0.2.0              fmrireg_0.3.0.9000      memoise_2.0.1          
+[70] doParallel_1.0.17       rlang_1.3.0             neurothresh_0.1.0      
+[73] Rcpp_1.1.2              glue_1.8.1              pkgload_1.5.2          
+[76] rstudioapi_0.19.0       jsonlite_2.0.0          R6_2.6.1               
+[79] flock_0.7              

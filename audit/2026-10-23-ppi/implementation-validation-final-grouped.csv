@@ -1,0 +1,2 @@
+"scenario","n","rejections","rate","ci_low","ci_high","upper_95","screen","bias","coverage"
+"heterogeneous_targetwise_ar1",2000,112,0.056,0.0463306085732174,0.0669951871365162,0.0652023156616978,TRUE,-0.00362378329525527,0.944

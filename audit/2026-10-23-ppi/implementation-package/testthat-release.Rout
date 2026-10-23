@@ -1,0 +1,33 @@
+
+R version 4.5.1 (2025-06-13) -- "Great Square Root"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: aarch64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(testthat)
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+> library(multiPPI)
+> test_check("multiPPI")
+[ FAIL 0 | WARN 0 | SKIP 1 | PASS 622 ]
+
+== Skipped tests (1) ===========================================================
+* fmrireg available; dependency error path not triggered (1):
+  'test_run_centering.R:29:5'
+
+[ FAIL 0 | WARN 0 | SKIP 1 | PASS 622 ]
+> 
+> proc.time()
+   user  system elapsed 
+  3.778   0.364   4.262 

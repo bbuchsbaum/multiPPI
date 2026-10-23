@@ -21,6 +21,8 @@ mppi_sim_rest_cohort(
 
 \item{trait}{Optional numeric vector of length \code{n_subj}.}
 
+\item{contexts}{Optional character vector naming the simulated contexts.}
+
 \item{trait_effect}{Numeric vector of per-context slopes mapping trait to
 coupling amplitude.}
 

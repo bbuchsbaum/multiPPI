@@ -1,0 +1,84 @@
+{
+  "source_hashes": {
+    "ppi_design": "a710631460dac0ec6713b0a005d9d6d57a1e332bc1d3c67bb01de0f31d46f641",
+    "ppi_fit": "f9255db93f93bf855b4862a5cc7c4184fa303f78afd5b7c06b7c3cd886e7f930"
+  },
+  "spm_commit": "54dc957191112dcad116e3eaa457e881fa8260de",
+  "n": 40,
+  "conventions": {
+    "TR": 1,
+    "microtime": 1,
+    "sampling_offset": 0,
+    "shared_kernel": "actual SPM spm_hrf(1)",
+    "psych": "SPM detrended psychological input",
+    "spm": "PEB deconvolution; padded DCT, seed and PPI detrended",
+    "multipppi": "DCT ridge lambda=0.1, 40 basis, unpadded; neural seed not centered"
+  },
+  "raw_seed": {
+    "seed_adjust": "none",
+    "task": {
+      "max_abs": 7.6327832942979512e-17,
+      "rmse": 4.3359889632606219e-17,
+      "cor": 1
+    },
+    "physiology_raw": {
+      "max_abs": 0.17614804001955409,
+      "rmse": 0.17614804001955386,
+      "cor": 1
+    },
+    "physiology_centered": {
+      "max_abs": 4.4408920985006262e-16,
+      "rmse": 1.2847732613038712e-16,
+      "cor": 1
+    },
+    "neural_seed": {
+      "max_abs": 1.264022952531084,
+      "rmse": 0.22416807368987862,
+      "cor": 0.94748870518197503
+    },
+    "interaction_raw": {
+      "max_abs": 0.098438689309987781,
+      "rmse": 0.032025993763572583,
+      "cor": 0.99899395429156346
+    },
+    "interaction_centered": {
+      "max_abs": 0.081650874108167903,
+      "rmse": 0.027273311813821505,
+      "cor": 0.99899395429156346
+    }
+  },
+  "default_seed_adjustment": {
+    "seed_adjust": "nuisance",
+    "task": {
+      "max_abs": 7.6327832942979512e-17,
+      "rmse": 4.3359889632606219e-17,
+      "cor": 1
+    },
+    "physiology_raw": {
+      "max_abs": 4.4408920985006262e-16,
+      "rmse": 1.6367922663747435e-16,
+      "cor": 0.99999999999999989
+    },
+    "physiology_centered": {
+      "max_abs": 4.4408920985006262e-16,
+      "rmse": 1.4627799203341801e-16,
+      "cor": 0.99999999999999989
+    },
+    "neural_seed": {
+      "max_abs": 0.85056806651203154,
+      "rmse": 0.18316209291818966,
+      "cor": 0.96291271378401133
+    },
+    "interaction_raw": {
+      "max_abs": 0.070290791899729976,
+      "rmse": 0.023252310648905039,
+      "cor": 0.99915615026228866
+    },
+    "interaction_centered": {
+      "max_abs": 0.056821615304275923,
+      "rmse": 0.018953923930248726,
+      "cor": 0.99915615026228866
+    }
+  },
+  "qualification": "Descriptive output differences only; different seed adjustment, deconvolution priors, padding, and centering preclude a numerical equivalence claim."
+}

@@ -1,0 +1,24 @@
+---
+title: "Lagged task-modulated covariance"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Lagged task-modulated covariance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Lagged cross-products are descriptive and retain the supplied run boundaries.
+A nonzero lag does not establish directed or causal connectivity. The former
+permutation-based lag-selection example has been removed because its null
+procedure is not qualified and fails closed.
+
+```{r}
+library(multiPPI)
+set.seed(7)
+n <- 80L
+Y <- matrix(rnorm(n * 3), nrow = n)
+X <- cbind(intercept = 1, task = rep(c(0, 1), length.out = n))
+fit <- mppi_fit(Y, X, psych_idx = 2, runs = rep(1:2, each = 40),
+                scale = "cov", lags = c(0, 1), lag_blocklens = c(40, 40))
+mppi_get_M_lag(fit, 1, lag = 1)
+```

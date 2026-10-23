@@ -1,0 +1,72 @@
+During startup - Warning messages:
+1: Setting LC_CTYPE failed, using "C" 
+2: Setting LC_COLLATE failed, using "C" 
+3: Setting LC_TIME failed, using "C" 
+4: Setting LC_MESSAGES failed, using "C" 
+5: Setting LC_MONETARY failed, using "C" 
+completed seed 10 of 200 
+completed seed 20 of 200 
+completed seed 30 of 200 
+completed seed 40 of 200 
+completed seed 50 of 200 
+completed seed 60 of 200 
+completed seed 70 of 200 
+completed seed 80 of 200 
+completed seed 90 of 200 
+completed seed 100 of 200 
+completed seed 110 of 200 
+completed seed 120 of 200 
+completed seed 130 of 200 
+completed seed 140 of 200 
+completed seed 150 of 200 
+completed seed 160 of 200 
+completed seed 170 of 200 
+completed seed 180 of 200 
+completed seed 190 of 200 
+completed seed 200 of 200 
+         scenario seeds targets    mean_bstar bstar_boot_low bstar_boot_high
+  activation_null   200    2000  1.105134e-14   6.831855e-15    1.533211e-14
+    constant_null   200    2000  1.276689e-14   6.521719e-15    1.885761e-14
+   matched_effect   200    2000  6.672758e-01   6.540427e-01    6.811181e-01
+     delayed_null   200    2000 -2.015035e-02  -5.908655e-02    1.625529e-02
+   delayed_effect   200    2000  6.146011e-01   5.681876e-01    6.588425e-01
+   seednoise_null   200    2000  3.828197e-03  -1.314717e-02    2.095117e-02
+ seednoise_effect   200    2000  6.507403e-01   6.264675e-01    6.756001e-01
+ reject rejection_rate rejection_cluster_low rejection_cluster_high coverage
+     94         0.0470             0.0380000              0.0565000   0.9530
+     94         0.0470             0.0380000              0.0565000   0.9530
+   1077         0.5385             0.5080000              0.5700000   0.9565
+    159         0.0795             0.0655000              0.0940125   0.9780
+    760         0.3800             0.3389875              0.4220000   0.9830
+    103         0.0515             0.0415000              0.0615000   0.9630
+   1030         0.5150             0.4790000              0.5500000   0.9675
+ max_abs_bstar_over_scale max_projection_error mean_residual_relative
+             1.249659e-16         1.719265e-12           1.050495e-13
+             2.077719e-16         1.597661e-12           1.047723e-13
+             1.035795e-03         1.799949e-12           5.342553e-02
+             8.981173e-04         1.860401e-12           1.954262e-01
+             1.558085e-03         1.711964e-12           2.068689e-01
+             5.416375e-04         2.265493e-12           9.868762e-02
+             1.375027e-03         2.382539e-12           1.035340e-01
+ sign_fraction mean_ratio_to_half      min_cor  mean_cor mean_relerr max_relerr
+         0.630       2.210267e-14 -0.007101611 0.7542179   0.6590184  0.8428237
+         0.630       2.553378e-14 -0.007101611 0.7542179   0.6590184  0.8428237
+         1.000       1.334552e+00 -0.007101611 0.7542179   0.6590184  0.8428237
+         0.440      -4.030069e-02 -0.020766406 0.6905755   0.7181237  0.8657513
+         0.965       1.229202e+00 -0.020766406 0.6905755   0.7181237  0.8657513
+         0.485       7.656394e-03  0.009184936 0.7433899   0.6671300  0.8472673
+         0.995       1.301481e+00  0.009184936 0.7433899   0.6671300  0.8472673
+ min_rank min_oracle_rank
+       14               4
+       14               4
+       14               4
+       14               4
+       14               4
+       14               4
+       14               4
+Paired matched effect minus constant null bootstrap 95%: 0.4595 0.525 
+                                                  gate pass        value
+       matched null projections within 1e-8 mean scale TRUE 2.077719e-16
+       matched effect contrast full rank and estimable TRUE 1.400000e+01
+    matched effect bootstrap lower mean bstar positive TRUE 6.540427e-01
+ matched effect rejection exceeds paired constant null TRUE 4.915000e-01

@@ -1,26 +1,33 @@
 Package: multiPPI
 Type: Package
-Title: Seedless Task-Modulated Connectivity (Matrix-PPI) for fMRI
+Title: Conventional PPI and Task-Modulated Covariance for fMRI
 Version: 0.1.0
 Authors@R: 
     c(person(given="Brad", family="Buchsbaum", role=c("aut","cre"), email="brad.buchsbaum@gmail.com"))
-Description: Closed-form, seedless psychophysiological interactions (Matrix-PPI)
-    with fast per-regressor slope matrices, lagged/directed variants, HRF-adaptive
-    weights, permutation inference, partial connectivity updates, and bridges to
-    fmrireg/fmriAR/fmrilss design-building and trial-level fits.
+Description: Conventional psychophysiological interaction and generalized PPI
+    regression with run-local deconvolution, named contrasts and temporal
+    prewhitening through 'fmriAR'. Separate covariance-modulation estimators
+    provide per-regressor slope matrices and lagged variants. Includes
+    design and data adapters, derived connectivity quantities, and explicitly
+    experimental resampling procedures.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 4.1)
 Imports:
     stats,
-    methods,
     matrixStats,
     Rcpp,
-    RcppArmadillo
+    neuroim2
 LinkingTo:
     Rcpp,
     RcppArmadillo
 Suggests:
+    testthat (>= 3.0.0),
+    dplyr,
+    ggplot2,
+    fmridesign,
+    fmridataset,
+    depmixS4,
     fmrireg,
     fmriAR,
     fmrihrf,
@@ -32,3 +39,4 @@ Suggests:
     rmarkdown
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2.9000
+VignetteBuilder: knitr

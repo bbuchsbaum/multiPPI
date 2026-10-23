@@ -24,6 +24,22 @@ mppi_fit_beta(
 \item{Pbeta}{nTrials x K psychological regressors (trial-level)}
 
 \item{Cbeta}{optional nTrials x q trial-level confounds}
+
+\item{runs}{optional vector tagging the run for each trial (used for centering)}
+
+\item{zero_diag}{logical; zero the diagonal of the returned Δ matrices}
+
+\item{scale}{compute covariance (\code{"cov"}) or correlation (\code{"corr"}) slopes}
+
+\item{center_by}{strategy for mean-centering the psychological regressors}
+
+\item{na_action}{how to handle rows with missing entries (\code{"omit_tr"} or stop)}
+
+\item{backend}{backend used for cross-products (\code{"blas"}, \code{"accumulate"}, or \code{"chunked"})}
+
+\item{packed}{logical; return packed upper-triangle matrices}
+
+\item{chunk_size}{optional chunk size when using the chunked backend}
 }
 \value{
 list with Delta, names, RB, pk (residualized regressors), and meta information per regressor

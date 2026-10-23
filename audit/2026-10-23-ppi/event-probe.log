@@ -1,0 +1,18 @@
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+
+PROBE: real_event_model_TR_propagation 
+$design_TR
+[1] 2
+
+$fit_TR
+[1] 1
+
+$design_dim
+[1] 120   2
+
+$task_and_psych_identical
+[1] TRUE
+
+
+Completed 18 audit probes.

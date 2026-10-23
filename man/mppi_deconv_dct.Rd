@@ -36,9 +36,9 @@ on a T x R matrix and chooses the penalty per column by generalized cross-valida
 }
 \examples{
 \dontrun{
-  library(mppiDeconv)
+  library(multiPPI)
   TR <- 2; T <- 300; t <- seq(0, (T-1))*TR
-  h <- fmrihrf::spm_hrf(TR)  # or any HRF kernel vector
+  h <- fmrihrf::hrf_spmg1(seq(0, 32, by = TR))
   Y <- matrix(rnorm(T*10), T, 10)  # 10 components or voxels
   out <- mppi_deconv_dct(Y, h, K = 64, method = "gcv")
   U   <- out$U

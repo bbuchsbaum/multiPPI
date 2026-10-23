@@ -1,0 +1,30 @@
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+            case   T   V K min_s median_s max_s R_allocated_MiB
+ normalized_blas 600 400 3 0.024    0.025 0.197        64.16959
+ retained_shared_MiB uncompressed_RDS_MiB
+                  NA             45.19244
+               case   T   V K min_s median_s max_s R_allocated_MiB
+ normalized_chunked 600 400 3  0.03    0.031 0.032        88.01551
+ retained_shared_MiB uncompressed_RDS_MiB
+                  NA             45.19245
+              case   T   V K min_s median_s max_s R_allocated_MiB
+ normalized_packed 600 400 3 0.023    0.024 0.024        74.24811
+ retained_shared_MiB uncompressed_RDS_MiB
+                  NA              41.5397
+       case   T   V K min_s median_s max_s R_allocated_MiB retained_shared_MiB
+ covariance 600 400 3 0.059     0.06 0.064        148.9505                  NA
+ uncompressed_RDS_MiB
+             72.04947
+         case   T   V K min_s median_s max_s R_allocated_MiB
+ basis_rank25 600 400 3 0.007    0.007 0.011        19.52892
+ retained_shared_MiB uncompressed_RDS_MiB
+                  NA            0.6055365
+       case   T   V K min_s median_s max_s R_allocated_MiB retained_shared_MiB
+ neural_DCT 600 400 3  0.04    0.042 0.066        66.72673                  NA
+ uncompressed_RDS_MiB
+             47.04125
+kernel blas max_error 0 seconds 0.000999999999999446,0,0 
+kernel chunked max_error 7.105427e-14 seconds 0,0,0 
+kernel accumulate max_error 2.842171e-14 seconds 0.00699999999999967,0.00699999999999967,0.00699999999999967 
+native_batch_independent_outer_product_max_error 1.665335e-16 

@@ -1,0 +1,46 @@
+During startup - Warning messages:
+1: Setting LC_CTYPE failed, using "C" 
+2: Setting LC_COLLATE failed, using "C" 
+3: Setting LC_TIME failed, using "C" 
+4: Setting LC_MESSAGES failed, using "C" 
+5: Setting LC_MONETARY failed, using "C" 
+completed seed 10 of 200 
+completed seed 20 of 200 
+completed seed 30 of 200 
+completed seed 40 of 200 
+completed seed 50 of 200 
+completed seed 60 of 200 
+completed seed 70 of 200 
+completed seed 80 of 200 
+completed seed 90 of 200 
+completed seed 100 of 200 
+completed seed 110 of 200 
+completed seed 120 of 200 
+completed seed 130 of 200 
+completed seed 140 of 200 
+completed seed 150 of 200 
+completed seed 160 of 200 
+completed seed 170 of 200 
+completed seed 180 of 200 
+completed seed 190 of 200 
+completed seed 200 of 200 
+         scenario seeds targets   mean_bstar bstar_boot_low bstar_boot_high
+     matched_null   200    2000 4.939385e-14  -3.518496e-14    1.338914e-13
+   matched_effect   200    2000 6.686186e-01   6.550176e-01    6.824627e-01
+   delayed_effect   200    2000 6.072043e-01   5.616800e-01    6.522304e-01
+ seednoise_effect   200    2000 6.447002e-01   6.204203e-01    6.701542e-01
+ reject rejection_rate rejection_cluster_low rejection_cluster_high coverage
+     91         0.0455                0.0365                 0.0555   0.9545
+   1104         0.5520                0.5225                 0.5825   0.9590
+    787         0.3935                0.3510                 0.4360   0.9805
+   1020         0.5100                0.4750                 0.5460   0.9675
+ max_abs_bstar_over_scale    min_cor  mean_cor mean_relerr max_relerr min_rank
+             1.885397e-15 0.05589217 0.7588579   0.6571101  0.8140901       14
+             1.112570e-03 0.05589217 0.7588579   0.6571101  0.8140901       14
+             1.613423e-03 0.05589217 0.7588579   0.6571101  0.8140901       14
+             1.308657e-03 0.18875651 0.7475581   0.6655723  0.8014636       14
+ min_oracle_rank
+               4
+               4
+               4
+               4

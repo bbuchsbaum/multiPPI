@@ -1,0 +1,122 @@
+"file","test","nb","failed","skipped","error","warning","passed"
+"test_adv_methods.R","mppi_innovations respects AR order and low-frequency protection",4,0,FALSE,FALSE,0,4
+"test_adv_methods.R","spectral and precision summaries recover analytical values",5,0,FALSE,FALSE,0,5
+"test_adv_methods.R","lagged summaries match manual calculations",5,0,FALSE,FALSE,0,5
+"test_adv_methods.R","mppi_classify captures gain-dominated patterns",5,0,FALSE,FALSE,0,5
+"test_adv_methods.R","state-dependent PPI returns trial summaries with nuisances",6,0,FALSE,FALSE,0,6
+"test_adv_methods.R","null onsets avoid guarded windows",3,0,FALSE,FALSE,0,3
+"test_adv_methods.R","state predictors provide cross-validated performance",3,0,FALSE,FALSE,0,3
+"test_adv_methods.R","theta metrics and gating provide interpretable summaries",8,0,FALSE,FALSE,0,8
+"test_algorithms.R","mppi_fit reproduces closed-form covariance regression",3,0,FALSE,FALSE,0,3
+"test_algorithms.R","HRF adaptive combination follows dominant energy direction",2,0,FALSE,FALSE,0,2
+"test_algorithms.R","mppi_modes handles requested ranks",4,0,FALSE,FALSE,0,4
+"test_algorithms.R","mppi_degree returns L1 and L2 summaries",2,0,FALSE,FALSE,0,2
+"test_algorithms.R","accumulate backend matches blas backend",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","chunked backend matches blas backend",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","chunked basis projection matches blas projection",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","variance decomposition and partial outputs present for cov scale",4,0,FALSE,FALSE,0,4
+"test_algorithms.R","packed option stores upper triangle",6,0,FALSE,FALSE,0,6
+"test_algorithms.R","mppi matrix method returns mppi_fit",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","basis projection matches full-space <U+0394>",2,0,FALSE,FALSE,0,2
+"test_algorithms.R","Precision update matches first-order matrix inverse",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","Variance decomposition reconstructs DeltaSigma",1,0,FALSE,FALSE,0,1
+"test_algorithms.R","Rank CV prefers low-rank structure",1,0,FALSE,FALSE,0,1
+"test_band_beta_hrf.R","mppi_bandpass preserves dimensions and attenuates highs",2,0,FALSE,FALSE,0,2
+"test_band_beta_hrf.R","mppi_fit_multi_band returns fits per band",3,0,FALSE,FALSE,0,3
+"test_band_beta_hrf.R","mppi_fit_beta and permutations run on toy data",3,0,FALSE,FALSE,0,3
+"test_band_beta_hrf.R","mppi_hrf_adapt outputs combined matrix and weights",3,0,FALSE,FALSE,0,3
+"test_band_partial.R","mppi_bandpass falls back to moving-average smoothing when signal missing",2,0,FALSE,FALSE,0,2
+"test_band_partial.R","mppi_fit_multi_band returns per-band fits",2,0,FALSE,FALSE,0,2
+"test_band_partial.R","mppi_delta_partial rescales precision deltas to partial correlations",1,0,FALSE,FALSE,0,1
+"test_band_partial.R","chunked crossprod equals blas crossprod",1,0,FALSE,FALSE,0,1
+"test_basis.R","as_mppi_basis orthonormalizes columns",3,0,FALSE,FALSE,0,3
+"test_basis.R","mppi_edge matches reconstructed delta",1,0,FALSE,FALSE,0,1
+"test_basis.R","chunked projection matches blas projection",1,0,FALSE,FALSE,0,1
+"test_basis.R","neural domain matches direct conversion",2,0,FALSE,FALSE,0,2
+"test_basis.R","permutation seed is reproducible",2,0,FALSE,FALSE,0,2
+"test_basis.R","freedman-lane permutation returns valid matrix",2,0,FALSE,FALSE,0,2
+"test_beta_lag.R","mppi_fit_beta exposes residual regressors and permutation works",7,0,FALSE,FALSE,0,7
+"test_beta_lag.R","packed beta output can be unpacked",2,0,FALSE,FALSE,0,2
+"test_beta_lag.R","mppi_lag_select handles multiple targets and per-target output",6,0,FALSE,FALSE,0,6
+"test_core.R","mppi_fit returns matrices of correct size",2,0,FALSE,FALSE,0,2
+"test_design_interface.R","fmridesign helpers produce coherent bundles",5,0,FALSE,FALSE,0,5
+"test_design_interface.R","mppi() handles fmridesign and fmri_dataset inputs",2,0,FALSE,TRUE,0,2
+"test_evidence.R","innovations domain stores neural and innovation residuals",7,0,FALSE,FALSE,0,7
+"test_evidence.R","mppi_evidence returns per-column and aggregate summaries",11,0,FALSE,FALSE,0,11
+"test_evidence.R","evidence totals align with stored metadata",2,0,FALSE,FALSE,0,2
+"test_gap_fill.R","mppi_select_psych handles names, patterns, and errors",5,0,FALSE,FALSE,0,5
+"test_gap_fill.R","mppi_coerce_beta coerces frame and list inputs",5,0,FALSE,FALSE,0,5
+"test_gap_fill.R","mppi_compare_models returns delta gaps and AIC differences",3,0,FALSE,FALSE,0,3
+"test_gap_fill.R","mppi_hrf_ensemble blends fits with data-driven or manual weights",5,0,FALSE,FALSE,0,5
+"test_gap_fill.R","mppi_sim_rest_neural generates standardized modulators and templates",5,0,FALSE,FALSE,0,5
+"test_group.R","mppi_group_ebayes detects signal",1,0,FALSE,FALSE,0,1
+"test_group_directed.R","pwf_stack retains directed edges",5,0,FALSE,FALSE,0,5
+"test_group_directed.R","mppi_group_glm handles directed stacks",3,0,FALSE,FALSE,0,3
+"test_group_directed.R","mppi_group_ebayes supports directed option",2,0,FALSE,FALSE,0,2
+"test_group_glm.R","mppi_stack produces a complete edge matrix",3,0,FALSE,FALSE,0,3
+"test_group_glm.R","mppi_group_glm runs OLS without limma",3,0,FALSE,FALSE,0,3
+"test_group_glm.R","lagged accessors work",4,0,FALSE,FALSE,0,4
+"test_helpers.R","mppi_parametric produces gPPI-style modulators",4,0,FALSE,FALSE,0,4
+"test_helpers.R","mppi_reinstatement returns within/between similarities",3,0,FALSE,FALSE,0,3
+"test_helpers.R","mppi_sdppi yields per-trial summaries",3,0,FALSE,FALSE,0,3
+"test_helpers.R","mppi_precision_gate returns per-condition deltas",3,0,FALSE,FALSE,0,3
+"test_hrf.R","HRF grouping matches expected names",2,0,FALSE,FALSE,0,2
+"test_hrf.R","HRF adaptive weights recover dominant basis",1,0,FALSE,FALSE,0,1
+"test_instant_engine.R","ewm_gated_cross matches brute force",12,0,FALSE,FALSE,0,12
+"test_instant_engine.R","ewm_gated_cross respects blocklens boundaries",6,0,FALSE,FALSE,0,6
+"test_instant_engine.R","IPHS recovers known phase coupling",1,0,FALSE,FALSE,0,1
+"test_instant_engine.R","mppi_instant_fit produces coherent structures",8,0,FALSE,FALSE,0,8
+"test_kernels.R","ppi_batch matches manual zero-lag crossproducts",6,0,FALSE,FALSE,0,6
+"test_kernels.R","ppi_batch handles lags and blocklens",6,0,FALSE,FALSE,0,6
+"test_kernels.R","precision_gate_cpp matches manual",2,0,FALSE,FALSE,0,2
+"test_mechanistic.R","mppi_gain matches manual precision update",1,0,FALSE,FALSE,0,1
+"test_mechanistic.R","mppi_routing_index detects feedforward bias",2,0,FALSE,FALSE,0,2
+"test_mechanistic.R","mppi_project_templates returns normalized weights",3,0,FALSE,FALSE,0,3
+"test_mechanistic.R","template helpers build orthogonal patterns",4,0,FALSE,FALSE,0,4
+"test_mechanistic.R","mechanism report bundles gain, routing, templates",3,0,FALSE,FALSE,0,3
+"test_neural.R","neural fit works with default HRF",7,0,FALSE,FALSE,0,7
+"test_neural.R","neural fit groups HRF basis columns",5,0,FALSE,FALSE,0,5
+"test_neural.R","neural fit supports MAP deconvolution backend",4,0,FALSE,FALSE,0,4
+"test_permutation.R","mppi_omnibus exposes RNG metadata",3,0,FALSE,FALSE,0,3
+"test_permutation.R","mppi_permute phase method returns metadata",2,0,FALSE,FALSE,0,2
+"test_permutation.R","freedman-lane omnibus runs and returns metadata",2,0,FALSE,FALSE,0,2
+"test_permutation.R","freedman-lane edgewise permutation yields matrix",3,0,FALSE,FALSE,0,3
+"test_prewhiten.R","fmriAR prewhitening paths align",4,0,FALSE,FALSE,0,4
+"test_pwi.R","PWI recovers directed modulation of instantaneous frequency",1,0,TRUE,FALSE,0,0
+"test_pwi.R","Instantaneous frequency resets at run boundaries",1,0,TRUE,FALSE,0,0
+"test_pwi.R","PWI handles disjoint event islands without drift",1,0,TRUE,FALSE,0,0
+"test_pwi.R","PWI skips NA psych frames",1,0,TRUE,FALSE,0,0
+"test_rest.R","mppi_rest_modulators produces aligned sticks",3,0,FALSE,FALSE,0,3
+"test_rest.R","mppi_rest returns an mppi_fit with attached modulators",4,0,FALSE,FALSE,0,4
+"test_rest.R","mppi_rest_features aggregates by subject",2,0,FALSE,FALSE,0,2
+"test_rest_misc.R","mppi_rest_design returns normalized columns",3,0,FALSE,FALSE,0,3
+"test_rest_misc.R","mppi_rest_trait_cv recovers linear trait relationship",3,0,FALSE,FALSE,0,3
+"test_rest_misc.R","mppi_sim_rest_dataset respects custom templates",1,0,FALSE,FALSE,0,1
+"test_rest_misc.R","mppi_rest_modulators handles envelope groups",2,0,FALSE,FALSE,0,2
+"test_rest_misc.R","mppi_rest_extract handles matrices with attributes",3,0,FALSE,FALSE,0,3
+"test_rest_sim.R","simulated rest dataset yields recoverable coupling",4,0,FALSE,FALSE,0,4
+"test_rest_sim.R","trait effect correlates with recovered gain",1,0,FALSE,FALSE,0,1
+"test_rest_sim.R","gain metric tracks template-directed coupling",2,0,FALSE,FALSE,0,2
+"test_run_centering.R","run centering removes run-level means",3,0,FALSE,FALSE,0,3
+"test_run_centering.R","mppi_fit_from_fmrireg requires fmrireg package",1,0,TRUE,FALSE,0,0
+"test_scale_axes.R","scaled interaction matrices are scale-invariant",2,0,FALSE,FALSE,0,2
+"test_scale_axes.R","gain and routing axes return bounded summaries",4,0,FALSE,FALSE,0,4
+"test_scale_axes.R","communication modes return projected matrices for fits",3,0,FALSE,FALSE,0,3
+"test_seed_ppi_mcca.R","seed_ppi_mcca runs on matrix with provided neighborhoods",5,0,FALSE,FALSE,0,5
+"test_seed_ppi_mcca_known.R","seed_ppi_mcca returns 0 on zero interaction block",3,0,FALSE,FALSE,0,3
+"test_seed_ppi_mcca_known.R","seed_ppi_mcca ~ null shows small effect for independent noise",2,0,FALSE,FALSE,0,2
+"test_seed_ppi_mcca_known.R","Wilks with k=1 <= full Wilks and matches -log(1-r1^2)",2,0,FALSE,FALSE,0,2
+"test_seed_ppi_mcca_whiten.R","seed_ppi_mcca runs with prewhitening and run-centering",1,0,TRUE,FALSE,0,0
+"test_seedset.R","seed-set utilities support multiple selectors",6,0,FALSE,FALSE,0,6
+"test_seedset.R","seed-set map handles bases and precision aggregation",3,0,FALSE,FALSE,0,3
+"test_seedset.R","seed-set permutation produces reproducible metadata",6,0,FALSE,FALSE,0,6
+"test_sim_multippi.R","Neural vs BOLD PPI recovers stronger effect",1,0,FALSE,FALSE,0,1
+"test_sim_multippi.R","No PPI vs PPI (two conditions)",2,0,FALSE,FALSE,0,2
+"test_sim_multippi.R","gPPI vs sPPI (three conditions)",3,0,FALSE,FALSE,0,3
+"test_sim_multippi.R","Lagged routing energy distinguishes direction",2,0,FALSE,FALSE,0,2
+"test_sim_multippi.R","Innovations reduce slow-drift bias",1,0,FALSE,FALSE,0,1
+"test_utils_extra.R",".mppi_handle_na drops incomplete rows and still errors when requested",6,0,FALSE,FALSE,0,6
+"test_utils_extra.R",".mppi_prepare_design_matrix adds intercepts only when needed",6,0,FALSE,FALSE,0,6
+"test_utils_extra.R",".mppi_project_basis chunked path matches BLAS product",1,0,FALSE,FALSE,0,1
+"test_utils_extra.R",".mppi_crossprod_lagged handles run-aware lags",2,0,FALSE,FALSE,0,2
+"test_utils_extra.R","mppi_fuse_time_beta returns precision-weighted average",1,0,FALSE,FALSE,0,1

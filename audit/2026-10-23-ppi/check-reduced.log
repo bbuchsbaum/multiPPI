@@ -1,0 +1,185 @@
+* using log directory '/private/tmp/multippi-audit-20261023-5_j41_sk/check-reduced/multiPPI.Rcheck'
+* using R version 4.5.1 (2025-06-13)
+* using platform: aarch64-apple-darwin20
+* R was compiled by
+    Apple clang version 16.0.0 (clang-1600.0.26.6)
+    GNU Fortran (GCC) 14.2.0
+* running under: macOS Sonoma 14.3
+* using session charset: ASCII
+* using options '--no-manual --no-build-vignettes'
+* checking for file 'multiPPI/DESCRIPTION' ... OK
+* checking extension type ... Package
+* this is package 'multiPPI' version '0.1.0'
+* package encoding: UTF-8
+* checking package namespace information ... OK
+* checking package dependencies ... INFO
+Package suggested but not available for checking: 'limma'
+* checking if this is a source package ... OK
+* checking if there is a namespace ... OK
+* checking for executable files ... OK
+* checking for hidden files and directories ... NOTE
+Found the following hidden files and directories:
+  .claude
+These were most likely included in error. See section 'Package
+structure' in the 'Writing R Extensions' manual.
+* checking for portable file names ... OK
+* checking for sufficient/correct file permissions ... OK
+* checking whether package 'multiPPI' can be installed ... OK
+* used C++ compiler: 'Apple clang version 15.0.0 (clang-1500.1.0.2.5)'
+* used SDK: 'MacOSX14.2.sdk'
+* checking installed package size ... OK
+* checking package directory ... OK
+* checking DESCRIPTION meta-information ... NOTE
+License stub is invalid DCF.
+* checking top-level files ... OK
+* checking for left-over files ... OK
+* checking index information ... OK
+* checking package subdirectories ... OK
+* checking code files for non-ASCII characters ... WARNING
+Found the following file with non-ASCII characters:
+  R/mppi_decompose.R
+Portable packages must use only ASCII characters in their R code and
+NAMESPACE directives, except perhaps in comments.
+Use \uxxxx escapes for other characters.
+Function 'tools::showNonASCIIfile' can help in finding non-ASCII
+characters in files.
+* checking R files for syntax errors ... OK
+* checking whether the package can be loaded ... OK
+* checking whether the package can be loaded with stated dependencies ... OK
+* checking whether the package can be unloaded cleanly ... OK
+* checking whether the namespace can be loaded with stated dependencies ... OK
+* checking whether the namespace can be unloaded cleanly ... OK
+* checking loading without being on the library search path ... OK
+* checking dependencies in R code ... WARNING
+'::' or ':::' imports not declared from:
+  'depmixS4' 'fmridataset' 'fmridesign'
+'loadNamespace' or 'requireNamespace' calls not declared from:
+  'depmixS4' 'fmridataset' 'fmridesign'
+Namespaces in Imports field not imported from:
+  'Rcpp' 'RcppArmadillo' 'methods'
+  All declared Imports should be used.
+Missing or unexported objects:
+  'fmrihrf::deconvolve_series' 'fmrihrf::spm_hrf'
+  'fmrireg::get_data_matrix' 'neuroim2::timeseries' 'neuroim2::tr'
+* checking S3 generic/method consistency ... OK
+* checking replacement functions ... OK
+* checking foreign function calls ... OK
+* checking R code for possible problems ... NOTE
+.mppi_adv_cv_r: no visible global function definition for 'reformulate'
+.mppi_adv_cv_r: no visible global function definition for
+  'model.matrix'
+.mppi_adv_cv_r: no visible global function definition for 'coef'
+.mppi_adv_perm_shift : <anonymous>: no visible global function
+  definition for 'tail'
+.mppi_adv_perm_shift : <anonymous>: no visible global function
+  definition for 'head'
+.mppi_phase_randomize_seg: no visible global function definition for
+  'fft'
+.mppi_phase_randomize_seg: no visible global function definition for
+  'runif'
+.mppi_resolve_instant_options: no visible global function definition
+  for 'modifyList'
+ipppi_analytic_signal: no visible global function definition for 'fft'
+ipppi_bandpass_fft: no visible global function definition for 'fft'
+mppi.matrix: possible error in mppi_fit_whitened(Y = x, X = X, runs =
+  runs, psych_idx = psych_idx, basis = basis, domain = domain, deconv =
+  deconv, lags = lags, lag_blocklens = lag_blocklens, ...): unused
+  argument (deconv = deconv)
+mppi.mppi_design: possible error in mppi_fit_whitened(Y = Y, X = x$X,
+  runs = runs, psych_idx = x$psych_idx, basis = basis_obj, domain =
+  domain, deconv = deconv, lags = lags, lag_blocklens = lag_blocklens,
+  ...): unused argument (deconv = deconv)
+mppi_coerce_beta: no visible global function definition for 'xtabs'
+mppi_decompose_variance: no visible binding for global variable 'sd'
+mppi_fit: no visible global function definition for 'setNames'
+mppi_gate_by_theta: no visible global function definition for
+  'reformulate'
+mppi_group_ebayes: no visible binding for global variable 'sd'
+mppi_group_ebayes: no visible global function definition for 'pt'
+mppi_group_seedset: no visible global function definition for
+  'setNames'
+mppi_lag_select : make_perm_blocks: no visible global function
+  definition for 'head'
+mppi_lag_select: no visible global function definition for 'setNames'
+mppi_lagged.default: no visible binding for global variable 'sd'
+mppi_lagged.mppi_fit: no visible global function definition for
+  'setNames'
+mppi_reinstatement: no visible global function definition for
+  'setNames'
+mppi_rest_bursts: no visible global function definition for 'sd'
+mppi_rest_bursts: no visible global function definition for 'setNames'
+mppi_seedset_map: no visible global function definition for 'setNames'
+mppi_seedset_permute: no visible global function definition for
+  'setNames'
+mppi_sim_rest_cohort: no visible global function definition for 'rnorm'
+mppi_sim_rest_dataset: no visible global function definition for
+  'rnorm'
+mppi_sim_rest_neural: no visible global function definition for 'runif'
+mppi_sim_rest_neural: no visible global function definition for 'rnorm'
+mppi_state_predict: no visible global function definition for
+  'model.matrix'
+mppi_state_predict: no visible global function definition for 'coef'
+print.mppi_design: no visible global function definition for 'head'
+print.mppi_fit: no visible global function definition for 'head'
+Undefined global functions or variables:
+  coef fft head model.matrix modifyList pt reformulate rnorm runif sd
+  setNames tail xtabs
+Consider adding
+  importFrom("stats", "coef", "fft", "model.matrix", "pt", "reformulate",
+             "rnorm", "runif", "sd", "setNames", "xtabs")
+  importFrom("utils", "head", "modifyList", "tail")
+to your NAMESPACE file.
+* checking Rd files ... NOTE
+checkRd: (-1) mppi_to_partial.Rd:10: Lost braces; missing escapes or markup?
+    10 | \item{Sigma0}{baseline covariance (T^{-1} R'R) or correlation}
+       |                                      ^
+* checking Rd metadata ... OK
+* checking Rd cross-references ... OK
+* checking for missing documentation entries ... OK
+* checking for code/documentation mismatches ... OK
+* checking Rd \usage sections ... WARNING
+Undocumented arguments in Rd file 'seed_ppi_mcca.Rd'
+  'runs' 'center_by' 'ar_method' 'ar_order' 'wilks_k'
+
+Functions with \usage entries need to have the appropriate \alias
+entries, and all their arguments documented.
+The \usage entries must correspond to syntactically valid R code.
+See chapter 'Writing R documentation files' in the 'Writing R
+Extensions' manual.
+* checking Rd contents ... OK
+* checking for unstated dependencies in examples ... OK
+* checking line endings in C/C++/Fortran sources/headers ... OK
+* checking line endings in Makefiles ... OK
+* checking compilation flags in Makevars ... OK
+* checking for GNU extensions in Makefiles ... WARNING
+Found the following file(s) containing GNU extensions:
+  src/Makevars
+Portable Makefiles do not use GNU extensions such as +=, :=, $(shell),
+$(wildcard), ifeq ... endif, .NOTPARALLEL See section 'Writing portable
+packages' in the 'Writing R Extensions' manual.
+* checking for portable use of $(BLAS_LIBS) and $(LAPACK_LIBS) ... OK
+* checking use of PKG_*FLAGS in Makefiles ... OK
+* checking compiled code ... OK
+* checking files in 'vignettes' ... WARNING
+Files in the 'vignettes' directory but no files in 'inst/doc':
+  '01_quickstart_fmrireg_mppi.Rmd' '02_lagged_mppi.Rmd'
+  '02_lagged_mppi.html' '02_lagged_mppi.knit.md' '03_beta_mppi.Rmd'
+  '04_hrf_adaptive.Rmd' '05_simulated_encode_recall.Rmd'
+  '06_rest_traits.Rmd' '06_rest_traits.html'
+  '07_mechanistic_readouts.Rmd' '08_seed_mcca.Rmd' 'overview_mppi.Rmd'
+  'test_include.Rmd' 'test_plot.Rmd' 'test_plot.html'
+  'test_plot_matrix.Rmd' 'test_plot_matrix.html' 'tmp_lagged.html'
+  'tmp_lagged_debug.html' 'tmp_lagged_new.html'
+Package has no Sweave vignette sources and no VignetteBuilder field.
+* checking examples ... OK
+* checking package vignettes ... NOTE
+Package has 'vignettes' subdirectory but apparently no vignettes.
+Perhaps the 'VignetteBuilder' information is missing from the
+DESCRIPTION file?
+* DONE
+
+Status: 5 WARNINGs, 5 NOTEs
+See
+  '/private/tmp/multippi-audit-20261023-5_j41_sk/check-reduced/multiPPI.Rcheck/00check.log'
+for details.
+

@@ -22,12 +22,15 @@ test_that(".mppi_handle_na drops incomplete rows and still errors when requested
 
 
 test_that(".mppi_prepare_design_matrix adds intercepts only when needed", {
-  X_no_int <- matrix(c(0, 1, 0, 1, 0, 1), nrow = 3, byrow = FALSE)
+  X_no_int <- matrix(c(0, 1, 0, 1, 0, 0), nrow = 3, byrow = FALSE)
   colnames(X_no_int) <- c("taskA", "taskB")
   prep_no_int <- multiPPI:::`.mppi_prepare_design_matrix`(X_no_int, psych_idx = c(1L, 2L))
   expect_true(prep_no_int$intercept_added)
   expect_equal(colnames(prep_no_int$X)[1], "(Intercept)")
   expect_equal(prep_no_int$psych_idx, c(2L, 3L))
+
+  exhaustive <- cbind(A = c(0, 1, 0), B = c(1, 0, 1))
+  expect_false(multiPPI:::.mppi_prepare_design_matrix(exhaustive, 1:2)$intercept_added)
 
   X_with_int <- cbind(`(Intercept)` = 1, X_no_int)
   prep_with_int <- multiPPI:::`.mppi_prepare_design_matrix`(X_with_int, psych_idx = c(2L, 3L))

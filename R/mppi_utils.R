@@ -250,11 +250,11 @@
 # Internal: detect if a design already contains an intercept-like column
 .mppi_has_intercept <- function(X) {
   stopifnot(is.matrix(X))
-  if ("(Intercept)" %in% colnames(X)) return(TRUE)
-  any(apply(X, 2, function(z) {
-    sd_z <- stats::sd(z)
-    (is.na(sd_z) || sd_z < .Machine$double.eps) && abs(mean(z) - 1) < 1e-8
-  }))
+  if (!ncol(X)) return(FALSE)
+  X <- X[rowSums(!is.finite(X)) == 0L, , drop = FALSE]
+  if (!nrow(X)) return(FALSE)
+  residual <- qr.resid(qr(X), rep(1, nrow(X)))
+  sqrt(sum(residual^2)) <= 1e-8 * sqrt(nrow(X))
 }
 
 # Prepare a design matrix, ensuring an intercept column and adjusting indices

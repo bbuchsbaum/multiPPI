@@ -1,0 +1,11 @@
+seed design/calibration/simulation: 122031 122032 122033
+calibrated phi: 0.482237513709765
+simultaneous primary upper confidence: 0.9875
+R: R version 4.5.1 (2025-06-13)
+fmriAR: 0.4.2
+fmrihrf: 0.4.0.9000
+                    R/ppi_design.R                        R/ppi_fit.R 
+"5bc47902a0a70f50757316b3b0c70f39" "cdeb4d0898e2fc71f73490359b0f5b95" 
+    inst/validation/validate_ppi.R 
+"699a5ba9fa024817276c47ce6c766d54" 
+Primary: iid, iid_censor, known_ar1, estimated_ar1. Heterogeneous pooled AR is an adverse misspecification probe, not a primary acceptance scenario. Independent runs; one fixed two-run design; fixed-design conditional inference only. No neural recovery, HRF mismatch, selection or multiplicity qualification.

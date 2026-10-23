@@ -1,91 +1,90 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
-using arma::mat;
-using arma::sp_mat;
-using arma::vec;
+// [[Rcpp::export]]
+arma::mat mppi_deconv_map(const arma::mat& Y, const arma::vec& h, const double lambda) {
+  if (Y.n_rows == 0 || h.n_elem == 0) {
+    Rcpp::stop("MAP deconvolution requires at least one observation and one HRF sample.");
+  }
+  if (!Y.is_finite() || !h.is_finite() || !std::isfinite(lambda) || lambda < 0) {
+    Rcpp::stop("MAP deconvolution requires finite data and HRF and a finite non-negative lambda.");
+  }
+  const arma::uword n = Y.n_rows;
+  const arma::uword kernel_length = std::min(h.n_elem, n);
+  // H is triangular with diagonal h[0]. For lambda > 0 the only null
+  // vector of D is constant, and H identifies it iff the effective HRF
+  // contains a nonzero sample. Handle these exact singular cases explicitly.
+  bool identifies_constant = false;
+  for (arma::uword k = 0; k < kernel_length; ++k) identifies_constant |= (h[k] != 0.0);
+  if ((lambda == 0.0 && h[0] == 0.0) || !identifies_constant) {
+    Rcpp::stop("MAP deconvolution system is singular or not positive definite.");
+  }
+  const arma::uword band = std::min(n - 1, std::max(arma::uword(1), kernel_length - 1));
+  const arma::uword width = band + 1;
+  // Row i stores the lower-triangular entries (i,i), (i,i-1), ... .
+  std::vector<double> lower(static_cast<std::size_t>(n) * width, 0.0);
+  auto at = [&](arma::uword i, arma::uword j) -> double& {
+    return lower[static_cast<std::size_t>(i) * width + (i - j)];
+  };
 
-static sp_mat convmtx_sparse(const vec& h, const int T) {
-  const int L = h.n_elem;
-  std::vector<arma::uword> ii;
-  std::vector<arma::uword> jj;
-  std::vector<double> vv;
-  ii.reserve(static_cast<std::size_t>(T) * L);
-  jj.reserve(static_cast<std::size_t>(T) * L);
-  vv.reserve(static_cast<std::size_t>(T) * L);
+  // Construct the lower band of H' H + lambda D' D, where H is causal
+  // convolution and D contains adjacent first differences. A one-row
+  // series has an empty D and therefore no penalty.
+  for (arma::uword i = 0; i < n; ++i) {
+    const arma::uword first = (i > band) ? i - band : 0;
+    for (arma::uword j = first; j <= i; ++j) {
+      const arma::uword delta = i - j;
+      double value = 0.0;
+      if (delta < kernel_length) {
+        const arma::uword count = std::min(n - i, kernel_length - delta);
+        for (arma::uword k = 0; k < count; ++k) value += h[k] * h[k + delta];
+      }
+      if (n > 1 && delta == 0) value += lambda * ((i == 0 || i == n - 1) ? 1.0 : 2.0);
+      if (delta == 1) value -= lambda;
+      at(i, j) = value;
+    }
+  }
 
-  for (int t = 0; t < T; ++t) {
-    for (int k = 0; k < L; ++k) {
-      int col = t - k;
-      if (col >= 0) {
-        ii.push_back(static_cast<arma::uword>(t));
-        jj.push_back(static_cast<arma::uword>(col));
-        vv.push_back(h(k));
+  // In-place banded Cholesky. The factor and the system have the same
+  // bandwidth; failure is reported without adding a numerical ridge.
+  for (arma::uword i = 0; i < n; ++i) {
+    const arma::uword first = (i > band) ? i - band : 0;
+    for (arma::uword j = first; j <= i; ++j) {
+      double value = at(i, j);
+      const arma::uword start = std::max(first, (j > band) ? j - band : arma::uword(0));
+      for (arma::uword k = start; k < j; ++k) value -= at(i, k) * at(j, k);
+      if (i == j) {
+        if (!(value > 0.0) || !std::isfinite(value)) {
+          Rcpp::stop("MAP deconvolution system is singular or not positive definite.");
+        }
+        at(i, j) = std::sqrt(value);
+      } else {
+        at(i, j) = value / at(j, j);
       }
     }
   }
 
-  const std::size_t nnz = vv.size();
-  arma::umat locations(2, nnz);
-  arma::vec values(nnz);
-  for (std::size_t idx = 0; idx < nnz; ++idx) {
-    locations(0, idx) = ii[idx];
-    locations(1, idx) = jj[idx];
-    values(idx) = vv[idx];
-  }
-
-  return sp_mat(locations, values, T, T);
-}
-
-static sp_mat diff1_R(const int T) {
-  std::vector<arma::uword> ii;
-  std::vector<arma::uword> jj;
-  std::vector<double> vv;
-  ii.reserve(static_cast<std::size_t>(3) * T);
-  jj.reserve(static_cast<std::size_t>(3) * T);
-  vv.reserve(static_cast<std::size_t>(3) * T);
-
-  for (int i = 0; i < T; ++i) {
-    if (i == 0) {
-      ii.push_back(i); jj.push_back(i);   vv.push_back(1.0);
-      ii.push_back(i); jj.push_back(i+1); vv.push_back(-1.0);
-    } else if (i == T - 1) {
-      ii.push_back(i); jj.push_back(i-1); vv.push_back(-1.0);
-      ii.push_back(i); jj.push_back(i);   vv.push_back(1.0);
-    } else {
-      ii.push_back(i);   jj.push_back(i-1); vv.push_back(-1.0);
-      ii.push_back(i);   jj.push_back(i);   vv.push_back(2.0);
-      ii.push_back(i);   jj.push_back(i+1); vv.push_back(-1.0);
+  arma::mat result(n, Y.n_cols, arma::fill::zeros);
+  for (arma::uword col = 0; col < Y.n_cols; ++col) {
+    // Forward substitution starts with H'Y; each target shares the factor.
+    for (arma::uword i = 0; i < n; ++i) {
+      double value = 0.0;
+      const arma::uword count = std::min(n - i, kernel_length);
+      for (arma::uword k = 0; k < count; ++k) value += h[k] * Y(i + k, col);
+      const arma::uword first = (i > band) ? i - band : 0;
+      for (arma::uword j = first; j < i; ++j) value -= at(i, j) * result(j, col);
+      result(i, col) = value / at(i, i);
+    }
+    for (arma::uword offset = 0; offset < n; ++offset) {
+      const arma::uword i = n - 1 - offset;
+      double value = result(i, col);
+      const arma::uword last = std::min(n - 1, i + band);
+      for (arma::uword j = i + 1; j <= last; ++j) value -= at(j, i) * result(j, col);
+      result(i, col) = value / at(i, i);
     }
   }
-
-  const std::size_t nnz = vv.size();
-  arma::umat locations(2, nnz);
-  arma::vec values(nnz);
-  for (std::size_t idx = 0; idx < nnz; ++idx) {
-    locations(0, idx) = ii[idx];
-    locations(1, idx) = jj[idx];
-    values(idx) = vv[idx];
-  }
-
-  return sp_mat(locations, values, T, T);
-}
-
-// [[Rcpp::export]]
-arma::mat mppi_deconv_map(const arma::mat& Y, const arma::vec& h, const double lambda) {
-  const int T = Y.n_rows;
-  const int V = Y.n_cols;
-  sp_mat H = convmtx_sparse(h, T);
-  sp_mat R = diff1_R(T);
-  sp_mat A = H.t() * H + lambda * R;
-  arma::mat X(T, V, arma::fill::zeros);
-  arma::mat A_dense(A);
-  arma::mat Rchol = arma::chol(A_dense);
-  for (int v = 0; v < V; ++v) {
-    arma::vec b = H.t() * Y.col(v);
-    arma::vec y = arma::solve(arma::trimatl(Rchol.t()), b);
-    arma::vec x = arma::solve(arma::trimatu(Rchol), y);
-    X.col(v) = x;
-  }
-  return X;
+  return result;
 }

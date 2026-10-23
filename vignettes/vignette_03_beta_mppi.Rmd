@@ -1,0 +1,21 @@
+---
+title: "Beta-series task-modulated covariance"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Beta-series task-modulated covariance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Beta-series covariance slopes use trial-level estimates as input. This example
+is descriptive; beta-estimation uncertainty and the legacy beta-permutation
+null have not been qualified.
+
+```{r}
+library(multiPPI)
+set.seed(101)
+B <- matrix(rnorm(40 * 4), 40, 4)
+P <- cbind(condition = rep(c(0, 1), 20))
+fit <- mppi_fit_beta(B, P)
+fit$Delta[[1]]
+```

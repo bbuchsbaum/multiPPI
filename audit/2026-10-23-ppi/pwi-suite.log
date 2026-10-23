@@ -1,0 +1,8 @@
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+pwi: .........
+pwi_definitive: .........
+
+== DONE ========================================================================
+ failed skipped   error warning  passed 
+      0       0       0       0      18 

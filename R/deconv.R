@@ -12,14 +12,10 @@
   if (is.null(hrf_obj)) return(.mppi_default_spm(TR))
   if (is.numeric(hrf_obj)) return(as.numeric(hrf_obj))
   if (is.function(hrf_obj)) {
-    h <- try(hrf_obj(TR = TR), silent = TRUE)
-    if (!inherits(h, "try-error") && is.numeric(h)) return(as.numeric(h))
+    h <- hrf_obj(seq(0, 32, by = TR))
+    if (is.numeric(h) && is.null(dim(h))) return(as.numeric(h))
   }
-  if (requireNamespace("fmrihrf", quietly = TRUE)) {
-    out <- try(fmrihrf::spm_hrf(TR), silent = TRUE)
-    if (!inherits(out, "try-error")) return(as.numeric(out))
-  }
-  .mppi_default_spm(TR)
+  stop("HRF must be a numeric kernel or function evaluating one scalar kernel on times in seconds.", call. = FALSE)
 }
 
 #' MAP/Tikhonov deconvolution in neural domain
@@ -36,8 +32,7 @@ mppi_deconv <- function(Y, TR, hrf = NULL, lambda = 10) {
     stop("mppi_deconv: TR must be a positive scalar.", call. = FALSE)
   }
   h <- .mppi_hrf_to_vec(hrf, TR)
-  h <- h[h != 0]
-  if (!length(h)) stop("mppi_deconv: HRF vector is empty after removing zeros.", call. = FALSE)
+  if (!length(h) || any(!is.finite(h)) || !any(h != 0)) stop("mppi_deconv: HRF must be finite and nonzero.", call. = FALSE)
   if (length(h) > nrow(Y)) h <- h[seq_len(nrow(Y))]
   mppi_deconv_map(Y, h = h, lambda = lambda)
 }

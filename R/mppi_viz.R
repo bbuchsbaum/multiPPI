@@ -71,6 +71,8 @@ mppi_modes <- function(Delta, r = 3L, view = c("normalized", "raw", "amplitude")
 }
 
 #' Nodewise degree of modulation (L1 or L2)
+#' @param Delta interaction matrix
+#' @param type norm to use when aggregating (`"L1"` or `"L2"`)
 mppi_degree <- function(Delta, type = c("L1","L2")) {
   type <- match.arg(type)
   A <- abs(Delta)
@@ -78,6 +80,8 @@ mppi_degree <- function(Delta, type = c("L1","L2")) {
 }
 
 #' Project ΔΣ onto a hypothesis mask W (VxV)
+#' @param Delta slope matrix to project
+#' @param W hypothesis weight matrix (same dimension as `Delta`)
 mppi_project <- function(Delta, W) {
   stopifnot(all(dim(Delta) == dim(W)))
   sum(Delta * W, na.rm = TRUE)

@@ -19,7 +19,8 @@ mppi_fit_whitened(
   chunk_size = NULL,
   packed = FALSE,
   basis = NULL,
-  domain = c("neural", "bold"),
+  domain = c("bold", "neural", "innovations"),
+  deconv = NULL,
   project_backend = c("blas", "chunked"),
   project_chunk_cols = NULL,
   lags = 0L,
@@ -61,6 +62,9 @@ supported.}
 \item{basis}{Optional \code{mppi_basis} object for projecting into a subspace.}
 
 \item{domain}{Domain for the fit (\code{"neural"} or \code{"bold"}).}
+
+\item{deconv}{Reserved deconvolution specification; prewhitened neural
+construction is unsupported and rejected.}
 
 \item{project_backend}{Backend for projecting residuals into the basis.}
 

@@ -6,6 +6,15 @@
 \usage{
 mppi_edge(fit, k, i, j)
 }
+\arguments{
+\item{fit}{result of \code{mppi_fit()} with a basis}
+
+\item{k}{regressor index or name}
+
+\item{i}{ROI row index to evaluate}
+
+\item{j}{ROI column index to evaluate}
+}
 \description{
 Compute a single edge from a basis fit
 }

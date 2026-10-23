@@ -30,9 +30,37 @@ mppi_fit_from_fmrireg(
 
 \item{dataset}{fmrireg dataset supplying Y}
 
-\item{psych}{regex patterns or indices}
+\item{psych}{regex patterns or column indices identifying psychological regressors}
 
-\item{scale}{"normalized", "cov", or "corr"}
+\item{scale}{summary scale for returned matrices; choose among \code{"normalized"}, \code{"cov"}, or \code{"corr"}}
+
+\item{zero_diag}{logical; zero the diagonal of ΔΣ}
+
+\item{runs}{optional integer vector the same length as the rows of \code{Y} indicating run membership}
+
+\item{center_by}{strategy for mean-centering psychological regressors (\code{"none"} or per-\code{runs})}
+
+\item{na_action}{how to handle missing trials (\code{"omit_tr"} to drop them or \code{"error"} to abort)}
+
+\item{backend}{computational backend for cross-products (\code{"blas"}, \code{"accumulate"}, or \code{"chunked"})}
+
+\item{chunk_size}{optional column chunk size when using the chunked backend}
+
+\item{packed}{logical; return upper-triangular results in packed vector form}
+
+\item{basis}{optional basis definition used to project residuals before fitting}
+
+\item{project_backend}{backend for projecting onto the supplied basis}
+
+\item{project_chunk_cols}{optional number of columns per projection chunk}
+
+\item{domain}{working domain (\code{"bold"}, \code{"neural"}, or \code{"innovations"}); enables deconvolution if not bold}
+
+\item{deconv}{optional deconvolution configuration list used when \code{domain != "bold"}}
+
+\item{lags}{Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes)}
+
+\item{lag_blocklens}{Optional run lengths for lagged computations when \code{runs} is unavailable}
 }
 \description{
 Convenience wrapper when using fmrireg objects

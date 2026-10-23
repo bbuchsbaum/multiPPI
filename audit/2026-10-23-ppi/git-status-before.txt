@@ -1,0 +1,91 @@
+ M DESCRIPTION
+ M NAMESPACE
+ M R/mppi_adv_methods.R
+ M R/mppi_band.R
+ M R/mppi_basis.R
+ M R/mppi_beta.R
+ M R/mppi_design_interface.R
+ M R/mppi_fit.R
+ M R/mppi_inference.R
+ M R/mppi_lag.R
+ M R/mppi_neural.R
+ M R/mppi_partial.R
+ M R/mppi_s3.R
+ M R/mppi_sim_rest.R
+ M R/mppi_viz.R
+ M docs/articles/01_quickstart_fmrireg_mppi.html
+ M docs/articles/05_simulated_encode_recall.html
+ M docs/articles/06_rest_traits.html
+ M docs/articles/overview_mppi.html
+ M docs/index.html
+ M docs/pkgdown.yml
+ M docs/reference/index.html
+ M docs/reference/mppi.html
+ M docs/reference/mppi_beta_permute.html
+ M docs/reference/mppi_compare_models.html
+ M docs/reference/mppi_degree.html
+ M docs/reference/mppi_delta_partial.html
+ M docs/reference/mppi_edge.html
+ M docs/reference/mppi_fit.html
+ M docs/reference/mppi_fit_beta.html
+ M docs/reference/mppi_fit_from_fmrireg.html
+ M docs/reference/mppi_fit_multi_band.html
+ M docs/reference/mppi_gain.html
+ M docs/reference/mppi_get_M.html
+ M docs/reference/mppi_hrf_ensemble.html
+ M docs/reference/mppi_lag_select.html
+ M docs/reference/mppi_lagged.html
+ M docs/reference/mppi_neural_from_fit.html
+ M docs/reference/mppi_omnibus.html
+ M docs/reference/mppi_permute.html
+ M docs/reference/mppi_project.html
+ M docs/reference/mppi_reconstruct_delta.html
+ M docs/reference/mppi_routing_index.html
+ M docs/reference/mppi_sim_rest_cohort.html
+ M docs/sitemap.xml
+ M man/mppi.Rd
+ M man/mppi_beta_permute.Rd
+ M man/mppi_compare_models.Rd
+ M man/mppi_degree.Rd
+ M man/mppi_delta_partial.Rd
+ M man/mppi_edge.Rd
+ M man/mppi_fit.Rd
+ M man/mppi_fit_beta.Rd
+ M man/mppi_fit_from_fmrireg.Rd
+ M man/mppi_fit_multi_band.Rd
+ M man/mppi_gain.Rd
+ M man/mppi_get_M.Rd
+ M man/mppi_hrf_ensemble.Rd
+ M man/mppi_lag_select.Rd
+ M man/mppi_lagged.Rd
+ M man/mppi_neural_from_fit.Rd
+ M man/mppi_omnibus.Rd
+ M man/mppi_permute.Rd
+ M man/mppi_project.Rd
+ M man/mppi_reconstruct_delta.Rd
+ M man/mppi_routing_index.Rd
+ M man/mppi_sim_rest_cohort.Rd
+?? R/seed_ppi_mcca.R
+?? Rplots.pdf
+?? docs/reference/as_mppi_design.html
+?? docs/reference/mppi_design-generics.html
+?? docs/reference/mppi_group_hrf_columns.html
+?? docs/reference/mppi_model.html
+?? man/as_mppi_design.Rd
+?? man/mppi_design-generics.Rd
+?? man/mppi_group_hrf_columns.Rd
+?? man/mppi_model.Rd
+?? man/seed_ppi_mcca.Rd
+?? tests/testthat/test_seed_ppi_mcca.R
+?? tests/testthat/test_seed_ppi_mcca_known.R
+?? tests/testthat/test_seed_ppi_mcca_whiten.R
+?? vignettes/02_lagged_mppi.knit.md
+?? vignettes/08_seed_mcca.Rmd
+?? vignettes/test_include.Rmd
+?? vignettes/test_plot.Rmd
+?? vignettes/test_plot.html
+?? vignettes/test_plot_matrix.Rmd
+?? vignettes/test_plot_matrix.html
+?? vignettes/tmp_lagged.html
+?? vignettes/tmp_lagged_debug.html
+?? vignettes/tmp_lagged_new.html

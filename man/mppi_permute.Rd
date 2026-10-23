@@ -2,21 +2,39 @@
 % Please edit documentation in R/mppi_inference.R
 \name{mppi_permute}
 \alias{mppi_permute}
-\title{Edgewise permutations with optional studentization (experimental)
-Returns p-values matrix for a given regressor index}
+\title{Experimental edgewise covariance-modulation randomization}
 \usage{
 mppi_permute(
   fit,
   k = 1L,
   blksize = 10L,
   B = 999L,
-  wild = c("none", "rademacher", "mammen"),
-  studentize = TRUE,
+  wild = c("rademacher", "mammen", "none"),
+  studentize = FALSE,
   method = c("block_flip", "phase", "freedman_lane"),
   seed = NULL
 )
 }
+\arguments{
+\item{fit}{A covariance-modulation fit.}
+
+\item{k}{Regressor index or name.}
+
+\item{blksize}{Positive block length.}
+
+\item{B}{Number of draws.}
+
+\item{wild}{Block weights; the default is Rademacher.}
+
+\item{studentize}{Must be FALSE until a valid variance estimator is available.}
+
+\item{method}{Randomization method; Freedman-Lane is unavailable.}
+
+\item{seed}{Optional random seed.}
+}
+\value{
+Matrix of experimental edgewise randomization values.
+}
 \description{
-Edgewise permutations with optional studentization (experimental)
-Returns p-values matrix for a given regressor index
+Experimental edgewise covariance-modulation randomization
 }

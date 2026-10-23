@@ -6,6 +6,11 @@
 \usage{
 mppi_degree(Delta, type = c("L1", "L2"))
 }
+\arguments{
+\item{Delta}{interaction matrix}
+
+\item{type}{norm to use when aggregating (\code{"L1"} or \code{"L2"})}
+}
 \description{
 Nodewise degree of modulation (L1 or L2)
 }

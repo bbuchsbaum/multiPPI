@@ -14,19 +14,16 @@ mppi_rest_extract <- function(data, runs = NULL) {
     Y <- data
     TR <- attr(data, "TR")
     runs_ds <- runs %||% attr(data, "runs")
-  } else if (inherits(data, "fmri_dataset") && requireNamespace("fmridataset", quietly = TRUE)) {
-    Y <- fmridataset::get_data_matrix(data)
-    TR <- tryCatch(fmridataset::get_TR(data), error = function(e) NULL)
-    runs_ds <- runs %||% tryCatch(fmridataset::get_run_lengths(data), error = function(e) NULL)
-    if (length(runs_ds) && length(runs_ds) != nrow(Y)) {
-      runs_ds <- rep(seq_along(runs_ds), runs_ds)
-    }
-    if (!length(runs_ds)) {
-      runs_ds <- tryCatch(fmridataset::blockids(data), error = function(e) NULL)
-    }
+  } else if (inherits(data, "fmri_frame") && requireNamespace("fmridataset", quietly = TRUE)) {
+    Y <- fmridataset::collect_assay(data)
+    schema <- fmridataset::temporal_schema(data)
+    TR <- unique(as.numeric(schema$TR))
+    if (length(TR) != 1L || !is.finite(TR) || !isTRUE(schema$contiguous)) stop("Resting-state frame requires common regular sampling.", call. = FALSE)
+    if (!is.null(schema$censor) && any(schema$censor)) stop("Censored resting-state frames require a supported temporal missing-data model.", call. = FALSE)
+    runs_ds <- runs %||% schema$block_ids
   } else {
     Y <- data$Y %||% data$timeseries %||% stop("Provide a matrix or fmri_dataset-like object.", call. = FALSE)
-    TR <- runs <- NULL
+    TR <- data$TR %||% attr(data, "TR")
     runs_ds <- runs %||% data$runs %||% attr(data, "runs")
   }
   if (!is.null(runs_ds) && length(runs_ds) != nrow(Y)) {
@@ -34,7 +31,7 @@ mppi_rest_extract <- function(data, runs = NULL) {
   }
   list(
     Y = as.matrix(Y),
-    runs = if (is.null(runs_ds)) NULL else as.integer(runs_ds),
+    runs = runs_ds,
     TR = TR %||% attr(data, "TR")
   )
 }
@@ -76,7 +73,7 @@ mppi_rest_states <- function(U, K = 6L, method = c("kmeans", "hmm"),
     stop("Install depmixS4 to enable HMM-based microstates.", call. = FALSE)
   }
   responses <- lapply(seq_len(ncol(X)), function(j) X[, j] ~ 1)
-  fams <- replicate(ncol(X), depmixS4::gaussian(), simplify = FALSE)
+  fams <- replicate(ncol(X), stats::gaussian(), simplify = FALSE)
   mod <- depmixS4::depmix(response = responses, data = as.data.frame(X),
                           nstates = K, family = fams)
   fit <- suppressWarnings(depmixS4::fit(mod, verbose = FALSE))

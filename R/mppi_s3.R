@@ -1,6 +1,8 @@
 # S3 interface ---------------------------------------------------------------
 
 #' MultiPPI generic
+#' @param x object containing either time series or a prepared design
+#' @param ... additional arguments passed to class-specific methods
 mppi <- function(x, ...) {
   UseMethod("mppi")
 }
@@ -47,6 +49,15 @@ mppi.mppi_design <- function(x, Y, runs = NULL, prewhiten = FALSE,
       basis_source <- if (is.character(basis)) tolower(basis[[1L]]) else NULL
     } else {
       basis_source <- basis_obj$source %||% "provided"
+    }
+  }
+  if (domain != "bold" && !is.null(x$event_model)) {
+    tr <- mppi_tr(x$event_model)
+    if (length(tr) == 1L && is.finite(tr)) {
+      deconv <- deconv %||% list()
+      supplied <- deconv$tr %||% deconv$TR
+      if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between design and deconvolution.", call. = FALSE)
+      deconv$tr <- tr
     }
   }
   runs <- runs %||% x$runs
@@ -163,18 +174,6 @@ mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","i
   Y <- NULL
   TR_ds <- NULL
   runs_ds <- runs
-  if (inherits(x, "fmri_dataset") && requireNamespace("fmridataset", quietly = TRUE)) {
-    Y <- fmridataset::get_data_matrix(x)
-    TR_ds <- tryCatch(fmridataset::get_TR(x), error = function(e) NULL)
-    if (is.null(runs_ds)) {
-      run_lengths <- tryCatch(fmridataset::get_run_lengths(x), error = function(e) NULL)
-      if (!is.null(run_lengths)) {
-        runs_ds <- rep(seq_along(run_lengths), run_lengths)
-      } else {
-        runs_ds <- tryCatch(fmridataset::blockids(x), error = function(e) NULL)
-      }
-    }
-  }
   if (is.null(Y)) {
     Y <- x$Y %||% x$timeseries %||% x$X
   }
@@ -206,6 +205,23 @@ mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","i
 }
 
 #' @export
+mppi.fmri_frame <- function(x, fd, runs = NULL, deconv = NULL, ...) {
+  if (!requireNamespace("fmridataset", quietly = TRUE)) stop("fmridataset is required.", call. = FALSE)
+  Y <- as.matrix(fmridataset::collect_assay(x))
+  schema <- fmridataset::temporal_schema(x)
+  tr <- unique(as.numeric(schema$TR))
+  if (length(tr) != 1L || !is.finite(tr) || tr <= 0 || !isTRUE(schema$contiguous)) stop("Frame requires regular, common-TR sampling.", call. = FALSE)
+  if (!is.null(schema$censor) && any(schema$censor)) stop("Censored frames are unsupported by this adapter.", call. = FALSE)
+  design_tr <- tryCatch(mppi_tr(fd), error = function(e) NA_real_)
+  if (length(design_tr) == 1L && is.finite(design_tr) && abs(design_tr - tr) > 1e-6) stop("TR mismatch between frame and design.", call. = FALSE)
+  deconv <- deconv %||% list()
+  supplied <- deconv$tr %||% deconv$TR
+  if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between frame and deconvolution.", call. = FALSE)
+  deconv$tr <- tr
+  mppi(fd, Y = Y, runs = runs %||% schema$block_ids, deconv = deconv, ...)
+}
+
+#' @export
 mppi.default <- function(x, ...) {
   stop(sprintf("No mppi() method for objects of class %s", paste(class(x), collapse = ", ")), call. = FALSE)
 }
@@ -216,6 +232,7 @@ mppi.default <- function(x, ...) {
 
 # Print / summary ----------------------------------------------------------
 
+#' @export
 print.mppi_design <- function(x, ...) {
   cat(sprintf("mppi_design: %d time points x %d regressors (%d psychological)\n",
               nrow(x$X), ncol(x$X), length(x$psych_idx)))
@@ -228,6 +245,7 @@ print.mppi_design <- function(x, ...) {
   invisible(x)
 }
 
+#' @export
 print.mppi_fit <- function(x, ...) {
   cat(sprintf("mppi_fit: %d time points, %d regions, %d regressors\n",
               x$n_used, ncol(x$R), length(x$names)))
@@ -249,6 +267,7 @@ print.mppi_fit <- function(x, ...) {
   invisible(x)
 }
 
+#' @export
 summary.mppi_fit <- function(object, ...) {
   energies <- vapply(object$Delta, .mppi_frob2, numeric(1))
   res <- list(
@@ -267,6 +286,7 @@ summary.mppi_fit <- function(object, ...) {
   res
 }
 
+#' @export
 print.summary.mppi_fit <- function(x, ...) {
   cat(sprintf("mppi_fit summary: T=%d, V=%d, K=%d\n",
               x$timepoints, x$regions, x$regressors))
@@ -280,6 +300,11 @@ print.summary.mppi_fit <- function(x, ...) {
 
 # HRF grouping --------------------------------------------------------------
 
+#' Group HRF basis columns belonging to each condition.
+#'
+#' @param design An `mppi_design` object or design matrix with column names.
+#' @return A named list mapping condition keys to column indices.
+#' @export
 mppi_group_hrf_columns <- function(design) {
   if (inherits(design, "mppi_design")) {
     idx <- design$psych_idx

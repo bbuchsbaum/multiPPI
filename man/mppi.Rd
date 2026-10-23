@@ -6,6 +6,11 @@
 \usage{
 mppi(x, ...)
 }
+\arguments{
+\item{x}{object containing either time series or a prepared design}
+
+\item{...}{additional arguments passed to class-specific methods}
+}
 \description{
 MultiPPI generic
 }

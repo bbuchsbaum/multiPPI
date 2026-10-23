@@ -2,7 +2,7 @@
 % Please edit documentation in R/mppi_neural.R
 \name{mppi_compare_models}
 \alias{mppi_compare_models}
-\title{Compare bold vs neural-domain fits (Δ-gap, AIC difference)}
+\title{Compare bold vs neural-domain fits by descriptive slope gap}
 \usage{
 mppi_compare_models(
   fit_bold,
@@ -12,6 +12,17 @@ mppi_compare_models(
   pk = NULL
 )
 }
+\arguments{
+\item{fit_bold}{output of \code{mppi_fit()} in the BOLD domain}
+
+\item{fit_neural}{output of \code{mppi_fit()} or \code{mppi_neural_from_fit()} in the neural domain}
+
+\item{resid_bold}{optional residual matrix from the BOLD fit (time x V)}
+
+\item{resid_neural}{optional residual matrix from the neural fit (time x V)}
+
+\item{pk}{optional list of psychological regressors (aligned with fits) used for information criteria}
+}
 \description{
-Compare bold vs neural-domain fits (Δ-gap, AIC difference)
+Compare bold vs neural-domain fits by descriptive slope gap
 }

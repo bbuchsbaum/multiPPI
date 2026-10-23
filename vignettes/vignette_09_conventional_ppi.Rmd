@@ -1,0 +1,104 @@
+---
+title: "Conventional PPI and gPPI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Conventional PPI and gPPI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(multiPPI)
+```
+
+Conventional PPI fits the interaction of a seed's estimated neural signal and
+psychological input, together with the adjusted seed, task effects, and run
+intercepts. It estimates a regression coefficient conditional on this design;
+it does not establish causal or latent neural coupling. `mppi_fit()` instead
+estimates task-modulated covariance matrices, a different estimand.
+
+## Two runs with event inputs
+
+Onsets and durations are in seconds from the start of each run. The seed is raw
+BOLD on the full acquisition grid. By default, the builder removes run baselines
+and nuisance effects from the seed conditional on centered task main effects,
+then deconvolves independently by run. Use `seed_adjust = "none"` only when
+the raw input needs no such adjustment. It
+centers each condition on its neural grid for the interaction, reconvolves with
+the specified HRF, and retains task main effects. Its microtime binning and
+normalization are documented in `?ppi_design`; equivalence to another package's
+PPI implementation is not implied.
+
+```{r events}
+set.seed(2026)
+n <- 120L
+runs <- rep(c("one", "two"), each = 60)
+seed <- as.numeric(stats::arima.sim(list(ar = .35), n = n))
+events <- data.frame(
+  onset = rep(c(4, 16, 28, 40, 52, 64, 76, 88, 100), 2),
+  duration = 2,
+  condition = rep(c("A", "B", "A", "B", "A", "B", "A", "B", "A"), 2),
+  run = rep(c("one", "two"), each = 9)
+)
+design <- ppi_design(seed, events = events, TR = 2, runs = runs,
+                     run_effects = "shared")
+# Synthetic target data; real target data must have the same rows as the design.
+Y <- matrix(rnorm(n * 3), nrow = n)
+fit <- ppi_fit(Y, design, noise = "iid")
+contrast <- ppi_contrast(fit, c(A = 1, B = -1))
+contrast$estimate
+contrast$p_value
+```
+
+A named condition contrast selects interaction columns; with separate run
+columns the condition weights average equally across runs. Aliased terms remain
+in the design and nonestimable contrasts return `NA`.
+
+## Scan-grid psychological inputs
+
+A numeric matrix explicitly means scan-grid *neural psychological inputs*, held
+constant within each TR. It is not a convolved BOLD task design. Alternatively,
+use `list(values = ..., grid = "neural")` for a microtime-grid matrix.
+
+```{r psych}
+psych <- cbind(A = rep(c(0, 1), length.out = n),
+               B = rep(c(0, 0, 1, 1), length.out = n))
+scan_design <- ppi_design(seed, psych = psych, TR = 2, runs = runs,
+                          run_effects = "shared")
+scan_design$provenance$psych_grid
+```
+
+## Temporal noise and censoring
+
+`noise = "fmriAR"` estimates a common noise operator from full-model residuals.
+Shared operators assume sufficiently similar target noise: a heterogeneous
+simulation in the accompanying validation found inflated false positives under
+shared pooling. Fit separate operators by assigning each target its own label;
+this is more expensive. Estimated-noise inference is approximate.
+
+```{r noise}
+shared <- ppi_fit(Y, design, noise = "fmriAR", noise_control = list(p = 1L))
+separate <- ppi_fit(Y, design, noise = "fmriAR",
+                    noise_control = list(p = 1L, pooling = "parcel",
+                                         parcels = seq_len(ncol(Y))))
+ppi_contrast(separate, c(A = 1, B = -1))$standard_error
+```
+
+Censoring retains the original grid. Currently a censored conventional fit
+supports IID errors; an AR fit with gaps is rejected because its correct
+observed-data covariance has not yet been implemented.
+
+```{r censor}
+censor <- rep(FALSE, n); censor[c(15, 75)] <- TRUE
+censored_design <- ppi_design(seed, events = events, TR = 2, runs = runs,
+                              censor = censor, run_effects = "shared")
+censored_fit <- ppi_fit(Y, censored_design, noise = "iid")
+sum(censored_fit$design$keep)
+```
+
+These examples demonstrate the API rather than statistical calibration. Legacy
+covariance resampling methods that lack a supported null fail closed; model
+evidence in the legacy path concerns task main effects, not interaction
+likelihood evidence. See `inst/validation/README.md` in the source for the
+scope of reproducible checks and their limitations.

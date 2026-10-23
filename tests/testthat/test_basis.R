@@ -44,12 +44,18 @@ test_that("neural domain matches direct conversion", {
   runs <- rep(1:3, each = 20)
   basis <- as_mppi_basis(diag(V), name = "id")
   h <- mppi_default_hrf(tr = 1)
+  expect_error(mppi_fit(Y, X, psych_idx = 2L, runs = runs, basis = basis,
+                        domain = "neural", deconv = list(K = 32)), "K must be in 1..T")
   fit_neural <- mppi_fit(Y, X, psych_idx = 2L, runs = runs,
                          basis = basis, domain = "neural",
-                         deconv = list(K = 32))
+                         deconv = list(K = 10, method = "fixed", lambda = 0.1))
   fit_bold <- mppi_fit(Y, X, psych_idx = 2L, runs = runs,
                         basis = basis, domain = "bold")
-  conv <- mppi_neural_from_fit(fit_bold, X, psych_idx = 2L, h = h, K = 32)
+  conv <- mppi_neural_from_fit(fit_bold, X, psych_idx = 2L, h = h, K = 10, method = "fixed")
+  residual <- qr.resid(qr(X), Y) %*% basis$V
+  reference <- do.call(rbind, lapply(split(seq_len(Tn), runs), function(i)
+    multiPPI:::mppi_deconv_dct(residual[i, , drop = FALSE], h, K = 10, method = "fixed", lambda = 0.1)$U))
+  expect_equal(unname(fit_neural$U), unname(reference), tolerance = 1e-8)
   expect_equal(mppi_get_M_scaled(fit_neural, 1L, mode = "raw"),
                mppi_get_M_scaled(conv, 1L, mode = "raw"), tolerance = 1e-6)
   expect_equal(fit_neural$deconv$hrf, h)
@@ -69,15 +75,14 @@ test_that("permutation seed is reproducible", {
   expect_equal(pm1, pm2)
 })
 
-test_that("freedman-lane permutation returns valid matrix", {
+test_that("freedman-lane permutation requires a qualified reduced model", {
   set.seed(5)
   Tn <- 30L; V <- 4L
   Y <- matrix(rnorm(Tn * V), Tn, V)
   X <- cbind(Intercept = 1, task = rnorm(Tn))
   fit <- mppi_fit(Y, X, psych_idx = 2L)
-  pmat <- mppi_permute(fit, k = 1L, blksize = 5L, B = 29L,
-                       method = "freedman_lane", seed = 77,
-                       studentize = FALSE)
-  expect_equal(dim(pmat), c(V, V))
-  expect_true(all(is.na(diag(pmat))))
+  expect_error(mppi_permute(fit, k = 1L, blksize = 5L, B = 29L,
+                            method = "freedman_lane", seed = 77,
+                            studentize = FALSE),
+               "Freedman-Lane is unavailable: a qualified reduced product-nuisance model is required")
 })

@@ -32,16 +32,38 @@ mppi_fit(
 
 \item{psych_idx}{integer indices of psychological columns in X}
 
+\item{runs}{optional integer vector the same length as the rows of \code{Y} indicating run membership}
+
 \item{zero_diag}{logical; zero the diagonal of ΔΣ}
 
-\item{scale}{"cov" (default) or "corr" to standardize R to unit SD}
+\item{scale}{summary scale for returned matrices; choose among \code{"normalized"}, \code{"cov"}, or \code{"corr"}}
 
-\item{lags}{Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes).}
+\item{center_by}{strategy for mean-centering psychological regressors (\code{"none"} or per-\code{runs})}
 
-\item{lag_blocklens}{Optional run lengths for lagged computations when \code{runs} is unavailable.}
+\item{na_action}{how to handle missing trials (\code{"omit_tr"} to drop them or \code{"error"} to abort)}
+
+\item{backend}{computational backend for cross-products (\code{"blas"}, \code{"accumulate"}, or \code{"chunked"})}
+
+\item{packed}{logical; return upper-triangular results in packed vector form}
+
+\item{chunk_size}{optional column chunk size when using the chunked backend}
+
+\item{basis}{optional basis definition used to project residuals before fitting}
+
+\item{project_backend}{backend for projecting onto the supplied basis}
+
+\item{project_chunk_cols}{optional number of columns per projection chunk}
+
+\item{domain}{working domain (\code{"bold"}, \code{"neural"}, or \code{"innovations"}); enables deconvolution if not bold}
+
+\item{deconv}{optional deconvolution configuration list used when \code{domain != "bold"}}
+
+\item{lags}{Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes)}
+
+\item{lag_blocklens}{Optional run lengths for lagged computations when \code{runs} is unavailable}
 }
 \value{
-list with contemporaneous and lagged slope matrices plus residual metadata.
+list with contemporaneous and lagged slope matrices plus residual metadata
 }
 \description{
 Matrix-PPI estimator from raw matrices

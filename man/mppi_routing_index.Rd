@@ -14,6 +14,21 @@ mppi_routing_index(
   eps = 1e-08
 )
 }
+\arguments{
+\item{fits_by_lag}{either an \code{mppi_fit} fitted with lagged matrices or a named list of lagged fits}
+
+\item{k}{condition index or name to evaluate}
+
+\item{hierarchy}{numeric hierarchy vector (length = number of components/ROIs)}
+
+\item{space}{coordinate space to evaluate (\code{"auto"}, \code{"basis"}, or \code{"roi"})}
+
+\item{pos}{integer lags treated as positive routing}
+
+\item{neg}{integer lags treated as negative routing}
+
+\item{eps}{numerical guard to avoid division by zero}
+}
 \description{
 Routing asymmetry index using lagged fits and a hierarchy vector
 }

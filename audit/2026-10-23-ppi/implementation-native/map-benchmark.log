@@ -1,0 +1,13 @@
+During startup - Warning messages:
+1: Setting LC_CTYPE failed, using "C" 
+2: Setting LC_COLLATE failed, using "C" 
+3: Setting LC_TIME failed, using "C" 
+4: Setting LC_MESSAGES failed, using "C" 
+5: Setting LC_MONETARY failed, using "C" 
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+n=256 band_sec=0.001000 dense_sec=0.003000 max_abs_error=1.11e-15
+n=512 band_sec=0.001000 dense_sec=0.006000 max_abs_error=8.882e-16
+n=1024 band_sec=0.002000 dense_sec=0.021000 max_abs_error=1.554e-15
+n=2048 band_sec=0.004000 dense_sec=0.441000 max_abs_error=1.11e-15
+n=4096 band_sec=0.009000 dense_sec=1.364000 max_abs_error=1.11e-15

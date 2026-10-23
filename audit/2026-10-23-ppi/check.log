@@ -1,0 +1,30 @@
+* using log directory '/private/tmp/multippi-audit-20261023-5_j41_sk/multiPPI.Rcheck'
+* using R version 4.5.1 (2025-06-13)
+* using platform: aarch64-apple-darwin20
+* R was compiled by
+    Apple clang version 16.0.0 (clang-1600.0.26.6)
+    GNU Fortran (GCC) 14.2.0
+* running under: macOS Sonoma 14.3
+* using session charset: ASCII
+* using options '--no-manual --no-build-vignettes'
+* checking for file 'multiPPI/DESCRIPTION' ... OK
+* checking extension type ... Package
+* this is package 'multiPPI' version '0.1.0'
+* package encoding: UTF-8
+* checking package namespace information ... OK
+* checking package dependencies ... ERROR
+Package suggested but not available: 'limma'
+
+The suggested packages are required for a complete check.
+Checking can be attempted without them by setting the environment
+variable _R_CHECK_FORCE_SUGGESTS_ to a false value.
+
+See section 'The DESCRIPTION file' in the 'Writing R Extensions'
+manual.
+* DONE
+
+Status: 1 ERROR
+See
+  '/private/tmp/multippi-audit-20261023-5_j41_sk/multiPPI.Rcheck/00check.log'
+for details.
+

@@ -7,7 +7,7 @@
 mppi_to_partial(Sigma0, DeltaSigma, lambda = 0.001)
 }
 \arguments{
-\item{Sigma0}{baseline covariance (T^{-1} R'R) or correlation}
+\item{Sigma0}{baseline covariance (R'R divided by T) or correlation}
 
 \item{DeltaSigma}{slope matrix for regressor k}
 

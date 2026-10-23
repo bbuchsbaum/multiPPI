@@ -15,6 +15,23 @@ mppi_neural_from_fit(
   groups = NULL
 )
 }
+\arguments{
+\item{fit}{result of \code{mppi_fit()} fit in the BOLD domain}
+
+\item{X}{design matrix used for the original fit (time x predictors)}
+
+\item{psych_idx}{indices of psychological regressors within \code{X}}
+
+\item{h}{canonical HRF or vector used for deconvolution}
+
+\item{K}{optional number of DCT components to retain during deconvolution}
+
+\item{method}{smoothing strategy for HRF estimation (\code{"gcv"} or \code{"fixed"})}
+
+\item{lambda}{penalty strength when \code{method = "fixed"}}
+
+\item{groups}{optional grouping of psychological columns for shared HRFs}
+}
 \description{
 Convert an existing bold-domain fit to neural domain
 }

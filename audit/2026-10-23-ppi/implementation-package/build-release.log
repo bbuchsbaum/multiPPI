@@ -1,0 +1,12 @@
+* checking for file 'release-check-source/DESCRIPTION' ... OK
+* preparing 'multiPPI':
+* checking DESCRIPTION meta-information ... OK
+* cleaning src
+* installing the package to build vignettes
+* creating vignettes ... OK
+* cleaning src
+* checking for LF line-endings in source and make files and shell scripts
+* checking for empty or unneeded directories
+Removed empty directory 'multiPPI/tests/testthat/_snaps'
+* building 'multiPPI_0.1.0.tar.gz'
+

@@ -1,0 +1,5 @@
+"gate","pass","value"
+"matched null projections within 1e-8 mean scale",TRUE,2.07771905990286e-16
+"matched effect contrast full rank and estimable",TRUE,14
+"matched effect bootstrap lower mean bstar positive",TRUE,0.654042682563065
+"matched effect rejection exceeds paired constant null",TRUE,0.4915

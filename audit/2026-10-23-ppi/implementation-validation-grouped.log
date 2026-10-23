@@ -1,0 +1,14 @@
+During startup - Warning messages:
+1: Setting LC_CTYPE failed, using "C" 
+2: Setting LC_COLLATE failed, using "C" 
+3: Setting LC_TIME failed, using "C" 
+4: Setting LC_MESSAGES failed, using "C" 
+5: Setting LC_MONETARY failed, using "C" 
+250 complete
+500 complete
+750 complete
+1000 complete
+1250 complete
+1500 complete
+1750 complete
+2000 complete

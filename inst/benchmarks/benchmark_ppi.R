@@ -1,0 +1,37 @@
+# Run each target count in a fresh R process under /usr/bin/time -l.
+# Outputs are full equivalent fit results compared across chunk sizes.
+args <- commandArgs(trailingOnly=TRUE)
+if (!length(args)) {
+  for (v in c(400L,1000L,50000L)) {
+    free <- system('df -Pk . | tail -1', intern=TRUE)
+    kb <- as.numeric(strsplit(trimws(free),'[[:space:]]+')[[1]][4])
+    if (is.na(kb) || kb < 20*1024^2) stop('Less than 20 GiB available; benchmark paused')
+    outfile <- sprintf('audit/2026-10-23-ppi/implementation-benchmark-%d.log',v)
+    status <- system2('Rscript',c('inst/benchmarks/benchmark_ppi.R',v),stdout=outfile,stderr=outfile)
+    if (status != 0) stop('benchmark worker failed: ',v, '; see ',outfile)
+    cat('completed',v,'targets\n'); flush.console()
+  }
+  quit(save='no')
+}
+paths <- c('R/ppi_design.R','R/ppi_fit.R','inst/benchmarks/benchmark_ppi.R')
+start_hash <- tools::md5sum(paths)
+source('R/ppi_design.R'); source('R/ppi_fit.R')
+v <- as.integer(args[1]); set.seed(122034)
+n <- 600L; seed <- as.numeric(arima.sim(list(ar=.4),n=n))
+p <- cbind(A=sin(seq_len(n)/9),B=cos(seq_len(n)/17),C=sin(seq_len(n)/31))
+tdesign <- system.time(d <- ppi_design(seed,psych=p,TR=1,microtime=16,deconv=list(n_basis=64),run_effects='shared'))
+Y <- matrix(rnorm(n*v),n,v)
+t1 <- system.time(f1 <- ppi_fit(Y,d,noise='iid',chunk_size=256))
+t2 <- system.time(f2 <- ppi_fit(Y,d,noise='iid',chunk_size=2048))
+t3 <- system.time(f3 <- ppi_fit(Y,d,noise='iid',chunk_size=256))
+for (field in c('coefficients','standard_errors','sigma2')) stopifnot(isTRUE(all.equal(f1[[field]],f2[[field]],tolerance=1e-10)),isTRUE(all.equal(f1[[field]],f3[[field]],tolerance=1e-10)))
+cat('targets',v,'T',n,'K',ncol(p),'microtime 16 seed 122034\n')
+cat('design elapsed',tdesign[['elapsed']],'\n')
+cat('fit cold chunk256 elapsed',t1[['elapsed']],'\n')
+cat('fit warm chunk2048 elapsed',t2[['elapsed']],'\n')
+cat('fit repeat chunk256 elapsed',t3[['elapsed']],'\n')
+cat('coefficients, standard errors and sigma2 matched to tolerance 1e-10\n')
+cat('R',R.version.string,'fmrihrf',as.character(packageVersion('fmrihrf')),'\n')
+stopifnot(identical(start_hash, tools::md5sum(paths)))
+print(start_hash)
+cat('Peak RSS is measured by the optional peak_rss.py wrapper, not by this R script.\n')

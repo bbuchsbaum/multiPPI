@@ -23,28 +23,25 @@ test_that("mppi_permute phase method returns metadata", {
   expect_equal(meta$method, "phase")
 })
 
-test_that("freedman-lane omnibus runs and returns metadata", {
+test_that("freedman-lane omnibus requires a qualified reduced model", {
   set.seed(1234)
   Tn <- 24L; V <- 3L
   Y <- matrix(rnorm(Tn * V), Tn, V)
   X <- cbind(Intercept = 1, task = rnorm(Tn))
   fit <- mppi_fit(Y, X, psych_idx = 2L)
-  res <- mppi_omnibus(fit, blksize = 4L, B = 19L, method = "freedman_lane", seed = 42)
-  meta <- attr(res, "rng")
-  expect_equal(meta$method, "freedman_lane")
-  expect_equal(length(res[[1]]$Qnull), 19L)
+  expect_error(mppi_omnibus(fit, blksize = 4L, B = 19L, method = "freedman_lane", seed = 42),
+               "Freedman-Lane is unavailable: a qualified reduced product-nuisance model is required")
 })
 
-test_that("freedman-lane edgewise permutation yields matrix", {
+test_that("freedman-lane and invalid studentization are rejected", {
   set.seed(567)
   Tn <- 20L; V <- 3L
   Y <- matrix(rnorm(Tn * V), Tn, V)
   X <- cbind(Intercept = 1, task = rnorm(Tn))
   fit <- mppi_fit(Y, X, psych_idx = 2L)
-  pm <- mppi_permute(fit, k = 1L, blksize = 4L, B = 9L, method = "freedman_lane", seed = 99,
-                     studentize = FALSE)
-  expect_equal(dim(pm), c(V, V))
-  expect_true(all(is.na(diag(pm))))
-  meta <- attr(pm, "rng")
-  expect_equal(meta$method, "freedman_lane")
+  expect_error(mppi_permute(fit, k = 1L, blksize = 4L, B = 9L, method = "freedman_lane", seed = 99,
+                            studentize = FALSE),
+               "Freedman-Lane is unavailable: a qualified reduced product-nuisance model is required")
+  expect_error(mppi_permute(fit, studentize = TRUE),
+               "Studentization is unavailable pending a valid variance estimator")
 })

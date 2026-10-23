@@ -1,0 +1,7 @@
+seed 122031 design; seed 122036 simulation; one-sided 95% upper <= .075; supplemental screen.
+                        R/ppi_design.R                            R/ppi_fit.R 
+    "b2875da66ddf7f895a7a5898cb3a02b2"     "15cd6e3a651e4a17154166ed07ec1c48" 
+inst/validation/validate_ppi_grouped.R 
+    "bf91b8fe3fbfe41f7d0e7341bcfb27e2" 
+R version 4.5.1 (2025-06-13)
+fmriAR 0.4.2

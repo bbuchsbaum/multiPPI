@@ -26,6 +26,14 @@ mppi_coerce_beta <- function(obj) {
 #' @param B nTrials x V beta matrix
 #' @param Pbeta nTrials x K psychological regressors (trial-level)
 #' @param Cbeta optional nTrials x q trial-level confounds
+#' @param runs optional vector tagging the run for each trial (used for centering)
+#' @param zero_diag logical; zero the diagonal of the returned Δ matrices
+#' @param scale compute covariance (`"cov"`) or correlation (`"corr"`) slopes
+#' @param center_by strategy for mean-centering the psychological regressors
+#' @param na_action how to handle rows with missing entries (`"omit_tr"` or stop)
+#' @param backend backend used for cross-products (`"blas"`, `"accumulate"`, or `"chunked"`)
+#' @param packed logical; return packed upper-triangle matrices
+#' @param chunk_size optional chunk size when using the chunked backend
 #' @return list with Delta, names, RB, pk (residualized regressors), and meta information per regressor
 mppi_fit_beta <- function(B, Pbeta, Cbeta = NULL, runs = NULL,
                           zero_diag = TRUE, scale = c("cov","corr"),
@@ -108,6 +116,12 @@ mppi_fit_beta <- function(B, Pbeta, Cbeta = NULL, runs = NULL,
 }
 
 #' Permutation for β-mPPI omnibus per regressor
+#' @inheritParams mppi_fit_beta
+#' @param run_trial optional integer vector identifying runs per trial (overrides `runs` for permutations)
+#' @param blksize optional block length (trials) used when `run_trial` is absent
+#' @param Bperm number of permutations to draw
+#' @param seed optional RNG seed for reproducibility
+#' @param method permutation strategy (`"auto"`, `"block_flip"`, or `"permute"`)
 mppi_beta_permute <- function(B, Pbeta, Cbeta = NULL, run_trial = NULL,
                               blksize = NULL, Bperm = 999L, zero_diag = TRUE,
                               seed = NULL, method = c("auto","block_flip","permute")) {

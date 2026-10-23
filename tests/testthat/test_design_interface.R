@@ -30,8 +30,9 @@ test_that("fmridesign helpers produce coherent bundles", {
 
 })
 
-test_that("mppi() handles fmridesign and fmri_dataset inputs", {
+test_that("mppi() handles fmridesign and fmri_frame inputs", {
   skip_if_not_installed("fmridataset")
+  skip_if_not_installed("fmrireg")
   suppressPackageStartupMessages(library(fmridesign))
   set.seed(22)
   Tn <- 24L
@@ -60,14 +61,11 @@ test_that("mppi() handles fmridesign and fmri_dataset inputs", {
   expect_equal(design_raw, manual_raw)
   expect_equal(via_design$pk, manual$pk)
 
-  ds <- fmridataset::matrix_dataset(datamat = Y, TR = 1.5, run_length = c(Tn))
-  via_ds <- mppi(ds, design, domain = "bold", basis = "roi")
+  ds <- fmrireg::matrix_frame(datamat = Y, TR = 1.5, run_length = c(Tn))
+  via_ds <- mppi.fmri_frame(ds, design, domain = "bold")
 
   ds_raw <- lapply(seq_along(via_ds$Delta), function(i) mppi_get_M_scaled(via_ds, i, mode = "raw"))
   expect_equal(ds_raw, manual_raw)
   expect_equal(via_ds$pk, manual$pk)
 
-  via_ds_pca <- mppi(ds, design, domain = "bold")
-  expect_true(!is.null(via_ds_pca$basis))
-  expect_equal(nrow(via_ds_pca$basis$V), ncol(Y))
 })

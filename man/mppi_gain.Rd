@@ -6,6 +6,15 @@
 \usage{
 mppi_gain(fit, k = 1L, lambda = 0.001, roi_idx = NULL)
 }
+\arguments{
+\item{fit}{result of \code{mppi_fit()} (basis aware fits supported)}
+
+\item{k}{condition index or name within \code{fit}}
+
+\item{lambda}{ridge penalty applied to the baseline precision}
+
+\item{roi_idx}{optional subset of ROI indices when mapping a basis fit back to voxel/ROI space}
+}
 \description{
 Gain/precision index from ΔTheta
 }

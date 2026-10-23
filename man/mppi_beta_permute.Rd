@@ -16,6 +16,25 @@ mppi_beta_permute(
   method = c("auto", "block_flip", "permute")
 )
 }
+\arguments{
+\item{B}{nTrials x V beta matrix}
+
+\item{Pbeta}{nTrials x K psychological regressors (trial-level)}
+
+\item{Cbeta}{optional nTrials x q trial-level confounds}
+
+\item{run_trial}{optional integer vector identifying runs per trial (overrides \code{runs} for permutations)}
+
+\item{blksize}{optional block length (trials) used when \code{run_trial} is absent}
+
+\item{Bperm}{number of permutations to draw}
+
+\item{zero_diag}{logical; zero the diagonal of the returned Δ matrices}
+
+\item{seed}{optional RNG seed for reproducibility}
+
+\item{method}{permutation strategy (\code{"auto"}, \code{"block_flip"}, or \code{"permute"})}
+}
 \description{
 Permutation for β-mPPI omnibus per regressor
 }

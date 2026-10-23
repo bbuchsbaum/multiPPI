@@ -13,7 +13,7 @@
 #'   `aggregate = TRUE`, `aggregate` summarising totals. Columns include
 #'   per-component AIC/BIC for the full and baseline models and their
 #'   differences (baseline minus full). Positive deltas indicate improved
-#'   evidence for the PPI model.
+#'   evidence for the task main effects in the baseline GLM, not for covariance modulation.
 #' @export
 mppi_evidence <- function(fit, aggregate = TRUE) {
   if (!inherits(fit, "mppi_fit")) {
@@ -56,6 +56,7 @@ mppi_evidence <- function(fit, aggregate = TRUE) {
     delta_BIC = delta_bic,
     stringsAsFactors = FALSE
   )
+  attr(per_column, "estimand") <- "task_main_effect_baseline_glm"
   if (!aggregate) {
     return(per_column)
   }
@@ -72,5 +73,6 @@ mppi_evidence <- function(fit, aggregate = TRUE) {
     delta_BIC = sum(delta_bic),
     stringsAsFactors = FALSE
   )
-  list(per_column = per_column, aggregate = agg)
+  list(per_column = per_column, aggregate = agg, estimand = "task_main_effect_baseline_glm",
+       response_domain = if (identical(fit$domain, "whitened_bold")) "whitened_bold" else "bold", qualification = "Task main-effect fit; not evidence for covariance modulation or PPI.")
 }

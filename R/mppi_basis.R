@@ -118,6 +118,8 @@ as_mppi_basis <- function(V, name = "basis", orthonormalize = TRUE) {
 }
 
 #' Extract a basis-space interaction matrix
+#' @param fit result of `mppi_fit()`
+#' @param k regressor index or name to extract
 mppi_get_M <- function(fit, k) {
   if (is.character(k)) idx <- match(k, fit$names) else idx <- k
   if (is.na(idx) || idx < 1 || idx > length(fit$Delta)) stop("Invalid regressor index")
@@ -161,6 +163,10 @@ mppi_get_M_lag <- function(fit, k, lag = 0L) {
 }
 
 #' Reconstruct a submatrix of Δ from a basis fit
+#' @param fit result of `mppi_fit()`
+#' @param k regressor index or name
+#' @param rows optional subset of row indices in ROI space
+#' @param cols optional subset of column indices in ROI space
 mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL) {
   if (is.null(fit$basis)) {
     D <- mppi_get_M(fit, k)
@@ -183,6 +189,10 @@ mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL) {
 }
 
 #' Compute a single edge from a basis fit
+#' @param fit result of `mppi_fit()` with a basis
+#' @param k regressor index or name
+#' @param i ROI row index to evaluate
+#' @param j ROI column index to evaluate
 mppi_edge <- function(fit, k, i, j) {
   if (is.null(fit$basis)) stop("mppi_edge() requires a basis-aware fit.")
   V <- fit$basis$V

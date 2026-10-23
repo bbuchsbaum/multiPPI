@@ -2,7 +2,7 @@
 % Please edit documentation in R/mppi_seedset.R
 \name{mppi_seedset_permute}
 \alias{mppi_seedset_permute}
-\title{Freedman–Lane permutations for a seed-set map}
+\title{Unavailable seed-set permutation inference}
 \usage{
 mppi_seedset_permute(
   fit,
@@ -42,8 +42,11 @@ mppi_seedset_permute(
 \item{keep_draws}{Logical; store the seed-set maps for each permutation.}
 }
 \value{
-List with observed map, p-values, z-scores, and permutation metadata.
+Stops with an explanatory error; no p-values are computed.
 }
 \description{
-Freedman–Lane permutations for a seed-set map
+The former product-permutation procedure did not fit the complete reduced
+nuisance model and held data-adaptive seed weights fixed. This entry point
+rejects inference until a valid replacement is qualified. Descriptive maps
+remain available through \code{\link[=mppi_seedset_map]{mppi_seedset_map()}}.
 }

@@ -31,7 +31,7 @@ test_that("mppi_coerce_beta coerces frame and list inputs", {
   expect_error(mppi_coerce_beta(bad_list), "same length")
 })
 
-test_that("mppi_compare_models returns delta gaps and AIC differences", {
+test_that("mppi_compare_models returns descriptive gaps and rejects cross-domain AIC", {
   fit_bold <- list(names = c("c1", "c2"),
                    Delta = list(matrix(c(1, 0, 0, 1), 2),
                                 matrix(c(0, 1, 1, 2), 2)))
@@ -45,38 +45,29 @@ test_that("mppi_compare_models returns delta gaps and AIC differences", {
   resid_neural <- resid_bold * 0.5
   pk <- list(c(1, 0, 1), c(0, 1, 1))
 
-  res <- mppi_compare_models(fit_bold, fit_neural,
+  expect_error(mppi_compare_models(fit_bold, fit_neural,
                              resid_bold = resid_bold,
                              resid_neural = resid_neural,
-                             pk = pk)
+                             pk = pk), "AIC comparisons")
+  res <- mppi_compare_models(fit_bold, fit_neural)
   expect_equal(res$names, c("c1", "c2"))
   expect_equal(res$delta_gap, c(sqrt(0.5), 3), tolerance = 1e-7)
-  expect_true(all(res$AIC_diff > 0))
+  expect_null(res$AIC_diff)
 })
 
-test_that("mppi_hrf_ensemble blends fits with data-driven or manual weights", {
-  fit1 <- list(names = "c1",
-               Delta = list(matrix(c(1, 0, 0, 1), 2)),
-               AIC_total = c(10),
-               packed = FALSE)
-  fit2 <- list(names = "c1",
-               Delta = list(matrix(c(3, 0, 0, 3), 2)),
-               AIC_total = c(12),
-               packed = FALSE)
-  class(fit1) <- class(fit2) <- c("mppi_fit", "list")
-
-  ens_auto <- mppi_hrf_ensemble(list(fit1 = fit1, fit2 = fit2))
-  weights_auto <- ens_auto$ensemble$weights
-  expect_equal(sum(weights_auto), 1)
-  expected_auto <- weights_auto[["fit1"]] * fit1$Delta[[1]] +
-    weights_auto[["fit2"]] * fit2$Delta[[1]]
-  expect_equal(ens_auto$Delta[[1]], expected_auto, tolerance = 1e-7)
-  expect_equal(ens_auto$ensemble$method, "aic")
-
-  ens_manual <- mppi_hrf_ensemble(list(fit1 = fit1, fit2 = fit2), weights = c(0.2, 0.8))
-  expected_manual <- 0.2 * fit1$Delta[[1]] + 0.8 * fit2$Delta[[1]]
-  expect_equal(ens_manual$Delta[[1]], expected_manual)
-  expect_equal(ens_manual$ensemble$weights, c(fit1 = 0.2, fit2 = 0.8))
+test_that("mppi_hrf_ensemble ignores task evidence and uses declared weights", {
+  set.seed(89)
+  Y <- matrix(rnorm(240),80,3); X <- cbind(1, task=rnorm(80))
+  fit1 <- mppi_fit(Y,X,2,domain="neural",scale="cov",deconv=list(K=12))
+  fit2 <- mppi_fit(Y,X,2,domain="neural",scale="cov",deconv=list(K=16))
+  fit1$AIC_total <- 1; fit2$AIC_total <- 10000
+  ens_auto <- mppi_hrf_ensemble(list(fit1=fit1,fit2=fit2))
+  expect_equal(ens_auto$ensemble$weights,c(fit1=.5,fit2=.5))
+  expect_equal(ens_auto$ensemble$method,"uniform")
+  expect_equal(as.numeric(mppi_get_M(ens_auto,1)), as.numeric(.5*mppi_get_M(fit1,1)+.5*mppi_get_M(fit2,1)))
+  ens_manual <- mppi_hrf_ensemble(list(fit1=fit1,fit2=fit2),weights=c(.2,.8))
+  expect_equal(ens_manual$ensemble$weights,c(fit1=.2,fit2=.8))
+  expect_equal(as.numeric(mppi_get_M(ens_manual,1)), as.numeric(.2*mppi_get_M(fit1,1)+.8*mppi_get_M(fit2,1)))
 })
 
 test_that("mppi_sim_rest_neural generates standardized modulators and templates", {

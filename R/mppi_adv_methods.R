@@ -118,7 +118,7 @@ mppi_precision_delta <- function(fit, k, lambda = 1e-3) {
 
 #' Short-lag task-gated coupling matrices
 #'
-#' @param fit multiPPI fit
+#' @param x multiPPI fit
 #' @param k condition index
 #' @param lags integer vector of TR lags
 #' @param mode "neural" uses stored series; "innov" applies `mppi_innovations`
@@ -132,15 +132,21 @@ mppi_precision_delta <- function(fit, k, lambda = 1e-3) {
 #' @rdname mppi_lagged
 #' @method mppi_lagged mppi_fit
 #' @export
-mppi_lagged.mppi_fit <- function(fit, k, lags = -2:2, mode = c("neural", "innov"),
+mppi_lagged.mppi_fit <- function(x, k, lags = -2:2, mode = c("neural", "innov"),
                                  protect = "lowK", K_keep = 8L, f_cut = 0.03,
-                                 TR = NULL, ar_order = "auto", p = 4L) {
+                                 TR = NULL, ar_order = "auto", p = 4L, ...) {
+  fit <- x
   mode <- match.arg(mode)
   X <- .mppi_adv_X(fit)
   if (!is.null(attr(X, "TR"))) TR <- attr(X, "TR")
   pk <- .mppi_adv_pk(fit, k)
+  runs <- fit$runs %||% rep(1L, nrow(X))
+  index <- fit$observation_index %||% seq_len(nrow(X))
+  if (length(runs) != nrow(X) || length(index) != nrow(X) || anyNA(runs) || anyNA(index)) stop("Invalid run or acquisition indices.")
   if (mode == "innov") {
-    X <- mppi_innovations(X, TR = TR, protect = protect,
+    if (any(diff(index) != 1L)) stop("Innovation filtering with censor gaps is unsupported.")
+    blocks <- split(seq_len(nrow(X)), cumsum(c(TRUE, runs[-1L] != runs[-length(runs)])))
+    for (block in blocks) X[block, ] <- mppi_innovations(X[block, , drop=FALSE], TR = TR, protect = protect,
                           K_keep = K_keep, f_cut = f_cut,
                           ar_order = ar_order, p = p, center = FALSE)
   }
@@ -149,7 +155,15 @@ mppi_lagged.mppi_fit <- function(fit, k, lags = -2:2, mode = c("neural", "innov"
   neg_energy <- 0
   for (ii in seq_along(lags)) {
     lg <- as.integer(lags[ii])
-    Mk <- .mppi_adv_lagged_cross(X, pk, lg)
+    if (lg == 0L) Mk <- .mppi_adv_lagged_cross(X, pk, lg) else {
+      later <- match(index + abs(lg), index)
+      earlier <- which(!is.na(later))
+      later <- later[earlier]
+      valid <- runs[earlier] == runs[later]
+      earlier <- earlier[valid]; later <- later[valid]
+      denom <- sum(pk[earlier]^2)
+      Mk <- if (denom < .Machine$double.eps) matrix(NA_real_,ncol(X),ncol(X)) else if (lg > 0L) crossprod(X[earlier,,drop=FALSE],pk[earlier]*X[later,,drop=FALSE])/denom else crossprod(X[later,,drop=FALSE],pk[earlier]*X[earlier,,drop=FALSE])/denom
+    }
     M_by_lag[[ii]] <- Mk
     e <- sqrt(sum(Mk^2, na.rm = TRUE))
     if (lg > 0) pos_energy <- pos_energy + e
@@ -158,7 +172,8 @@ mppi_lagged.mppi_fit <- function(fit, k, lags = -2:2, mode = c("neural", "innov"
   denom <- pos_energy + neg_energy + 1e-12
   R <- (pos_energy - neg_energy) / denom
   list(M_lag = M_by_lag, R = R,
-       energy_pos = pos_energy, energy_neg = neg_energy)
+       energy_pos = pos_energy, energy_neg = neg_energy,
+       estimand = "directed_signal_lag_covariance", observation_index = index)
 }
 
 #' Gain vs routing classifier (G/C/I/R indices)

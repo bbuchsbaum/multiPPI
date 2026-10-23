@@ -2,29 +2,33 @@
 % Please edit documentation in R/mppi_inference.R
 \name{mppi_omnibus}
 \alias{mppi_omnibus}
-\title{Omnibus test for each psychological regressor via block sign-flips}
+\title{Experimental omnibus randomization of covariance-modulation slopes}
 \usage{
 mppi_omnibus(
   fit,
   blksize = 10L,
   B = 999L,
-  wild = c("none", "rademacher", "mammen"),
+  wild = c("rademacher", "mammen", "none"),
   method = c("block_flip", "phase", "freedman_lane"),
   seed = NULL
 )
 }
 \arguments{
-\item{fit}{result of mppi_fit()}
+\item{fit}{A covariance-modulation fit.}
 
-\item{blksize}{integer block length (TRs)}
+\item{blksize}{Positive block length.}
 
-\item{B}{number of permutations}
+\item{B}{Number of draws.}
 
-\item{wild}{"none","rademacher","mammen"}
+\item{wild}{Block weights; the default is Rademacher.}
+
+\item{method}{Randomization method; Freedman-Lane is unavailable.}
+
+\item{seed}{Optional random seed.}
 }
 \value{
-list per regressor with D, Q, Qnull, p_global
+Per-regressor statistics and experimental randomization metadata.
 }
 \description{
-Omnibus test for each psychological regressor via block sign-flips
+Experimental omnibus randomization of covariance-modulation slopes
 }

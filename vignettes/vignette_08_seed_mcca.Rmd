@@ -1,0 +1,36 @@
+---
+title: "Descriptive multivariate seed association"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Descriptive multivariate seed association}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+`seed_ppi_mcca()` computes descriptive regularized partial canonical
+associations between a seed set and local task-interaction blocks. The current
+implementation supports the hemodynamic domain; neural-domain and CCA
+inference options are rejected. The result is not a calibrated p-value or a
+causal connectivity estimate. Seed-neighborhood overlap is an additional
+interpretation limitation.
+
+```{r}
+library(multiPPI)
+set.seed(123)
+n <- 80L
+Y <- matrix(rnorm(n * 30), nrow = n)
+X <- cbind(intercept = 1, task = rnorm(n))
+neighborhoods <- list(6:10, 11:15, 16:20)
+result <- seed_ppi_mcca(Y, seed = 1:5, design = X,
+                        neighborhoods = neighborhoods, tr = 1,
+                        domain = "hemo", prewhiten = FALSE,
+                        pca = list(seed_k = 3, light_k = 3, center = TRUE, scale = TRUE),
+                        reg = list(l2_x = 0.1, l2_y = 0.1),
+                        inference = list(method = "none"))
+result$stat
+```
+
+Prewhitening and imaging adapters have their own supported-input restrictions.
+Changing dimensions, ridge penalties, neighborhood selection, or whitening
+changes the descriptive analysis; uncertainty from those decisions is not
+quantified by this example.

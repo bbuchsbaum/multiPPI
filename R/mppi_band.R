@@ -37,7 +37,12 @@ mppi_bandpass <- function(x, low = NULL, high = 0.1, order = 2L) {
 }
 
 #' Fit ΔΣ per frequency band and optionally combine
-#' @param bands list of lists: each with low, high, name
+#' @param Y T x V data matrix
+#' @param X T x q design matrix
+#' @param psych_idx psychological regressor indices
+#' @param bands list of band definitions, each with `low`, `high`, and `name`
+#' @param zero_diag logical; zero the diagonal of ΔΣ for each band
+#' @param scale summary scale for returned fits (`"normalized"`, `"cov"`, or `"corr"`)
 mppi_fit_multi_band <- function(Y, X, psych_idx, bands,
                                 zero_diag = TRUE, scale = c("normalized","cov","corr")) {
   scale_choice <- match.arg(scale)

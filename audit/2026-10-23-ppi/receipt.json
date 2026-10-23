@@ -1,0 +1,73 @@
+{
+  "assessed_head": "9d199cd53d484317c94a3cbaa6dfee972cb47f99",
+  "scope": "current dirty working tree, not pristine HEAD",
+  "source_manifest_sha256": "69a74abe09c20315bb8f420b222747a74971d608b95ef14d900544bc5df5452f",
+  "tarball_sha256": "1dcb86057538f4a143b61ae35c9efcb1301eca9a84f2a3fd5e7764b475d17495",
+  "source_snapshot_scratch": "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI",
+  "build_check_scratch": "/tmp/multippi-audit-20261023-5_j41_sk",
+  "commands": [
+    {
+      "command": "Rscript --vanilla run-suite.R SNAPSHOT OUTPUT",
+      "exit": 1,
+      "note": "377 passing expectations; one dataset API error; skips retained in suite.log"
+    },
+    {
+      "command": "NOT_CRAN=true Rscript --vanilla ... testthat::test_dir(SNAPSHOT/tests/testthat,filter=\"pwi\")",
+      "exit": 0,
+      "note": "18 additional passing expectations"
+    },
+    {
+      "command": "Rscript --vanilla probes.R SNAPSHOT OUTPUT",
+      "exit": 0,
+      "note": "18 named probes; captured failures are results, not assertions; real event probe corrected and rerun separately"
+    },
+    {
+      "command": "AUDIT_PROBE=real_event Rscript --vanilla probes.R SNAPSHOT OUTPUT",
+      "exit": 0
+    },
+    {
+      "command": "Rscript --vanilla integration.R SNAPSHOT OUTPUT",
+      "exit": 0
+    },
+    {
+      "command": "Rscript --vanilla benchmark.R SNAPSHOT OUTPUT",
+      "exit": 0,
+      "note": "benchmark-isolated.log and benchmark.csv are the final measurement"
+    },
+    {
+      "command": "R CMD build --no-build-vignettes --no-manual ORIGINAL_REPO",
+      "exit": 0
+    },
+    {
+      "command": "R CMD check --no-manual --no-build-vignettes multiPPI_0.1.0.tar.gz",
+      "exit": 1,
+      "note": "missing limma prevents complete dependency check"
+    },
+    {
+      "command": "_R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual --no-build-vignettes ../multiPPI_0.1.0.tar.gz",
+      "note": "diagnostic reduced check: 0 errors, 5 warnings, 5 notes; no testthat harness executed",
+      "exit": 0
+    }
+  ],
+  "final_verification": {
+    "source_hashes_unchanged": true,
+    "existing_git_status_unchanged": true,
+    "only_new_repo_path": "audit/",
+    "artifact_scripts": "R parser and Python compilation passed"
+  },
+  "cleanup": {
+    "removed_owned_regenerable_build_outputs": [
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI.Rcheck",
+      "/tmp/multippi-audit-20261023-5_j41_sk/check-reduced/multiPPI.Rcheck",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/deconv_map.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/ppi_batch.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/deconv_dct.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/RcppExports.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/precision_gate.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/multiPPI.so",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/instant.o",
+      "/tmp/multippi-audit-20261023-5_j41_sk/multiPPI/src/init.o"
+    ],
+    "retained": "source snapshot, source tarball, scripts, and logs"
+  }
+}

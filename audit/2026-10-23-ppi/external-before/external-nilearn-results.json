@@ -1,0 +1,90 @@
+{
+  "versions": {
+    "nilearn": "0.14.1",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  },
+  "scope": "Regression and contrast given exported design; no construction validation.",
+  "fixed_ar_boundary": "Nilearn ARModel first row left unchanged; corrected to sqrt(1-phi^2) per run before OLSModel fitting.",
+  "rank_deficient_note": "Nilearn 0.14.1 OLSModel.fit divides residual sum of squares by n - number_of_columns; rank-corrected dispersion supplied to its contrast methods.",
+  "tolerance": 2e-08,
+  "cases": {
+    "iid": {
+      "n": 100,
+      "columns": 12,
+      "rank": 12,
+      "df": 88,
+      "max_abs_error": {
+        "beta": 1.2545520178264269e-14,
+        "variance": 8.881784197001252e-16,
+        "coefficient_se": 4.996003610813204e-16,
+        "contrast_estimate": 4.107825191113079e-15,
+        "contrast_se": 3.3306690738754696e-16,
+        "t": 1.687538997430238e-14,
+        "F": 8.526512829121202e-14
+      },
+      "nilearn_native_dispersion_max_difference": 0.0,
+      "df_adjusted_externally": false,
+      "phi": null,
+      "uncorrected_boundary_beta_max_difference": null
+    },
+    "censored_iid": {
+      "n": 96,
+      "columns": 12,
+      "rank": 12,
+      "df": 84,
+      "max_abs_error": {
+        "beta": 1.4155343563970746e-14,
+        "variance": 2.220446049250313e-16,
+        "coefficient_se": 7.216449660063518e-16,
+        "contrast_estimate": 4.107825191113079e-15,
+        "contrast_se": 1.6653345369377348e-16,
+        "t": 1.021405182655144e-14,
+        "F": 3.1530333899354446e-14
+      },
+      "nilearn_native_dispersion_max_difference": 0.0,
+      "df_adjusted_externally": false,
+      "phi": null,
+      "uncorrected_boundary_beta_max_difference": null
+    },
+    "rank_deficient": {
+      "n": 100,
+      "columns": 13,
+      "rank": 12,
+      "df": 88,
+      "max_abs_error": {
+        "beta": 3.1086244689504383e-15,
+        "variance": 6.661338147750939e-16,
+        "coefficient_se": 6.106226635438361e-16,
+        "contrast_estimate": 2.4424906541753444e-15,
+        "contrast_se": 5.551115123125783e-16,
+        "t": 5.329070518200751e-15,
+        "F": 1.1102230246251565e-14
+      },
+      "nilearn_native_dispersion_max_difference": 0.012950765334098557,
+      "df_adjusted_externally": true,
+      "phi": null,
+      "uncorrected_boundary_beta_max_difference": null
+    },
+    "fixed_ar": {
+      "n": 100,
+      "columns": 12,
+      "rank": 12,
+      "df": 88,
+      "max_abs_error": {
+        "beta": 5.023759186428833e-15,
+        "variance": 4.440892098500626e-16,
+        "coefficient_se": 3.3306690738754696e-16,
+        "contrast_estimate": 2.0539125955565396e-15,
+        "contrast_se": 1.1102230246251565e-16,
+        "t": 5.10702591327572e-15,
+        "F": 2.842170943040401e-14
+      },
+      "nilearn_native_dispersion_max_difference": 0.0,
+      "df_adjusted_externally": false,
+      "phi": 0.42,
+      "uncorrected_boundary_beta_max_difference": 0.016575308761909602
+    }
+  },
+  "failures": []
+}

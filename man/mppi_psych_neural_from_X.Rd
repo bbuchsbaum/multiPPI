@@ -11,7 +11,8 @@ mppi_psych_neural_from_X(
   K = NULL,
   method = c("gcv", "fixed"),
   lambda = 0.1,
-  groups = NULL
+  groups = NULL,
+  runs = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ mppi_psych_neural_from_X(
 \item{lambda}{Ridge parameter when \code{method = "fixed"}.}
 
 \item{groups}{Optional list grouping columns (relative to \code{psych_idx}).}
+
+\item{runs}{Optional run labels; deconvolution is independent within each run.}
 }
 \value{
 List with \code{S} (orthogonalised neural sticks), \code{names}, and \code{lambda}.

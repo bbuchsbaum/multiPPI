@@ -1,0 +1,162 @@
+---
+title: "Multivariate seed–PPI via partial CCA (searchlight)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multivariate seed–PPI via partial CCA (searchlight)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```r
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+# Overview
+
+This vignette demonstrates multivariate seed–PPI using partial CCA (mCCA) in a searchlight-friendly way. The function `seed_ppi_mcca()` computes, for each neighborhood, the canonical association between a multivariate seed (seed set or seed time-series) and the local interaction block formed by the neighborhood time-series multiplied by the task design (PPI-style interactions). It:
+
+- Works on matrices (`T x V`) or `neuroim2::NeuroVec` directly.
+- Builds neighborhoods using `neuroim2::searchlight()` or accepts a precomputed list of integer index vectors.
+- Optionally prewhitens via `fmriAR` and supports neural-domain deconvolution via `fmrihrf`.
+- Returns a scalar map per center (first canonical correlation `r1` or a Wilks proxy) and optional canonical weight vectors for interpretability.
+
+Dependencies:
+
+- `neuroim2` (required for the searchlight/neuroim2 path)
+- `fmriAR` and `fmrihrf` (optional; only when `prewhiten = TRUE` or `domain = "neural"`)
+
+# Quick start (matrix with precomputed neighborhoods)
+
+```r
+library(multiPPI)
+set.seed(1)
+Tn <- 120
+V  <- 200
+
+# Synthetic data and a simple design
+Y <- matrix(rnorm(Tn * V), Tn, V)
+X <- cbind(1, task = rnorm(Tn))
+
+# Seed as indices into columns of Y (e.g., a set of seed voxels)
+seed_idx <- 1:8
+
+# Precomputed neighborhoods: stride across columns, neighborhoods of ~12
+neigh <- lapply(seq(1, V, by = 4), function(i) as.integer(intersect(i:(i+11), 1:V)))
+
+sl <- seed_ppi_mcca(
+  data          = Y,
+  seed          = seed_idx,
+  design        = X,
+  nuisance      = NULL,
+  neighborhoods = neigh,
+  tr            = 1,
+  domain        = "hemo",     # use "neural" + fmrihrf for deconvolved domain
+  prewhiten     = FALSE,       # set TRUE + fmriAR to prewhiten
+  pca           = list(seed_k = 5, light_k = 10, center = TRUE, scale = TRUE),
+  reg           = list(l2_x = 0.1, l2_y = 0.1),
+  stat          = "r1",
+  inference     = list(method = "none"),
+  return        = c("map","weights")
+)
+
+str(sl$stat)
+```
+
+The result `sl` is a list of class `mppi_sl` with fields:
+
+- `stat`: numeric vector of length equal to the number of neighborhoods
+- `centers`: integer centers (first index per neighborhood if not from neuroim2)
+- `weights_x` / `weights_y`: optional canonical weights per neighborhood
+- `neighborhoods`: integer index vectors per center
+
+# Searchlight via neuroim2 (recommended)
+
+The recommended workflow is to work with `neuroim2` objects. Build neighborhoods using `neuroim2::searchlight()` from a `NeuroVol` mask, and pass a `NeuroVec` for the data. The code below illustrates the flow. Replace the example volume paths with your data.
+
+```r
+library(neuroim2)
+library(multiPPI)
+
+# Example placeholders — replace with your actual files
+# nv   <- neuroim2::readNeuroVec("sub-01_task.nii.gz")
+# mask <- neuroim2::readVol("sub-01_mask.nii.gz")
+
+# For illustration only (not run by default):
+# neighborhoods are built internally from the mask using searchlight()
+
+# task design (T x m); provide your own design matrix or fmridesign model
+# X <- as.matrix(my_design)  # e.g., cbind(1, encode = ..., recall = ...)
+
+# seed specification can be: integer indices into columns of nv, logical mask, labels, or a T x q matrix
+# seed_idx <- which(mask != 0)[1:200]  # example seed as first 200 masked voxels
+
+# sl <- seed_ppi_mcca(
+#   data     = nv,
+#   seed     = seed_idx,
+#   design   = X,
+#   nuisance = NULL,
+#   mask     = mask,
+#   searchlight = list(radius = 6, eager = TRUE, nonzero = TRUE),
+#   tr       = neuroim2::tr(nv),
+#   domain   = "neural",      # deconvolution via fmrihrf
+#   prewhiten= TRUE,          # fmriAR prewhitening
+#   pca      = list(seed_k = 5, light_k = 12, center = TRUE, scale = TRUE),
+#   reg      = list(l2_x = 0.1, l2_y = 0.1),
+#   stat     = "r1",
+#   inference= list(method = "param")
+# )
+
+# sl$stat contains a scalar per searchlight center. You can map it back to a volume:
+# out <- neuroim2::emptyVolumeLike(mask)
+# out[sl$centers] <- sl$stat
+# neuroim2::writeVol(out, "sub-01_seedPPI_mCCA_r1.nii.gz")
+```
+
+# Practical guidance
+
+- Keep PCA-reduced dimensions modest relative to T (e.g., `seed_k` ~ 5–10; `light_k` ~ 10–15) and use small ridge penalties (`l2_x`, `l2_y`) for stability.
+- Use `prewhiten = TRUE` if you plan to do permutations; otherwise consider block permutations to respect autocorrelation structure.
+- For task PPI, center design columns and residualize the seed interaction against nuisance and the neighborhood time-series (`seed_ppi_mcca()` handles this internally).
+- Use `stat = "r1"` for a simple, group-friendly scalar (Fisher z-transform across subjects). Use `stat = "wilks"` for a multi-root effect size: true Wilks is computed as `-sum(log(1 - rho_j^2))` over canonical roots.
+- Limit roots with `wilks_k` if neighborhoods are large (e.g., `wilks_k = 3`), trading a slight loss in sensitivity for speed and stability. Parametric p-values use a Bartlett approximation with `df = sum_{j=1..k} (p-j+1)(q-j+1)`.
+- Residualization uses QR (not a dense projector) to reduce memory and improve numerical stability. You may see a warning if effective DOF after partialling is low: reduce `seed_k`/`light_k` or increase `l2_x`/`l2_y`.
+
+## Nuisance & Whitening
+
+`seed_ppi_mcca()` allows you to align nuisance handling with the rest of multiPPI:
+
+- `runs` and `center_by`: Provide a run vector and set `center_by = "run"` to demean design/nuisance columns within run (recommended for PPI-style interactions).
+- Prewhitening: When `prewhiten = TRUE`, the function estimates an AR model on residuals of `Y` after projecting out `[D,N]` per run and applies the same whitening transform to both `Y` and `[D,N]`. This mirrors `mppi_fit_whitened()` so regression invariance and permutation validity are preserved.
+
+Example (matrix path):
+
+```r
+set.seed(10)
+Tn <- 160
+runs <- c(rep(1L, 80), rep(2L, 80))
+Y <- matrix(rnorm(Tn * 150), Tn, 150)
+X <- cbind(1, task = rnorm(Tn))
+neigh <- lapply(seq(1, 150, by = 6), function(i) as.integer(intersect(i:(i+11), 1:150)))
+
+sl <- seed_ppi_mcca(
+  data      = Y,
+  seed      = 1:10,
+  design    = X,
+  neighborhoods = neigh,
+  tr        = 1,
+  runs      = runs,
+  center_by = "run",
+  prewhiten = TRUE,
+  domain    = "hemo",
+  pca       = list(seed_k = 6, light_k = 12, center = TRUE, scale = TRUE),
+  reg       = list(l2_x = 0.1, l2_y = 0.1),
+  stat      = "r1"
+)
+```
+
+
+# References
+
+- Friston KJ et al. Psychophysiological and modulatory interactions in neuroimaging. (Foundations of PPI)
+- Hardoon et al. Canonical correlation analysis: An overview with application to learning methods. (CCA fundamentals)
+- Buchsbaum et al. multiPPI framework (this package’s approach to PPI mechanics).

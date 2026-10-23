@@ -6,6 +6,11 @@
 \usage{
 mppi_get_M(fit, k)
 }
+\arguments{
+\item{fit}{result of \code{mppi_fit()}}
+
+\item{k}{regressor index or name to extract}
+}
 \description{
 Extract a basis-space interaction matrix
 }

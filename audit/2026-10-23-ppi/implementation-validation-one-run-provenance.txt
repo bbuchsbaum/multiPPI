@@ -1,0 +1,8 @@
+Seed 122035; supplemental post-primary fixture; conditional fixed design.
+                                          R/ppi_design.R 
+                      "5bc47902a0a70f50757316b3b0c70f39" 
+                                             R/ppi_fit.R 
+                      "cdeb4d0898e2fc71f73490359b0f5b95" 
+audit/2026-10-23-ppi/implementation-validation-one-run.R 
+                      "5de28308fa884bbf5e2ab083fb9e9863" 
+R version 4.5.1 (2025-06-13)

@@ -43,22 +43,11 @@ test_that("seed-set map handles bases and precision aggregation", {
   expect_true(all(names(map_prec$seeds) %in% c("roi1", "roi2")))
 })
 
-test_that("seed-set permutation produces reproducible metadata", {
+test_that("seed-set permutation rejects its unqualified reduced model", {
   set.seed(101)
-  Tn <- 30L
-  V <- 4L
-  Y <- matrix(rnorm(Tn * V), Tn, V)
-  X <- cbind(1, seq_len(Tn) / Tn)
-  fit <- mppi_fit(Y, X, psych_idx = 2L, scale = "normalized", zero_diag = FALSE)
-
-  res <- mppi_seedset_permute(fit, seeds = 1:2, k = 1L, aggregate = "mean",
-                              mode = "normalized", blksize = 5L, B = 29L,
-                              seed = 42, keep_draws = TRUE)
-  expect_true(all(c("map", "weights", "statistic", "settings") %in% names(res)))
-  expect_equal(res$aggregate, "mean")
-  expect_equal(length(res$map), length(res$targets))
-  expect_equal(length(res$statistic$p), length(res$map))
-  expect_equal(nrow(res$draws), 29L)
-  rng_meta <- attr(res, "rng")
-  expect_equal(rng_meta$seed_arg, 42)
+  Y <- matrix(rnorm(120),30,4); X <- cbind(1,task=rnorm(30))
+  fit <- mppi_fit(Y,X,2)
+  expect_error(mppi_seedset_permute(fit,seeds=1:2,k=1,aggregate="mean",B=29),
+               "qualified reduced product-nuisance model")
+  expect_s3_class(mppi_seedset_map(fit,seeds=1:2,k=1,aggregate="mean"),"mppi_seedset_map")
 })

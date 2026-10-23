@@ -6,6 +6,11 @@
 \usage{
 mppi_project(Delta, W)
 }
+\arguments{
+\item{Delta}{slope matrix to project}
+
+\item{W}{hypothesis weight matrix (same dimension as \code{Delta})}
+}
 \description{
 Project ΔΣ onto a hypothesis mask W (VxV)
 }

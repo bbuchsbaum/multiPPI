@@ -1,0 +1,19 @@
+During startup - Warning messages:
+1: Setting LC_CTYPE failed, using "C" 
+2: Setting LC_COLLATE failed, using "C" 
+3: Setting LC_TIME failed, using "C" 
+4: Setting LC_MESSAGES failed, using "C" 
+5: Setting LC_MONETARY failed, using "C" 
+targets 400 T 600 K 3 microtime 16 seed 122034
+design elapsed 1.33 
+fit cold chunk256 elapsed 0.077 
+fit warm chunk2048 elapsed 0.004 
+fit repeat chunk256 elapsed 0.008 
+coefficients, standard errors and sigma2 matched to tolerance 1e-10
+R R version 4.5.1 (2025-06-13) fmrihrf 0.4.0.9000 
+                    R/ppi_design.R                        R/ppi_fit.R 
+"5bc47902a0a70f50757316b3b0c70f39" "cdeb4d0898e2fc71f73490359b0f5b95" 
+   inst/benchmarks/benchmark_ppi.R 
+"95e4b1c61b5acf75b3cae823d3bec579" 
+        2.12 real         1.42 user         0.16 sys
+time: sysctl kern.clockrate: Operation not permitted

@@ -1,0 +1,29 @@
+Warning message:
+package 'testthat' was built under R version 4.5.2 
+REAL CURRENT DATASET AND MODEL
+[1] "fmri_frame"
+[1] "tbl_df"     "tbl"        "data.frame"
+[1] TRUE
+mppi_fit_from_fmrireg: 'get_data_matrix' is not an exported object from 'namespace:fmrireg' 
+mppi(frame): No mppi() method for objects of class fmri_frame 
+
+RUNWISE BASELINE RANK
+columns 5 rank 4 
+[1] "(Intercept)"            "base_constant1_block_1" "base_constant1_block_2"
+[4] "cond_cond.A"            "cond_cond.B"           
+finite baseline RSS FALSE 
+direct whitening: 'resid' contains NA, NaN, or Inf 
+
+MAMMEN MOMENTS AND CLASSICAL CCA REFERENCE
+         mean second_moment 
+            1             2 
+            package_p classical_all_roots_p 
+         0.0008974070          0.0003526056 
+
+REFERENCE CONVENTIONAL PPI WITH FmriAR (NOT A MULTIPPI ENTRY POINT)
+estimated common AR1 0.4809024 
+     design_whitening_error      target_whitening_error 
+               2.220446e-16                4.440892e-16 
+coefficient_dense_GLS_error 
+               5.329071e-15 
+This verifies the reusable fmriAR operator, not an implemented conventional PPI API in multiPPI.

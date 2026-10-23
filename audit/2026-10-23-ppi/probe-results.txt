@@ -1,0 +1,181 @@
+Consolidated recorded results from probes.log and the corrected event-probe.log.
+
+PROBE: conventional_PPI_counterexample 
+$conventional_interaction
+[1] 3.768038e-17
+
+$covariance_slope
+[1] 1.05
+
+$normalized_covariance_slope
+[1] 0.5943605
+
+$condition_seed_variances
+[1] 1 4
+
+
+PROBE: default_permutation_is_identity 
+$global_p
+[1] 1
+
+$unique_null_statistics
+[1] 1
+
+$observed_Q
+[1] 0.2933654
+
+$null_Q
+[1] 0.3962828
+
+$range_edge_p
+[1] 1 1
+
+
+PROBE: omnibus_observed_null_diagonal_mismatch 
+$null_minus_observed
+[1] 0.1029173
+
+$diagonal_energy
+[1] 0.1029173
+
+
+PROBE: CCA_permutations_preserve_test_statistic 
+$observed_r1
+[1] 0.958053
+
+$max_null_deviation
+[1] 0
+
+$reported_p
+[1] 1
+
+$unregularized_oracle_max_error
+[1] 1.110223e-16
+
+
+PROBE: public_prewhitening_route 
+$error
+[1] "unused argument (deconv = deconv)"
+
+
+PROBE: direct_prewhitening_route 
+$dim
+[1] 120   4
+
+$finite
+[1] TRUE
+
+
+PROBE: seed_neural_dependency 
+$error
+[1] "'deconvolve_series' is not an exported object from 'namespace:fmrihrf'"
+
+
+PROBE: fmrireg_bridge 
+$error
+[1] "'get_data_matrix' is not an exported object from 'namespace:fmrireg'"
+
+
+PROBE: actual_dependency_exports 
+$fmrihrf_deconvolve_series
+[1] FALSE
+
+$fmrireg_get_data_matrix
+[1] FALSE
+
+$fmridataset_get_data_matrix
+[1] FALSE
+
+$undeclared_packages
+[1] "fmridesign"  "fmridataset" "testthat"   
+
+
+PROBE: real_event_model_TR_propagation 
+$design_TR
+[1] 2
+
+$fit_TR
+[1] 1
+
+$design_dim
+[1] 120   2
+
+$task_and_psych_identical
+[1] TRUE
+
+
+PROBE: MAP_preserves_HRF_time_origin 
+$error_vs_causal_oracle
+[1] 0.5710098
+
+$difference_from_wrong_zero_delay_HRF
+[1] 0
+
+
+PROBE: DCT_matches_independent_dense_ridge 
+$max_absolute_error
+[1] 2.123302e-15
+
+
+PROBE: neural_run_isolation 
+$bold_run1_max_change
+[1] 9.992007e-16
+
+$neural_run1_max_change
+[1] 9.439714
+
+
+PROBE: lagged_packed_preserves_direction 
+$full_asymmetry
+[1] 0.1992891
+
+$packed_asymmetry
+[1] 0
+
+$max_roundtrip_error
+[1] 0.1992891
+
+
+PROBE: censor_gap_creates_false_lag_neighbor 
+$max_error
+[1] 0.02438334
+
+$actual_pairs
+[1] 118
+
+$valid_pairs
+[1] 117
+
+
+PROBE: rank_selection_retains_negative_modes 
+$eigenvalues
+[1]  9.744312e-16  4.257759e-16 -1.621019e+01
+
+$selected_rank
+[1] 0
+
+$losses
+[1]  37.2556 126.2284 126.2284 126.2284
+
+
+PROBE: evidence_depends_on_task_activation_not_PPI 
+$task_delta_AIC
+[1] 3709.25
+
+$HRF_AIC_difference
+[1] 0
+
+$HRF_slope_difference
+[1] 0.0003513244
+
+
+PROBE: seed_matrix_and_index_use_same_preprocessing 
+$index_stat
+[1] 0.2190812
+
+$matrix_stat
+[1] 0.1849497
+
+$difference
+[1] 0.03413149
+

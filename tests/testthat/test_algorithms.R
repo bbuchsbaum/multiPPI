@@ -168,7 +168,7 @@ test_that("Variance decomposition reconstructs DeltaSigma", {
   DeltaSigma <- multiPPI:::`.mppi_wcp`(R, pk) / sum(pk^2)
 
   parts <- mppi_decompose_variance(R, pk, DeltaSigma)
-  recon <- (apply(R, 2, sd) %o% apply(R, 2, sd)) * parts$Delta_rho + parts$variance_terms
+  recon <- (sqrt(colMeans(R^2)) %o% sqrt(colMeans(R^2))) * parts$Delta_rho + parts$variance_terms
   expect_equal(recon, DeltaSigma, tolerance = 1e-8)
 })
 

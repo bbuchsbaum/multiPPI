@@ -13,13 +13,14 @@ mppi_group_ebayes <- function(Delta_list, use_limma = TRUE,
                               include_diag = FALSE) {
   stopifnot(is.list(Delta_list), length(Delta_list) >= 2)
   V <- nrow(Delta_list[[1]])
+  .mppi_check_group_matrices(Delta_list)
   triangle <- match.arg(triangle)
   idx_matrix <- .mppi_edge_mask(V, include_diag = include_diag,
                                 directed = directed, triangle = triangle)
   X <- do.call(rbind, lapply(Delta_list, function(D) as.numeric(D[idx_matrix])))
   # One-sample vs zero
   if (use_limma && requireNamespace("limma", quietly = TRUE)) {
-    design <- cbind(Intercept = 1)
+    design <- matrix(1, nrow = nrow(X), ncol = 1, dimnames = list(NULL, "Intercept"))
     fit <- limma::lmFit(t(X), design)
     fit <- limma::eBayes(fit)
     tstat <- fit$t[,1]; pval <- fit$p.value[,1]
@@ -47,6 +48,17 @@ mppi_stack <- function(fits, k = 1L, lag = 0L, include_diag = FALSE,
   stopifnot(is.list(fits), length(fits) >= 1)
   lag <- as.integer(lag)
   first <- fits[[1]]
+  chosen <- function(fit) {
+    if (is.character(k)) {
+      if (length(k) != 1L || is.null(fit$names) || !k %in% fit$names) stop("Condition name must exist in every fit.")
+      k
+    } else {
+      if (length(k) != 1L || is.na(k) || k < 1 || k != floor(k) || is.null(fit$names) || k > length(fit$names)) stop("Condition index must identify a named condition in every fit.")
+      fit$names[k]
+    }
+  }
+  condition <- chosen(first)
+  if (any(!vapply(fits, function(fit) identical(chosen(fit), condition), logical(1)))) stop("Condition identities must match across fits.")
   Mk0 <- mppi_get_M_lag(first, k, lag)
   dims <- dim(Mk0)
   mask <- .mppi_edge_mask(dims[1], include_diag = include_diag,
@@ -62,8 +74,8 @@ mppi_stack <- function(fits, k = 1L, lag = 0L, include_diag = FALSE,
   stack_mat <- matrix(NA_real_, nrow = length(fits), ncol = sum(mask))
   for (i in seq_along(fits)) {
     Mk <- mppi_get_M_lag(fits[[i]], k, lag)
-    if (!all(dim(Mk) == dims)) {
-      stop("All fits must have matching matrix dimensions.", call. = FALSE)
+    if (!is.matrix(Mk) || !all(dim(Mk) == dims) || !identical(dimnames(Mk), dimnames(Mk0))) {
+      stop("All fits must have matching matrix dimensions and node labels.", call. = FALSE)
     }
     stack_mat[i, ] <- Mk[mask]
   }
@@ -99,11 +111,9 @@ pwf_stack <- function(W_list, labels = NULL, include_diag = FALSE,
   triangle <- match.arg(triangle)
   V <- nrow(W_list[[1]])
   dims <- c(V, V)
-  for (W in W_list) {
-    if (!is.matrix(W) || !all(dim(W) == dims)) {
-      stop("All matrices in 'W_list' must share the same square dimension.", call. = FALSE)
-    }
-  }
+  .mppi_check_group_matrices(W_list)
+  if (!is.null(labels) && (length(labels) != V || anyNA(labels) || anyDuplicated(labels))) stop("labels must uniquely identify each node")
+  if (!is.null(labels) && !is.null(rownames(W_list[[1]])) && !identical(as.character(labels), rownames(W_list[[1]]))) stop("labels must match matrix node labels")
   if (is.null(labels)) {
     labels <- rownames(W_list[[1]])
     if (is.null(labels)) labels <- paste0("v", seq_len(V))
@@ -283,4 +293,13 @@ mppi_group_glm <- function(fits, design, contrast = NULL, coef = NULL,
   } else {
     upper.tri(matrix(0, V, V), diag = include_diag)
   }
+}
+
+.mppi_check_group_matrices <- function(matrices) {
+  first <- matrices[[1L]]
+  if (!is.matrix(first) || !is.numeric(first) || nrow(first) != ncol(first)) stop("Matrices must be numeric and square.")
+  dn <- dimnames(first)
+  if (xor(is.null(dn[[1L]]), is.null(dn[[2L]])) || (!is.null(dn[[1L]]) && (!identical(dn[[1L]], dn[[2L]]) || anyNA(dn[[1L]]) || anyDuplicated(dn[[1L]])))) stop("Matrix node labels must be unique and match on both axes.")
+  for (x in matrices) if (!is.matrix(x) || !is.numeric(x) || !identical(dim(x), dim(first)) || !identical(dimnames(x), dn) || any(!is.finite(x))) stop("Matrices must have matching dimensions, node labels, and finite values.")
+  invisible(NULL)
 }

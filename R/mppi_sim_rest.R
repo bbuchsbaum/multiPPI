@@ -132,6 +132,7 @@ mppi_sim_rest_dataset <- function(T = 600L, V = 40L, r = 6L,
 #'
 #' @param n_subj Number of subjects.
 #' @param trait Optional numeric vector of length `n_subj`.
+#' @param contexts Optional character vector naming the simulated contexts.
 #' @param trait_effect Numeric vector of per-context slopes mapping trait to
 #'        coupling amplitude.
 #' @param amp_base Baseline coupling amplitudes per context.

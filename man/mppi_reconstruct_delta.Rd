@@ -6,6 +6,15 @@
 \usage{
 mppi_reconstruct_delta(fit, k, rows = NULL, cols = NULL)
 }
+\arguments{
+\item{fit}{result of \code{mppi_fit()}}
+
+\item{k}{regressor index or name}
+
+\item{rows}{optional subset of row indices in ROI space}
+
+\item{cols}{optional subset of column indices in ROI space}
+}
 \description{
 Reconstruct a submatrix of Δ from a basis fit
 }

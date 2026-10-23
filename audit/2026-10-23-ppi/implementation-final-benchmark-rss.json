@@ -1,0 +1,32 @@
+{
+  "platform": "macOS-14.3-arm64-arm-64bit-Mach-O",
+  "source_sha256": {
+    "R/ppi_design.R": "a710631460dac0ec6713b0a005d9d6d57a1e332bc1d3c67bb01de0f31d46f641",
+    "R/ppi_fit.R": "f9255db93f93bf855b4862a5cc7c4184fa303f78afd5b7c06b7c3cd886e7f930",
+    "inst/benchmarks/benchmark_ppi.R": "1b7534f7ebcd40fedf2681947b65fabfe91ab938d826f0cca90b06a4fdea22b2"
+  },
+  "measurement": "wait4 child ru_maxrss; whole process including input generation and three fits",
+  "results": [
+    {
+      "targets": 400,
+      "elapsed_process_seconds": 1.4901024580176454,
+      "exit_code": 0,
+      "peak_rss_bytes": 355418112,
+      "log": "audit/2026-10-23-ppi/implementation-final-benchmark-400.log"
+    },
+    {
+      "targets": 1000,
+      "elapsed_process_seconds": 1.516715124977054,
+      "exit_code": 0,
+      "peak_rss_bytes": 396591104,
+      "log": "audit/2026-10-23-ppi/implementation-final-benchmark-1000.log"
+    },
+    {
+      "targets": 50000,
+      "elapsed_process_seconds": 3.846691667014966,
+      "exit_code": 0,
+      "peak_rss_bytes": 2151464960,
+      "log": "audit/2026-10-23-ppi/implementation-final-benchmark-50000.log"
+    }
+  ]
+}

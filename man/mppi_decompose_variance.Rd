@@ -9,9 +9,9 @@ mppi_decompose_variance(R, pk, DeltaSigma)
 \arguments{
 \item{R}{residualized time series (optionally per-condition bins)}
 
-\item{pk}{residualized psychological regressor}
+\item{pk}{residualized psychological regressor (validated for compatibility; DeltaSigma is supplied)}
 
-\item{DeltaSigma}{covariance slope matrix}
+\item{DeltaSigma}{raw covariance slope matrix including its diagonal}
 }
 \value{
 list with Delta_rho (approx), var_terms (matrix), and note

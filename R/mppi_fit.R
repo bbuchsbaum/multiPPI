@@ -90,11 +90,22 @@
 #' @param Y T x V matrix of time series (preprocessed)
 #' @param X T x q design matrix (intercept + confounds + psychological mains)
 #' @param psych_idx integer indices of psychological columns in X
+#' @param runs optional integer vector the same length as the rows of `Y` indicating run membership
 #' @param zero_diag logical; zero the diagonal of ΔΣ
-#' @param scale "cov" (default) or "corr" to standardize R to unit SD
-#' @param lags Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes).
-#' @param lag_blocklens Optional run lengths for lagged computations when `runs` is unavailable.
-#' @return list with contemporaneous and lagged slope matrices plus residual metadata.
+#' @param scale summary scale for returned matrices; choose among `"normalized"`, `"cov"`, or `"corr"`
+#' @param center_by strategy for mean-centering psychological regressors (`"none"` or per-`runs`)
+#' @param na_action how to handle missing trials (`"omit_tr"` to drop them or `"error"` to abort)
+#' @param backend computational backend for cross-products (`"blas"`, `"accumulate"`, or `"chunked"`)
+#' @param packed logical; return upper-triangular results in packed vector form
+#' @param chunk_size optional column chunk size when using the chunked backend
+#' @param basis optional basis definition used to project residuals before fitting
+#' @param project_backend backend for projecting onto the supplied basis
+#' @param project_chunk_cols optional number of columns per projection chunk
+#' @param domain working domain (`"bold"`, `"neural"`, or `"innovations"`); enables deconvolution if not bold
+#' @param deconv optional deconvolution configuration list used when `domain != "bold"`
+#' @param lags Integer vector of lags τ to compute (τ = 0 yields contemporaneous slopes)
+#' @param lag_blocklens Optional run lengths for lagged computations when `runs` is unavailable
+#' @return list with contemporaneous and lagged slope matrices plus residual metadata
 mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                      zero_diag = TRUE, scale = c("normalized","cov","corr"),
                      center_by = c("none","run"), na_action = c("omit_tr","error"),
@@ -111,8 +122,13 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   project_backend_choice <- match.arg(project_backend)
   domain <- match.arg(domain)
 
+  original_n <- nrow(Y)
+  original_runs <- runs
+  original_blocklens <- lag_blocklens
   inputs <- .mppi_prepare_fit_inputs(Y, X, psych_idx, runs = runs,
                                      basis = basis, na_action = na_action_choice)
+  if (inputs$dropped > 0L && domain != "bold")
+    stop("Neural and innovations domains do not support censored observations; a masked deconvolution operator is required.", call. = FALSE)
   Y <- inputs$Y
   X <- inputs$X
   runs <- inputs$runs
@@ -129,6 +145,10 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   lags <- sort(unique(as.integer(lags)))
   if (!length(lags)) lags <- 0L
   if (!0L %in% lags) lags <- c(0L, lags)
+  if (!is.null(lag_blocklens) && inputs$dropped > 0L) {
+    if (any(original_blocklens <= 0) || sum(original_blocklens) != original_n) stop("lag_blocklens must describe the original acquisition grid.", call. = FALSE)
+    lag_blocklens <- NULL
+  }
   if (!is.null(lag_blocklens)) {
     lag_blocklens <- as.integer(lag_blocklens)
     if (any(lag_blocklens <= 0)) {
@@ -143,8 +163,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 
   if (length(base_idx)) {
     X_base <- X[, base_idx, drop = FALSE]
-    qr_base <- qr(X_base)
-    R_base_full <- Y - X_base %*% qr.coef(qr_base, Y)
+    R_base_full <- .mppi_residualize(Y, X_base)
   } else {
     X_base <- NULL
     R_base_full <- Y
@@ -173,6 +192,8 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   neural_lambda <- NULL
   n_psych <- length(p_idx)
   if (isTRUE(deconv_cfg$active)) {
+    if (domain == "innovations" && !is.null(runs) && length(unique(runs)) > 1L) stop("Multi-run innovations are unsupported: run-local filtering is required.", call. = FALSE)
+    run_indices <- if (is.null(runs)) list(seq_len(Tn)) else split(seq_len(Tn), cumsum(c(TRUE, diff(as.integer(as.factor(runs))) != 0)))
     groups <- deconv_cfg$groups
     if (is.null(groups)) {
       groups <- tryCatch(mppi_group_hrf_columns(X[, p_idx, drop = FALSE]),
@@ -182,10 +203,10 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
     if (identical(deconv_type, "map")) {
       lambda_map <- deconv_cfg$lambda
       if (is.null(lambda_map)) lambda_map <- 10
-      R_unscaled <- mppi_deconv(R_unscaled, TR = deconv_cfg$tr, hrf = deconv_cfg$hrf, lambda = lambda_map)
+      R_unscaled <- do.call(rbind, lapply(run_indices, function(i) mppi_deconv(R_unscaled[i, , drop=FALSE], TR = deconv_cfg$tr, hrf = deconv_cfg$hrf, lambda = lambda_map)))
       R_work <- R_unscaled
       if (is.null(deconv_cfg$sticks)) {
-        S_map <- mppi_deconv(X[, p_idx, drop = FALSE], TR = deconv_cfg$tr, hrf = deconv_cfg$hrf, lambda = lambda_map)
+        S_map <- do.call(rbind, lapply(run_indices, function(i) mppi_deconv(X[i, p_idx, drop = FALSE], TR = deconv_cfg$tr, hrf = deconv_cfg$hrf, lambda = lambda_map)))
         if (!is.null(groups)) {
           grp_names <- character(length(groups))
           Slist <- vector("list", length(groups))
@@ -210,7 +231,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
         }
         for (ii in seq_len(ncol(deconv_psych))) {
           Qs <- cbind(1, deconv_psych[, setdiff(seq_len(ncol(deconv_psych)), ii), drop = FALSE])
-          deconv_psych[, ii] <- deconv_psych[, ii] - Qs %*% qr.coef(qr(Qs), deconv_psych[, ii])
+          deconv_psych[, ii] <- .mppi_residualize_vec(deconv_psych[, ii], Qs)
         }
         pNms <- colnames(deconv_psych)
       } else {
@@ -228,23 +249,21 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
                             sticks = deconv_psych))
     } else {
       K <- deconv_cfg$K
-      if (is.null(K)) K <- min(64L, floor(nrow(R_unscaled) / 2L))
+      if (is.null(K)) K <- min(64L, floor(min(lengths(run_indices)) / 2L))
       method_deconv <- deconv_cfg$method
       if (is.null(method_deconv)) method_deconv <- "gcv"
       lambda_fixed <- deconv_cfg$lambda
       if (is.null(lambda_fixed)) lambda_fixed <- 1e-1
       q_vec <- deconv_cfg$q
-      dec_out <- mppi_deconv_dct(R_unscaled, h = deconv_cfg$hrf, K = K,
-                                 method = method_deconv, lambda = lambda_fixed, q = q_vec)
+      dec_parts <- lapply(run_indices, function(i) mppi_deconv_dct(R_unscaled[i, , drop=FALSE], h = deconv_cfg$hrf, K = K, method = method_deconv, lambda = lambda_fixed, q = q_vec))
+      dec_out <- list(U = do.call(rbind, lapply(dec_parts, `[[`, "U")), lambda = lapply(dec_parts, `[[`, "lambda"))
       R_unscaled <- dec_out$U
       R_work <- R_unscaled
       if (is.null(deconv_cfg$sticks)) {
-        ps <- mppi_psych_neural_from_X(X, p_idx, h = deconv_cfg$hrf, K = K,
-                                       method = method_deconv, lambda = lambda_fixed,
-                                       groups = groups)
-        deconv_psych <- ps$S
-        pNms <- ps$names
-        neural_lambda <- ps$lambda
+        ps_parts <- lapply(run_indices, function(i) mppi_psych_neural_from_X(X[i, , drop=FALSE], p_idx, h = deconv_cfg$hrf, K = K, method = method_deconv, lambda = lambda_fixed, groups = groups))
+        deconv_psych <- do.call(rbind, lapply(ps_parts, `[[`, "S"))
+        pNms <- ps_parts[[1]]$names
+        neural_lambda <- lapply(ps_parts, `[[`, "lambda")
       } else {
         deconv_psych <- as.matrix(deconv_cfg$sticks)
         if (nrow(deconv_psych) != nrow(X)) stop("deconv$psych must have same rows as design.")
@@ -305,6 +324,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   raw_list <- vector("list", n_psych)
   amp_list <- vector("list", n_psych)
   norm_list <- vector("list", n_psych)
+  covariance_diagonal <- vector("list", n_psych)
 
   compute_entry <- function(pk_vec, idx, name) {
     if (center_by == "run" && !is.null(runs)) {
@@ -317,8 +337,9 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       raw <- matrix(NA_real_, ncol(R_work), ncol(R_work))
     } else {
       raw <- .mppi_crossprod(R_work, pk_vec, backend = backend, chunk_size = chunk_size) / denom
-      if (zero_diag && !all(is.na(raw))) diag(raw) <- 0
     }
+    covariance_diagonal[[idx]] <<- diag(raw)
+    if (zero_diag && !all(is.na(raw))) diag(raw) <- 0
     amp <- if (all(is.na(raw))) raw else .mppi_scale_matrix(raw, sigma_unscaled, "amplitude")
     norm <- if (all(is.na(raw))) raw else .mppi_scale_matrix(raw, sigma_unscaled, "normalized")
     raw_list[[idx]] <<- raw
@@ -366,8 +387,8 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   names(pks) <- pNms
   names(denoms) <- pNms
   n_obs <- nrow(Y)
-  df_full <- ncol(X)
-  df_base <- if (is.null(X_base)) 0L else ncol(X_base)
+  df_full <- qr(X)$rank
+  df_base <- if (is.null(X_base)) 0L else qr(X_base)$rank
   rss_full_safe <- pmax(rss_full_raw, .Machine$double.eps)
   rss_base_safe <- pmax(rss_base_raw, .Machine$double.eps)
   aic_full_vec <- n_obs * log(rss_full_safe / n_obs) + 2 * df_full
@@ -377,6 +398,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   total_AIC_full <- sum(aic_full_vec)
   total_BIC_full <- sum(bic_full_vec)
   evidence_info <- list(
+    estimand = "task_main_effects",
     n = n_obs,
     df_full = df_full,
     df_base = df_base,
@@ -400,7 +422,18 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
     for (li in seq_along(lags)) {
       lg <- lags[li]
       if (!is.na(zero_idx) && li == zero_idx) next
-      raw_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
+      if (inputs$dropped > 0L) {
+        keep <- setdiff(seq_len(original_n), inputs$dropped_idx)
+        grid_R <- matrix(0, original_n, ncol(R_work)); grid_R[keep, ] <- R_work
+        grid_pk <- numeric(original_n); grid_pk[keep] <- pk_vec
+        valid <- rep(FALSE, original_n); valid[keep] <- TRUE
+        segments <- if (!is.null(original_blocklens)) rep(seq_along(original_blocklens), original_blocklens) else if (!is.null(original_runs)) cumsum(c(TRUE, original_runs[-1] != original_runs[-original_n])) else rep(1L, original_n)
+        a <- if (abs(lg) >= original_n) integer(0) else seq_len(original_n - abs(lg)); b <- a + abs(lg)
+        ok <- valid[a] & valid[b] & segments[a] == segments[b]
+        a <- a[ok]; b <- b[ok]
+        denom <- sum(grid_pk[a]^2)
+        raw_lag <- if (denom < .Machine$double.eps) matrix(NA_real_, ncol(R_work), ncol(R_work)) else if (lg > 0) crossprod(grid_R[a, , drop=FALSE], grid_pk[a] * grid_R[b, , drop=FALSE]) / denom else crossprod(grid_R[b, , drop=FALSE], grid_pk[a] * grid_R[a, , drop=FALSE]) / denom
+      } else raw_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
                                         blocklens = lag_blocklens,
                                         backend = backend, chunk_size = chunk_size)
       if (!all(is.na(raw_lag)) && zero_diag) diag(raw_lag) <- 0
@@ -413,15 +446,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       attr(chosen_lag, "raw") <- raw_lag
       attr(chosen_lag, "amplitude") <- amp_lag
       attr(chosen_lag, "normalized") <- norm_lag
-      if (packed) {
-        pack_lag <- .mppi_pack_upper(chosen_lag)
-        attr(pack_lag, "raw") <- raw_lag
-        attr(pack_lag, "amplitude") <- amp_lag
-        attr(pack_lag, "normalized") <- norm_lag
-        lag_list[[li]] <- pack_lag
-      } else {
-        lag_list[[li]] <- chosen_lag
-      }
+      lag_list[[li]] <- chosen_lag
     }
     lag_store[[ii]] <- lag_list
   }
@@ -436,15 +461,16 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
     var_list <- vector("list", length(out))
     partial_list <- vector("list", length(out))
     for (ii in seq_along(out)) {
-      Delta_full <- if (packed) .mppi_unpack_upper(out[[ii]]) else out[[ii]]
+      Delta_full <- raw_list[[ii]]
+      diag(Delta_full) <- covariance_diagonal[[ii]]
       if (all(is.na(Delta_full))) {
         var_list[ii] <- list(NULL)
         partial_list[ii] <- list(NULL)
         next
       }
-      dec <- mppi_decompose_variance(R_unscaled, pks[[ii]], Delta_full)
+      dec <- mppi_decompose_variance(cov_matrix_source, pks[[ii]], Delta_full)
       var_list[[ii]] <- dec
-      DeltaTheta <- mppi_to_partial(Sigma0, Delta_full, lambda = partial_lambda)
+      DeltaTheta <- -Theta0 %*% Delta_full %*% Theta0
       partial_list[[ii]] <- list(DeltaTheta = DeltaTheta,
                                  DeltaRho = mppi_delta_partial(Theta0, DeltaTheta))
     }
@@ -459,6 +485,9 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
               Delta_raw = raw_list, Delta_amplitude = amp_list, Delta_normalized = norm_list,
               sigma = sigma_unscaled, pk = pks,
               scale = scale_choice, dropped = inputs$dropped, center_by = center_by,
+              observation_index = setdiff(seq_len(original_n), inputs$dropped_idx),
+              covariance_diagonal = covariance_diagonal, zero_diag = zero_diag,
+              fitted_X = X, psych_idx = p_idx,
               runs = runs, denom = denoms, backend = backend,
               n_used = nrow(R_work), Sigma0 = Sigma0, partial_lambda = partial_lambda,
               Theta0 = Theta0, variance = var_list, partial = partial_list,
@@ -468,7 +497,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
               packed = packed, chunk_size = chunk_size, basis = basis_info,
               project_backend = project_backend,
               project_chunk_cols = project_chunk_cols,
-              domain = domain, deconv = deconv_info,
+              domain = domain, estimand = "covariance_modulation", schema_version = 2L, deconv = deconv_info,
               evidence = evidence_info)
   if (!is.null(basis_info)) res$Z <- R_work
   if (identical(domain, "neural") || identical(domain, "innovations")) res$U <- R_unscaled
@@ -481,8 +510,8 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
 #' Convenience wrapper when using fmrireg objects
 #' @param fmodel fmri_model (from fmrireg)
 #' @param dataset fmrireg dataset supplying Y
-#' @param psych regex patterns or indices
-#' @param scale "normalized", "cov", or "corr"
+#' @param psych regex patterns or column indices identifying psychological regressors
+#' @inheritParams mppi_fit
 mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("normalized","cov","corr"), zero_diag = TRUE,
                                   runs = NULL, center_by = c("none","run"), na_action = c("omit_tr","error"),
                                   backend = c("blas","accumulate","chunked"), chunk_size = NULL,
@@ -493,10 +522,19 @@ mppi_fit_from_fmrireg <- function(fmodel, dataset, psych, scale = c("normalized"
   if (!requireNamespace("fmrireg", quietly = TRUE)) {
     stop("fmrireg not available. Install via remotes::install_github('bbuchsbaum/fmrireg').")
   }
-  X <- fmrireg::design_matrix(fmodel)
+  X <- as.matrix(fmrireg::design_matrix(fmodel))
   if (is.null(colnames(X)) && is.character(psych)) stop("Design has no column names; supply indices for 'psych'.")
   pidx <- if (is.numeric(psych)) psych else mppi_select_psych(X, patterns = psych)
-  Y <- fmrireg::get_data_matrix(dataset)
+  Y <- as.matrix(fmridataset::collect_assay(dataset))
+  schema <- fmridataset::temporal_schema(dataset)
+  tr <- unique(as.numeric(schema$TR))
+  if (length(tr) != 1L || !is.finite(tr) || tr <= 0 || !isTRUE(schema$contiguous)) stop("Frame requires regular, common-TR sampling.", call. = FALSE)
+  if (!is.null(schema$censor) && any(schema$censor)) stop("Censored frames are unsupported by this adapter.", call. = FALSE)
+  runs <- runs %||% schema$block_ids
+  deconv <- deconv %||% list()
+  supplied <- deconv$tr %||% deconv$TR
+  if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between frame and deconvolution.", call. = FALSE)
+  deconv$tr <- tr
   scale_choice <- match.arg(scale)
   mppi_fit(Y, X, pidx, runs = runs, zero_diag = zero_diag, scale = scale_choice,
            center_by = match.arg(center_by), na_action = match.arg(na_action),

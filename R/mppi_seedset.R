@@ -245,7 +245,12 @@ print.mppi_seedset_map <- function(x, ...) {
   invisible(x)
 }
 
-#' Freedman–Lane permutations for a seed-set map
+#' Unavailable seed-set permutation inference
+#'
+#' The former product-permutation procedure did not fit the complete reduced
+#' nuisance model and held data-adaptive seed weights fixed. This entry point
+#' rejects inference until a valid replacement is qualified. Descriptive maps
+#' remain available through [mppi_seedset_map()].
 #'
 #' @param fit `mppi_fit` object.
 #' @param seeds Seed specification (as in [mppi_seedset_slopes()]).
@@ -258,7 +263,7 @@ print.mppi_seedset_map <- function(x, ...) {
 #' @param B Number of permutations.
 #' @param seed Optional RNG seed (restored afterwards).
 #' @param keep_draws Logical; store the seed-set maps for each permutation.
-#' @return List with observed map, p-values, z-scores, and permutation metadata.
+#' @return Stops with an explanatory error; no p-values are computed.
 #' @export
 mppi_seedset_permute <- function(fit, seeds, k,
                                  aggregate = c("svd", "mean", "precision"),
@@ -269,6 +274,7 @@ mppi_seedset_permute <- function(fit, seeds, k,
                                  B = 499L,
                                  seed = NULL,
                                  keep_draws = FALSE) {
+  stop("Seed-set permutation inference is unavailable: a qualified reduced product-nuisance model and adaptive-weight procedure are required.", call. = FALSE)
   aggregate <- match.arg(aggregate)
   mode <- match.arg(mode)
   V <- .mppi_seedset_dim(fit)

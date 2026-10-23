@@ -1,0 +1,35 @@
+---
+title: "Simulated encode and recall covariance slopes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Simulated encode and recall covariance slopes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+This replaces an older example that used a removed dataset constructor and
+presented task-main-effect evidence as evidence for interactions. The example
+below uses synthetic scan-level inputs to illustrate the covariance workflow.
+It does not recover latent neural signals or validate statistical inference.
+
+```{r}
+library(multiPPI)
+set.seed(2024)
+n <- 160L
+runs <- rep(1:2, each = 80)
+encode <- rep(c(rep(1, 8), rep(0, 8)), length.out = n)
+recall <- 1 - encode
+vividness <- recall * runif(n, 0.4, 1)
+X <- cbind(intercept = 1, encode = encode, vividness = vividness)
+Y <- matrix(rnorm(n * 6), nrow = n)
+fit <- mppi_fit(Y, X, psych_idx = 2:3, runs = runs, scale = "cov")
+length(fit$Delta)
+head(mppi_evidence(fit)$per_column)
+```
+
+`fit$Delta` contains descriptive covariance-slope matrices. The evidence above
+compares task-main-effect models of the response and is not evidence for
+covariance modulation or a conventional PPI interaction. The legacy
+covariance-resampling methods without a qualified null fail closed. For a
+seed-based gPPI design and named condition contrast, see the conventional PPI
+vignette.

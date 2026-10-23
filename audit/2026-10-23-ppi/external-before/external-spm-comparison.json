@@ -1,0 +1,44 @@
+{
+  "spm_commit": "54dc957191112dcad116e3eaa457e881fa8260de",
+  "n": 40,
+  "conventions": {
+    "TR": 1,
+    "microtime": 1,
+    "sampling_offset": 0,
+    "shared_kernel": "actual SPM spm_hrf(1)",
+    "psych": "SPM detrended psychological input",
+    "spm": "PEB deconvolution; padded DCT, seed and PPI detrended",
+    "multipppi": "DCT ridge lambda=0.1, 40 basis, unpadded; neural seed not centered"
+  },
+  "task": {
+    "max_abs": 7.6327832942979512e-17,
+    "rmse": 4.3359889632606219e-17,
+    "cor": 1
+  },
+  "physiology_raw": {
+    "max_abs": 0.17614804001955409,
+    "rmse": 0.17614804001955386,
+    "cor": 1
+  },
+  "physiology_centered": {
+    "max_abs": 4.4408920985006262e-16,
+    "rmse": 1.2847732613038712e-16,
+    "cor": 1
+  },
+  "neural_seed": {
+    "max_abs": 1.264022952531084,
+    "rmse": 0.22416807368987862,
+    "cor": 0.94748870518197503
+  },
+  "interaction_raw": {
+    "max_abs": 0.098438689309987781,
+    "rmse": 0.032025993763572583,
+    "cor": 0.99899395429156346
+  },
+  "interaction_centered": {
+    "max_abs": 0.081650874108167903,
+    "rmse": 0.027273311813821505,
+    "cor": 0.99899395429156346
+  },
+  "qualification": "Descriptive output differences only; different deconvolution priors, padding, and centering preclude a numerical equivalence claim."
+}

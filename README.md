@@ -1,78 +1,45 @@
 # multiPPI
 
-Seedless, matrix-form Psychophysiological Interactions (PPI) for fMRI—fast, closed-form,
-and integrated with the `bbuchsbaum` stack (`fmrireg`, `fmriAR`, `fmrilss`, `fmridesign`, `neuorim2`, `fmridataset`).
+multiPPI provides conventional seed-based PPI/gPPI regression and a separate
+family of task-modulated covariance estimators for fMRI. The two families have
+different estimands: conventional PPI fits seed-by-task interaction regressors;
+`mppi_fit()` estimates task-modulated covariance slopes.
 
-## Key features
-
-- **Matrix-PPI**: closed-form ΔΣ per psychological regressor (no seed loops).
-- **fmriAR prewhitening**: accuracy with serial autocorrelation.
-- **Lagged / directed** variants with validated lag selection.
-- **HRF-adaptive** weights (canonical+derivatives+lags) via small eigenproblem.
-- **Neural-domain** fits via automatic DCT deconvolution and canonical HRF defaults.
-- **Low-rank** shrinkage with cross-validated rank selection.
-- **Partial-correlation** deltas (ΔΘ ≈ −Θ₀ ΔΣ Θ₀).
-- **Variance–correlation decomposition** for interpretation.
-- **β-mPPI**: trial-domain analogue using `fmrilss` betas.
-- **Frequency-specific** ΔΣ with simple bandpass.
-- **Group eBayes** (limma) or classical t as fallback.
-- **Mechanistic readouts**: gain/precision, routing asymmetry, and template projections.
-
-## Install
+## Conventional PPI
 
 ```r
-# devtools::install_local("multiPPI")  # once you unzip this archive locally
-# or build with R CMD build / R CMD INSTALL
+library(multiPPI)
+set.seed(1)
+n <- 100
+seed <- rnorm(n)                     # raw BOLD, full acquisition grid
+psych <- cbind(A = rep(c(0, 1), 50), B = rep(c(0, 0, 1, 1), 25))
+design <- ppi_design(seed, psych = psych, TR = 2, run_effects = "shared")
+Y <- matrix(rnorm(n * 2), nrow = n) # target BOLD, same scan rows
+fit <- ppi_fit(Y, design, noise = "iid")
+ppi_contrast(fit, c(A = 1, B = -1))$estimate
 ```
 
-## Neural-domain workflow
+A matrix supplied as `psych` represents scan-grid neural psychological inputs,
+not an already-convolved task design. Event timings or explicit microtime-grid
+inputs are also supported. By default, the raw seed input is adjusted for run
+baselines and nuisance effects conditional on task main effects before
+deconvolution. See the [conventional PPI vignette](vignettes/vignette_09_conventional_ppi.Rmd) and `?ppi_design`
+for timing, centering, and convolution conventions.
 
-Set `domain = "neural"` to work directly with latent neural activity. The
-solver now deconvolves residual BOLD and psychological regressors using a
-canonical double-gamma HRF (`mppi_default_hrf()`) when you do not supply one
-explicitly. Additional deconvolution controls live in a `deconv` list—override
-the HRF shape, DCT dimension (`K`), generalized cross-validation vs fixed ridge,
-oversampling, or even pass precomputed neural “sticks”. When the design matrix
-contains HRF basis expansions, columns are grouped automatically so the fit
-produces one neural regressor per condition.
+The default `fmriAR` fit estimates a shared temporal noise operator. Shared
+pooling assumes similar target noise; it can be inappropriate for heterogeneous
+targets. Use `noise_control = list(pooling = "parcel", parcels = labels)` to
+fit a separate operator per target group, or one label per target for targetwise
+estimation. Estimated-noise inference is approximate and conditional on the
+seed and design. Censored fits currently support IID errors only; AR with gaps is
+rejected. These results do not establish causal or latent neural coupling.
 
-```r
-h <- mppi_default_hrf(tr = 0.8, duration = 32)
-fit_neural <- mppi_fit(Y, X, psych_idx = psych_cols,
-                       domain = "neural",
-                       deconv = list(hrf = h, K = 48))
+## Covariance analysis and validation
 
-# Compare against a BOLD-domain fit
-fit_bold <- mppi_fit(Y, X, psych_idx = psych_cols, domain = "bold")
-neural_diff <- mppi_compare_models(fit_bold, fit_neural)
-
-# Access neural sticks and mechanistic readouts
-sticks <- fit_neural$deconv$sticks
-gain   <- mppi_gain(fit_neural, k = 1L)
-route  <- mppi_routing_index(list("lag0" = fit_neural), k = 1L,
-                             hierarchy = rep(1, ncol(Y)))
-```
-
-For bespoke workflows, `mppi_psych_neural_from_X()` generates neural sticks
-from any design matrix, `mppi_neural_from_fit()` converts existing BOLD fits,
-and `mppi_hrf_ensemble()` blends fits from multiple HRFs. These helpers are now
-exported with documentation alongside the core API.
-
-## Mechanistic readouts
-
-multiPPI now ships lightweight mechanistic diagnostics that operate entirely in
-the fitted subspace (ROI or basis):
-
-- `mppi_gain()` — converts task slopes into first-order precision updates and
-  reports component gain with optional ROI back-projection.
-- `mppi_routing_index()` — combines lagged fits with a cortical hierarchy to
-  score feedforward vs feedback routing.
-- `mppi_project_templates()` — projects interaction matrices onto hypotheses
-  (within/between, gradients, bespoke mechanisms) via simple inner products.
-- `mppi_mechanism_report()` — bundles the above into a single, ready-to-plot
-  summary list.
-
-Template helpers (`mppi_templates_within_between()`, `mppi_templates_gradient()`)
-provide quick starting points, but any r×r (or ROI×ROI) matrices work. Because
-everything happens in the reduced space, the workflow scales effortlessly to
-high-resolution data.
+The `mppi_*` functions expose the distinct covariance workflow, lagged slopes,
+and derived quantities. Unsupported legacy resampling options fail closed;
+legacy task-main-effect evidence should not be interpreted as interaction
+model evidence. See the [validation guide](inst/validation/README.md) and
+[implementation evidence](audit/2026-10-23-ppi/IMPLEMENTATION.md) for external
+comparisons, simulation scope and limitations. Passing those checks does not establish
+end-to-end neural recovery, full inferential calibration, or release readiness.

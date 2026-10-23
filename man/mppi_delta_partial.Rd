@@ -7,7 +7,9 @@
 mppi_delta_partial(Theta0, DeltaTheta)
 }
 \arguments{
-\item{Theta0}{baseline precision; @param DeltaTheta precision delta}
+\item{Theta0}{baseline precision matrix}
+
+\item{DeltaTheta}{precision delta matrix}
 }
 \description{
 Partial-correlation delta approximation

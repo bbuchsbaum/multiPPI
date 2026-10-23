@@ -18,9 +18,21 @@ mppi_lag_select(
 )
 }
 \arguments{
+\item{Y}{T x V data matrix}
+
+\item{X}{T x q design matrix}
+
+\item{psych_idx}{indices of psychological main effects to test}
+
 \item{lags}{vector of candidate lags}
 
+\item{blocklens}{optional run lengths to respect when shifting regressors}
+
 \item{B}{number of permutations}
+
+\item{blksize}{optional block size used for permutation sign flips}
+
+\item{scale}{compute covariance (\code{"cov"}) or correlation (\code{"corr"}) slopes}
 
 \item{targets}{optional subset of psychological regressors (names or indices)}
 

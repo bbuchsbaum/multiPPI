@@ -2,10 +2,15 @@
 % Please edit documentation in R/mppi_neural.R
 \name{mppi_hrf_ensemble}
 \alias{mppi_hrf_ensemble}
-\title{Evidence-weighted HRF ensemble average}
+\title{HRF ensemble average with equal or caller-specified weights}
 \usage{
 mppi_hrf_ensemble(fits, weights = NULL)
 }
+\arguments{
+\item{fits}{list of neural-domain fits to combine}
+
+\item{weights}{Optional non-negative vector with one weight per fit.}
+}
 \description{
-Evidence-weighted HRF ensemble average
+HRF ensemble average with equal or caller-specified weights
 }

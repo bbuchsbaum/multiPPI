@@ -4,7 +4,15 @@
 \alias{mppi_rank_cv}
 \title{Cross-validated rank selection for ΔΣ (component space recommended)}
 \usage{
-mppi_rank_cv(R, pk, Delta, holdout_frac = 0.2, R_reps = 3)
+mppi_rank_cv(
+  R,
+  pk,
+  Delta = NULL,
+  holdout_frac = 0.2,
+  R_reps = 3,
+  runs = NULL,
+  gap = 0L
+)
 }
 \arguments{
 \item{R}{Residualized time series in the working space (T × V or T × r).}
@@ -17,6 +25,10 @@ compatibility but recomputed internally from \code{R}/\code{pk} in each split.}
 \item{holdout_frac}{Fraction of time points for hold-out blocks.}
 
 \item{R_reps}{Number of random splits.}
+
+\item{runs}{Optional contiguous run labels; each run contributes one held-out block.}
+
+\item{gap}{Number of scans excluded from training on each side of a held-out block.}
 }
 \value{
 List with the selected rank \code{r}, per-rank losses, and the rank grid.
@@ -28,4 +40,7 @@ whether you operate in voxel/ROI or basis space, but for high-dimensional
 data you should supply the reduced residual matrix (e.g., \code{fit$Z}) together
 with its corresponding slope matrix (\code{mppi_get_M(fit, k)}) so the SVD is
 performed on an r × r matrix rather than a 50k × 50k object.
+}
+\details{
+R and pk are externally preprocessed; this is not nested preprocessing CV.
 }
