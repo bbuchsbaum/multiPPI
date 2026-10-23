@@ -13,3 +13,5 @@ Rplots.pdf
 vignettes/*.html
 vignettes/*.knit.md
 inst/doc/
+# Local agent tooling
+.claude/
