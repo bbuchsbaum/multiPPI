@@ -67,6 +67,15 @@
        assumptions = if (method == "block_flip") "Blockwise sign or wild-weight symmetry; calibration is unqualified." else "Within-segment stationarity and Fourier phase exchangeability; calibration is unqualified.")
 }
 
+# Energy sum M_ij^2 of M = R' diag(z) R / z'z, off the diagonal if zero_diag.
+# With G = RR' it equals (z'(G o G)z - [||(R o R)'z||^2]) / (z'z)^2, so
+# precomputing G o G costs O(T^2) per draw instead of O(T V^2) when T <= V^2.
+.mppi_slope_energy <- function(R, zero_diag = TRUE, kernel = nrow(R) <= ncol(R)^2 && nrow(R) <= 4000L) {
+  if (!kernel) return(function(z) { M <- .mppi_wcp(R, z)/sum(z^2); if (zero_diag) diag(M) <- 0; sum(M^2) })
+  K <- tcrossprod(R)^2; S <- R^2
+  function(z) (sum(z * (K %*% z)) - if (zero_diag) sum(crossprod(S, z)^2) else 0) / sum(z^2)^2
+}
+
 #' Experimental omnibus randomization of covariance-modulation slopes
 #' @param fit A covariance-modulation fit.
 #' @param blksize Positive block length.
@@ -81,6 +90,7 @@ mppi_omnibus <- function(fit, blksize = 10L, B = 999L, wild = c("rademacher","ma
   setup <- .mppi_randomization_setup(fit, blksize, B, method, wild)
   restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add=TRUE)
   initial <- if (exists(".Random.seed", .GlobalEnv, inherits=FALSE)) get(".Random.seed", .GlobalEnv) else NULL
+  energy <- .mppi_slope_energy(fit$R)
   out <- setNames(vector("list", length(fit$names)), fit$names)
   for (i in seq_along(out)) {
     pk <- fit$pk[[i]]; denom <- sum(pk^2)
@@ -90,7 +100,7 @@ mppi_omnibus <- function(fit, blksize = 10L, B = 999L, wild = c("rademacher","ma
     for (b in seq_len(B)) {
       z <- .mppi_random_psych(pk, setup, method, wild); dz <- sum(z^2)
       if (!is.finite(dz) || dz <= .Machine$double.eps) stop("Randomized regressor has zero or invalid energy.", call.=FALSE)
-      M <- .mppi_wcp(fit$R, z)/dz; diag(M) <- 0; null[b] <- sum(M^2)
+      null[b] <- energy(z)
     }
     out[[i]] <- list(D=D, Q=Q, Qnull=null, p_global=(1+sum(null>=Q))/(B+1))
   }

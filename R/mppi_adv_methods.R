@@ -226,19 +226,13 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
   X <- .mppi_adv_X(fit)
   pk <- .mppi_adv_pk(fit, k)
   Mk_neural <- crossprod(X, pk * X) / (sum(pk^2) + 1e-12)
-  Mk_innov <- if (mode == "innov") {
-    Xi <- mppi_innovations(X, TR = attr(X, "TR") %||% NULL,
-                           protect = "lowK", K_keep = 8L,
-                           ar_order = "auto", p = 4L,
-                           center = FALSE)
-    crossprod(Xi, pk * Xi) / (sum(pk^2) + 1e-12)
-  } else Mk_neural
+  # Innovations are filtered once, run by run; draws only change the regressor.
+  inp <- .mppi_adv_lag_input(fit, mode, NULL, "lowK", 8L, 0.03, "auto", 4L)
+  Mk_innov <- if (mode == "innov") crossprod(inp$X, pk * inp$X) / (sum(pk^2) + 1e-12) else Mk_neural
   I_ratio <- sqrt(sum(Mk_innov^2)) / (sqrt(sum(Mk_neural^2)) + 1e-12)
   restore_rng <- .mppi_seed_rng(seed); on.exit(restore_rng(), add = TRUE)
   perm <- .mppi_adv_perm_shift(pk, B)
   G_null <- C_null <- I_null <- D_null <- numeric(B)
-  TR_attr <- attr(X, "TR") %||% NULL
-  inp <- .mppi_adv_lag_input(fit, mode, NULL, "lowK", 8L, 0.03, "auto", 4L)
   for (b in seq_len(B)) {
     sb <- perm[, b]
     Mb <- crossprod(X, sb * X) / (sum(sb^2) + 1e-12)
@@ -249,10 +243,7 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
     off_b <- dTheta_b - diag(diag(dTheta_b))
     C_null[b] <- sqrt(sum(off_b^2))
     if (mode == "innov") {
-      Xi_b <- mppi_innovations(X, TR = TR_attr, protect = "lowK",
-                               K_keep = 8L, ar_order = "auto",
-                               p = 4L, center = FALSE)
-      Mb_i <- crossprod(Xi_b, sb * Xi_b) / (sum(sb^2) + 1e-12)
+      Mb_i <- crossprod(inp$X, sb * inp$X) / (sum(sb^2) + 1e-12)
       I_null[b] <- sqrt(sum(Mb_i^2)) / (sqrt(sum(Mb^2)) + 1e-12)
     } else {
       I_null[b] <- 1
@@ -339,11 +330,9 @@ mppi_sdppi_fit <- function(fit, k, onsets_idx, runs = NULL,
     pre_effrank <- exp(-sum((lam2 / total) * log((lam2 / total) + 1e-12)))
     v1 <- eig$vectors[, 1]
     pre_sign_balance <- max(mean(v1 >= 0), mean(v1 <= 0))
-    Mk_post <- crossprod(X, (.mppi_adv_indicator(Tn, post_idx) * X)) /
-      (length(post_idx) + 1e-12)
+    Mk_post <- crossprod(X[post_idx, , drop = FALSE]) / length(post_idx)
     dTheta_post <- -Theta0 %*% Mk_post %*% Theta0
-    Mk_pre <- crossprod(X, (.mppi_adv_indicator(Tn, pre_idx) * X)) /
-      (length(pre_idx) + 1e-12)
+    Mk_pre <- Sw
     dTheta_pre <- -Theta0 %*% Mk_pre %*% Theta0
     ppi_energy <- sqrt(sum(Mk_post^2))
     cond_energy <- sqrt(sum((dTheta_post - diag(diag(dTheta_post)))^2))
@@ -588,11 +577,6 @@ mppi_gate_by_theta <- function(fits, k, lambda = 1e-3, controls = NULL) {
   }, numeric(Tn))
 }
 
-.mppi_adv_indicator <- function(Tn, idx) {
-  v <- numeric(Tn)
-  v[idx] <- 1
-  v
-}
 
 .mppi_adv_nuisance <- function(nuisance_ts, idx) {
   if (is.null(nuisance_ts) || !length(nuisance_ts)) return(numeric(0))

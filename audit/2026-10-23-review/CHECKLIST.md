@@ -120,12 +120,12 @@ Phase 4 notes (user-visible behaviour changes):
 
 ## Phase 5 — P4: efficiency
 
-- [ ] 5.1 `mppi_omnibus`: exact precomputed statistic instead of O(B·T·V²) per draw.
-- [ ] 5.2 `mppi_lag_select`: do not default to `scale = "cov"` (V³ inverse and unused diagnostics).
-- [ ] 5.3 `ppi_fit` grouped/targetwise: share the unwhitened factorization and residuals across groups.
-- [ ] 5.4 `ppi_design`: batch the basis convolutions instead of per-column FFT calls.
-- [ ] 5.5 `mppi_classify` innovations mode recomputes identical innovations per draw.
-- [ ] 5.6 `mppi_sdppi_fit` multiplies the full T×r matrix per trial instead of the window rows.
+- [x] 5.1 `mppi_omnibus`: exact precomputed statistic instead of O(B·T·V²) per draw. (T=300, V=400, B=50: 2.16 s → 0.09 s; nulls identical to 2e-16.)
+- [x] 5.2 `mppi_lag_select`: do not default to `scale = "cov"` (V³ inverse and unused diagnostics); nulls also use the exact kernel. (T=300, V=300, B=30: 4.07 s → 0.19 s; same selected lag, nulls identical to 4e-16.)
+- [-] 5.3 `ppi_fit` grouped/targetwise: share the unwhitened factorization and residuals across groups. Deferred: measured no gain (4.81 s vs 4.89 s, 100 groups); 97% of the time is `fmriAR::fit_noise`'s design-based autocovariance bias correction (`.acvf_bias_by_run`), outside this package.
+- [x] 5.4 `ppi_design`: batch the basis convolutions instead of per-column FFT calls. Done in Phase 2 (64-column `mvfft` blocks).
+- [x] 5.5 `mppi_classify` innovations mode recomputes identical innovations per draw. Now filtered once, and per run. (B=60: 0.35 s → 0.05 s; single-run results identical.)
+- [x] 5.6 `mppi_sdppi_fit` multiplies the full T×r matrix per trial instead of the window rows. (T=2000, 80 ROIs, 98 trials: 2.63 s → 0.48 s; results equal to 4e-13.)
 
 ## Phase 6 — P5: quality and hygiene
 
