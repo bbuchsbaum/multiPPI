@@ -49,4 +49,11 @@ whitening with censor gaps requires a marginal observed-data noise
 operator; unsupported gap handling is rejected rather than silently
 interpreting gaps as independent noise segments. Individual aliased
 coefficients are \code{NA}; estimable contrasts remain available.
+
+Targets whose full-model residuals are numerically zero, such as a target
+identical to the seed, carry no information about temporal noise. They
+are flagged in \code{degenerate}, excluded from fmriAR noise estimation with a
+warning naming them, and whitened with the operator estimated from the
+remaining targets of their group; a group with no other targets uses IID
+errors. A grouped noise fit that fails reports the group and its targets.
 }

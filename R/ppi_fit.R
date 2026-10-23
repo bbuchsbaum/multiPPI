@@ -25,6 +25,13 @@
 #'   operator; unsupported gap handling is rejected rather than silently
 #'   interpreting gaps as independent noise segments. Individual aliased
 #'   coefficients are `NA`; estimable contrasts remain available.
+#'
+#'   Targets whose full-model residuals are numerically zero, such as a target
+#'   identical to the seed, carry no information about temporal noise. They
+#'   are flagged in `degenerate`, excluded from fmriAR noise estimation with a
+#'   warning naming them, and whitened with the operator estimated from the
+#'   remaining targets of their group; a group with no other targets uses IID
+#'   errors. A grouped noise fit that fails reports the group and its targets.
 #' @export
 ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
                     chunk_size = 2048L, tol = 1e-7) {
@@ -61,18 +68,39 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
     if ((!is.numeric(parcels) && !is.character(parcels) && !is.factor(parcels)) || length(parcels) != ncol(Y) || anyNA(parcels) || (is.numeric(parcels) && any(!is.finite(parcels))) || any(!nzchar(as.character(parcels)))) stop("parcel pooling requires one valid nonmissing label per target")
     labels <- as.character(parcels); groups <- unique(labels)
     control <- noise_control; control$parcels <- NULL; control$pooling <- "global"
-    subfits <- lapply(groups, function(g) ppi_fit(Y[, labels == g, drop = FALSE], design, noise = "fmriAR", noise_control = control, chunk_size = chunk_size, tol = tol))
+    target_label <- function(cols) .ppi_target_label(colnames(Y), cols)
+    degenerate <- list()
+    subfits <- lapply(groups, function(g) {
+      cols <- which(labels == g)
+      withCallingHandlers(
+        tryCatch(ppi_fit(Y[, cols, drop = FALSE], design, noise = "fmriAR", noise_control = control, chunk_size = chunk_size, tol = tol),
+                 error = function(e) stop(sprintf("noise estimation failed for parcel '%s' (targets %s): %s", g, target_label(cols), conditionMessage(e)), call. = FALSE)),
+        ppi_degenerate_targets = function(w) {
+          degenerate[[g]] <<- cols[w$targets]
+          invokeRestart("muffleWarning")
+        })
+    })
     names(subfits) <- groups
+    if (length(degenerate)) {
+      white <- names(degenerate)[vapply(names(degenerate), function(g) subfits[[g]]$noise == "iid", logical(1))]
+      warning(sprintf("%d target(s) have numerically zero full-model residuals (e.g. a target identical to the seed) and were excluded from noise estimation: %s.%s",
+                      length(unlist(degenerate)),
+                      paste(sprintf("%s (parcel '%s')", vapply(degenerate, target_label, character(1)), names(degenerate)), collapse = ", "),
+                      if (length(white)) paste0(" Parcels with no other targets use IID errors: ", paste0("'", white, "'", collapse = ", "), ".") else ""),
+              call. = FALSE)
+    }
     result <- subfits[[1L]]
     result$coefficients <- result$standard_errors <- matrix(NA_real_, nrow = ncol(X), ncol = ncol(Y), dimnames = list(colnames(X), colnames(Y)))
     result$beta_solution <- result$coefficients
     result$sigma2 <- setNames(numeric(ncol(Y)), colnames(Y))
+    result$degenerate <- setNames(logical(ncol(Y)), colnames(Y))
     for (i in seq_along(groups)) {
       cols <- which(labels == groups[i]); f <- subfits[[i]]
       result$coefficients[, cols] <- f$coefficients
       result$standard_errors[, cols] <- f$standard_errors
       result$beta_solution[, cols] <- f$beta_solution
       result$sigma2[cols] <- f$sigma2
+      result$degenerate[cols] <- f$degenerate
     }
     result$groups <- labels; result$group_fits <- subfits
     result$noise_plan <- lapply(subfits, `[[`, "noise_plan")
@@ -91,15 +119,30 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
   initial <- .ppi_factor(Xobs, tol)
   if (length(observed) <= initial$rank) stop("no residual degrees of freedom")
   plan <- NULL
+  degenerate <- logical(ncol(Y))
   if (use_ar) {
     if (fixed) plan <- noise else {
       if (!is.null(noise_control$pooling) && !noise_control$pooling %in% c("global", "run")) stop("only shared global/run noise operators are supported")
       # This is the full-model residual, including interaction columns.
       residual <- Y - initial$U %*% crossprod(initial$U, Y)
-      args <- c(list(resid = residual, runs = design$runs, design = X), noise_control)
-      plan <- do.call(fmriAR::fit_noise, args)
+      # Targets the design explains exactly (e.g. identical to the seed) leave
+      # rounding noise that carries no information about temporal noise.
+      degenerate <- sqrt(colSums(residual^2)) <= sqrt(.Machine$double.eps) * sqrt(colSums(Y^2))
+      if (any(degenerate)) {
+        warning(structure(class = c("ppi_degenerate_targets", "warning", "condition"), list(
+          message = sprintf("%d target(s) have numerically zero full-model residuals (e.g. a target identical to the seed) and were excluded from noise estimation: %s.%s",
+                            sum(degenerate), .ppi_target_label(colnames(Y), which(degenerate)),
+                            if (all(degenerate)) " No other targets remain; using IID errors." else ""),
+          call = NULL, targets = which(degenerate))))
+      }
+      if (all(degenerate)) use_ar <- FALSE else {
+        args <- c(list(resid = residual[, !degenerate, drop = FALSE], runs = design$runs, design = X), noise_control)
+        plan <- do.call(fmriAR::fit_noise, args)
+      }
       rm(residual)
     }
+  }
+  if (use_ar) {
     if (!plan$pooling %in% c("global", "run")) stop("only shared global/run noise operators are supported")
     if (!is.null(plan$n_time) && plan$n_time != nrow(X)) stop("noise plan has incompatible time length")
     if (!is.null(plan$runs) && !identical(as.character(plan$runs), as.character(design$runs))) stop("noise plan runs do not match design")
@@ -127,8 +170,9 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
   se <- sqrt(outer(diag(fact$covariance), sigma2))
   dimnames(se) <- dimnames(solution); se[!fact$estimable, ] <- NA_real_
   names(sigma2) <- colnames(Y)
+  names(degenerate) <- colnames(Y)
   structure(list(coefficients = coefficients, standard_errors = se,
-                 sigma2 = sigma2, df = df, rank = fact$rank,
+                 sigma2 = sigma2, degenerate = degenerate, df = df, rank = fact$rank,
                  estimable = stats::setNames(fact$estimable, colnames(X)),
                  design = design, noise_plan = plan,
                  noise = if (use_ar) "fmriAR" else "iid",
@@ -138,6 +182,12 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
                  beta_solution = solution, covariance_unscaled = fact$covariance,
                  row_space = fact$V, column_scale = fact$column_scale,
                  tolerance = tol), class = "ppi_fit")
+}
+
+.ppi_target_label <- function(names, cols) {
+  shown <- if (is.null(names)) as.character(cols) else names[cols]
+  if (length(shown) > 10L) shown <- c(shown[1:10], sprintf("... (%d more)", length(shown) - 10L))
+  paste(shown, collapse = ", ")
 }
 
 .ppi_factor <- function(X, tol) {
