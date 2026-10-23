@@ -37,3 +37,36 @@ test_that("frame adapter validates TR, runs and acquisition mask", {
   bad <- d; bad$runs <- rep("other",n); expect_error(ppi_fit(frame,bad,noise="iid"),"run labels")
   bad <- d; bad$keep[2] <- FALSE; expect_error(ppi_fit(frame,bad,noise="iid"),"censor")
 })
+
+test_that("targets identical to the seed do not abort grouped noise fits", {
+  set.seed(31); n <- 90; seed <- rnorm(n)
+  p <- cbind(A=sin(seq_len(n)/5), B=cos(seq_len(n)/9))
+  d <- ppi_design(seed, psych=p, hrf=c(0,1,.5), microtime=1, run_effects="shared")
+  e <- sapply(c(.7,.1,.7,.1), function(a) as.numeric(arima.sim(list(ar=a),n=n)))
+  colnames(e) <- paste0("target",1:4); e[,1] <- seed
+  expect_warning(fit <- ppi_fit(e,d,noise_control=list(pooling="parcel",parcels=seq_len(4),p=1L)),
+                 "target1 \\(parcel '1'\\).*IID errors: '1'")
+  expect_identical(fit$group_fits[["1"]]$noise, "iid")
+  expect_null(fit$noise_plan[["1"]])
+  expect_identical(unname(fit$degenerate), c(TRUE,FALSE,FALSE,FALSE))
+  ref <- ppi_fit(e[,2,drop=FALSE],d,noise_control=list(p=1L))
+  expect_equal(fit$coefficients[,2],ref$coefficients[,1])
+  expect_true(all(is.finite(ppi_contrast(fit,c(A=1))$estimate)))
+  # Mixed groups and global pooling estimate noise from the remaining targets.
+  expect_warning(mixed <- ppi_fit(e,d,noise_control=list(pooling="parcel",parcels=c(1,1,2,2),p=1L)),"excluded")
+  ref <- ppi_fit(e[,2,drop=FALSE],d,noise_control=list(p=1L))
+  expect_equal(mixed$standard_errors[,2],ref$standard_errors[,1])
+  expect_equal(mixed$group_fits[["1"]]$noise_plan$phi,ref$noise_plan$phi)
+  expect_warning(global <- ppi_fit(unname(e),d,noise_control=list(p=1L)),"excluded from noise estimation: 1\\.")
+  expect_identical(global$noise,"fmriAR")
+  expect_warning(alone <- ppi_fit(e[,1,drop=FALSE],d,noise_control=list(p=1L)),"using IID errors")
+  expect_identical(alone$noise,"iid")
+})
+
+test_that("grouped noise failures name the parcel and its targets", {
+  set.seed(31); n <- 90; seed <- rnorm(n)
+  d <- ppi_design(seed, psych=cbind(A=sin(seq_len(n)/5)), hrf=c(0,1,.5), microtime=1, run_effects="shared")
+  e <- matrix(rnorm(n*3),n,dimnames=list(NULL,c("a","b","c")))
+  expect_error(ppi_fit(e,d,noise_control=list(pooling="parcel",parcels=c("x","y","y"),method="bogus")),
+               "parcel 'x' \\(targets a\\)")
+})
