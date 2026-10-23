@@ -188,19 +188,28 @@ mppi.fmri_dataset <- function(x, fd, basis = NULL, domain = c("bold","neural","i
   if (!is.null(TR_ds) && !is.null(TR_fd) && abs(TR_ds - TR_fd) > 1e-6) {
     stop("TR mismatch between dataset and design.", call. = FALSE)
   }
-  basis_res <- .mppi_resolve_basis(Y, basis = basis, r = r, dataset = x, design = fd)
-  basis_obj <- basis_res
-  basis_source <- if (is.null(basis_obj)) {
-    if (is.character(basis)) tolower(basis[[1L]]) else if (is.list(basis) && !is.null(basis$type)) tolower(basis$type) else "roi"
-  } else {
-    basis_obj$source %||% "provided"
+  tr <- TR_ds %||% TR_fd
+  if (domain != "bold" && !is.null(tr)) {
+    deconv <- deconv %||% list()
+    supplied <- deconv$tr %||% deconv$TR
+    if (!is.null(supplied) && (length(supplied) != 1L || abs(supplied - tr) > 1e-6)) stop("TR mismatch between dataset and deconvolution.", call. = FALSE)
+    deconv$tr <- tr
   }
+  # As in mppi(design, Y): no basis unless one is requested or carried by the design.
+  basis_obj <- if (is.null(basis)) NULL else .mppi_resolve_basis(Y, basis = basis, r = r, dataset = x, design = fd)
   fit <- mppi(fd, Y = Y, basis = basis_obj, domain = domain,
               prewhiten = prewhiten, runs = runs_ds, deconv = deconv,
               engine = engine, instant = instant, ...)
   fit$dataset <- x
-  fit$basis_source <- basis_source
-  if (!is.null(fit$basis)) fit$basis$source <- basis_source
+  if (!is.null(basis)) {
+    basis_source <- if (is.null(basis_obj)) {
+      if (is.character(basis)) tolower(basis[[1L]]) else if (is.list(basis) && !is.null(basis$type)) tolower(basis$type) else "roi"
+    } else {
+      basis_obj$source %||% "provided"
+    }
+    fit$basis_source <- basis_source
+    if (!is.null(fit$basis)) fit$basis$source <- basis_source
+  }
   fit
 }
 
@@ -302,8 +311,17 @@ print.summary.mppi_fit <- function(x, ...) {
 
 #' Group HRF basis columns belonging to each condition.
 #'
+#' Columns are grouped only when they are recognisably the basis functions of
+#' one condition: fmridesign names basis function `j` of a multi-basis HRF
+#' `<condition>_b<j>` (zero-padded, e.g. `cond_cond.A_b01`, `cond_cond.A_b02`),
+#' so a non-empty stem whose suffixes run exactly `1..n` (`n >= 2`) forms one
+#' group; so do two or more distinct legacy prefixes `hrf`, `hrfT`, `hrfD`,
+#' `hrfTD` of the same full condition (`hrf_A`, `hrfTD_A`, or `hrf(A)`). Every
+#' other column, including unnamed or duplicated ones, is its own group;
+#' distinct conditions are never merged.
+#'
 #' @param design An `mppi_design` object or design matrix with column names.
-#' @return A named list mapping condition keys to column indices.
+#' @return A named list mapping condition keys to column indices, in design order.
 #' @export
 mppi_group_hrf_columns <- function(design) {
   if (inherits(design, "mppi_design")) {
@@ -316,19 +334,31 @@ mppi_group_hrf_columns <- function(design) {
   } else {
     stop("design must be an mppi_design or matrix with column names.")
   }
-  keyfun <- function(nm) {
-    if (grepl("^hrf", nm)) {
-      if (grepl("\\(", nm)) {
-        inside <- sub("^hrf[^\\(]*\\(([^\\)]+)\\).*", "\\1", nm)
-        if (!identical(inside, nm) && nzchar(inside)) return(inside)
-      }
-      stripped <- sub("^hrf[TtDd]*", "", nm)
-      stripped <- sub("^[\\._:]+", "", stripped)
-      stripped <- sub("[\\._].*$", "", stripped)
-      if (nzchar(stripped)) return(stripped)
+  n <- length(idx)
+  if (is.null(names_vec)) names_vec <- rep("", n)
+  names_vec[is.na(names_vec)] <- ""
+  stem <- tag <- rep(NA_character_, n)
+  fd <- regexpr("_b[0-9]{2,}$", names_vec)
+  hit <- fd > 0
+  stem[hit] <- paste0("b:", substr(names_vec[hit], 1L, fd[hit] - 1L))
+  tag[hit] <- as.integer(substring(names_vec[hit], fd[hit] + 2L))
+  re <- "^hrf([TtDd]*)(?:[._:](.+)|\\((.+)\\))$"
+  lg <- !hit & grepl(re, names_vec, perl = TRUE)
+  stem[lg] <- paste0("h:", sub(re, "\\2\\3", names_vec[lg], perl = TRUE))
+  tag[lg] <- toupper(sub(re, "\\1", names_vec[lg], perl = TRUE))
+  grp <- seq_len(n)
+  key <- ifelse(nzchar(names_vec), names_vec, paste0("col", idx))
+  for (s in unique(stem[!is.na(stem)])) {
+    pos <- which(stem == s)
+    cond <- substring(s, 3L)
+    ok <- if (startsWith(s, "b:")) identical(sort(as.integer(tag[pos])), seq_along(pos)) else !anyDuplicated(tag[pos])
+    if (nzchar(cond) && length(pos) >= 2L && ok) {
+      grp[pos] <- pos[1L]
+      key[pos] <- cond
     }
-    sub("[\\._].*$", "", nm)
   }
-  keys <- vapply(names_vec, keyfun, character(1))
-split(idx, keys)
+  ids <- unique(grp)
+  out <- lapply(ids, function(g) idx[grp == g])
+  names(out) <- make.unique(key[ids])
+  out
 }

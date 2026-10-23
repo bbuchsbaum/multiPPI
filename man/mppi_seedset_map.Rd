@@ -22,7 +22,11 @@ mppi_seedset_map(
 
 \item{k}{Condition/contrast name or index.}
 
-\item{aggregate}{Aggregation rule: \code{"svd"}, \code{"mean"}, or \code{"precision"}.}
+\item{aggregate}{Aggregation rule: \code{"svd"}, \code{"mean"}, or \code{"precision"}.
+\code{"svd"} weights seeds by the first left singular vector of the uncentered
+seeds x targets slope matrix, scaled to unit L2 norm and signed so the
+weights sum positive (equivalently, the map aligns positively with the mean
+map).}
 
 \item{target_idx}{Optional target indices (defaults to all locations).}
 

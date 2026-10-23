@@ -4,7 +4,7 @@
 \alias{mppi_reconstruct_delta}
 \title{Reconstruct a submatrix of Δ from a basis fit}
 \usage{
-mppi_reconstruct_delta(fit, k, rows = NULL, cols = NULL)
+mppi_reconstruct_delta(fit, k, rows = NULL, cols = NULL, mode = NULL)
 }
 \arguments{
 \item{fit}{result of \code{mppi_fit()}}
@@ -14,7 +14,19 @@ mppi_reconstruct_delta(fit, k, rows = NULL, cols = NULL)
 \item{rows}{optional subset of row indices in ROI space}
 
 \item{cols}{optional subset of column indices in ROI space}
+
+\item{mode}{scale (\code{"raw"}, \code{"amplitude"}, \code{"normalized"}); \code{NULL} uses the fit's own scale}
 }
 \description{
-Reconstruct a submatrix of Δ from a basis fit
+For a basis fit the full component-space slope M (diagonal included) is
+back-projected as V M Vᵀ; the fit's \code{zero_diag} is then applied to ROI
+self-edges and the amplitude/normalized views divide by ROI-space residual
+SDs: those of the voxel/ROI residuals in the BOLD domain, or of the
+back-projected working series in the neural/innovations domains (whose
+deconvolution or filtering runs on the components). A full-rank orthonormal
+basis therefore reproduces the direct ROI fit (in non-BOLD domains when the
+deconvolution treats all columns alike, e.g. a fixed lambda). A rank-reduced
+basis returns the in-subspace part P ΔΣ P (P = V Vᵀ; in the BOLD domain the
+raw ROI fit of the projected data Y P); its BOLD scaled views divide by the
+full voxel residual SDs, while non-BOLD SDs omit out-of-subspace variance.
 }

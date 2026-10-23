@@ -2,19 +2,23 @@
 % Please edit documentation in R/mppi_band.R
 \name{mppi_bandpass}
 \alias{mppi_bandpass}
-\title{Simple bandpass using stats::filter or signal::butter if available}
+\title{Simple bandpass using signal::butter if available, else a DCT-domain filter}
 \usage{
-mppi_bandpass(x, low = NULL, high = 0.1, order = 2L)
+mppi_bandpass(x, low = NULL, high = 0.1, order = 2L, runs = NULL)
 }
 \arguments{
 \item{x}{T x V matrix}
 
 \item{low}{highpass cutoff in (0, 0.5) cycles/TR; NULL for none}
 
-\item{high}{lowpass cutoff in (0, 0.5); NULL for none}
+\item{high}{lowpass cutoff in (0, 0.5) cycles/TR; NULL for none}
 
 \item{order}{filter order for Butterworth if 'signal' present}
+
+\item{runs}{optional run labels; filtering does not cross run boundaries}
 }
 \description{
-Simple bandpass using stats::filter or signal::butter if available
+With the signal package, a zero-phase Butterworth filter (\code{filtfilt});
+otherwise an ideal filter that keeps the DCT components whose frequencies
+lie in \verb{[low, high]}. Each run is filtered separately.
 }

@@ -21,13 +21,17 @@ mppi_rest_design(
 
 \item{include_intercept}{Include an intercept column (default TRUE).}
 
-\item{scale_mod}{Normalize each modulator to unit L2 norm after residualizing.}
+\item{scale_mod}{Normalize each modulator to unit L2 norm after centering.}
 }
 \value{
 List containing design matrix \code{X}, psychological indices, and the
-residualized modulators.
+centered modulators as they enter \code{X}.
 }
 \description{
-Residualizes each modulator against all others, optional nuisance regressors,
-and an intercept to span the full context space (gPPI logic).
+Centers each modulator on the intercept and optional nuisance regressors
+(and within runs when \code{runs} is given). Modulators are not residualized on
+each other here: the fit residualizes each one on all other design columns
+(gPPI logic), so its slope reflects its unique variance. Modulators collinear
+with each other or with the intercept/nuisance, such as a full set of state
+occupancies, are an error; drop a reference modulator.
 }

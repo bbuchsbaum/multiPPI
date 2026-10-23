@@ -22,7 +22,8 @@ mppi_seedset_slopes(
 
 \item{target_idx}{Optional target indices (defaults to all locations).}
 
-\item{mode}{Scale of the interaction matrix: \code{"normalized"}, \code{"amplitude"}, or \code{"raw"}.}
+\item{mode}{Scale of the interaction matrix: \code{"normalized"}, \code{"amplitude"}, or \code{"raw"};
+basis fits are scaled in ROI space after back-projection (see \code{\link[=mppi_reconstruct_delta]{mppi_reconstruct_delta()}}).}
 
 \item{lag}{Optional lag (offset) to evaluate; defaults to contemporaneous (0).}
 }

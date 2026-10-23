@@ -51,22 +51,17 @@
   unique(idx)
 }
 
-.mppi_seedset_slice <- function(M, fit, seed_idx, target_idx) {
+# Self-edges follow the fit's zero_diag; basis fits are back-projected from the
+# full component slope (see mppi_reconstruct_delta()), so they need k/mode/lag.
+.mppi_seedset_slice <- function(M, fit, seed_idx, target_idx, k = NULL, mode = "raw", lag = 0L) {
+  if (!is.null(fit$basis)) {
+    if (is.null(k)) stop("Basis fits are back-projected from the stored component slope; supply k.", call. = FALSE)
+    return(.mppi_basis_slice(fit, k, seed_idx, target_idx, mode = mode, lag = lag))
+  }
   if (is.list(M) && !is.null(M$values)) {
     M <- .mppi_unpack_upper(M)
   }
-  if (is.null(fit$basis)) {
-    out <- M[seed_idx, target_idx, drop = FALSE]
-  } else {
-    V <- fit$basis$V
-    V_seed <- V[seed_idx, , drop = FALSE]
-    V_target <- V[target_idx, , drop = FALSE]
-    out <- V_seed %*% M %*% t(V_target)
-  }
-  if (length(seed_idx) == length(target_idx) && all(seed_idx == target_idx)) {
-    diag(out) <- 0
-  }
-  out
+  M[seed_idx, target_idx, drop = FALSE]
 }
 
 .mppi_seedset_precision_diag <- function(fit, Theta, seed_idx) {
@@ -85,7 +80,8 @@
 #' @param seeds Indices, logical mask, or labels identifying the seed rows.
 #' @param k Condition/contrast name or index.
 #' @param target_idx Optional target indices (defaults to all locations).
-#' @param mode Scale of the interaction matrix: `"normalized"`, `"amplitude"`, or `"raw"`.
+#' @param mode Scale of the interaction matrix: `"normalized"`, `"amplitude"`, or `"raw"`;
+#'   basis fits are scaled in ROI space after back-projection (see [mppi_reconstruct_delta()]).
 #' @param lag Optional lag (offset) to evaluate; defaults to contemporaneous (0).
 #' @return Matrix of dimension |seeds| × |targets|.
 #' @export
@@ -101,7 +97,9 @@ mppi_seedset_slopes <- function(fit, seeds, k, target_idx = NULL,
   }
   target_idx <- .mppi_as_index(target_idx, V, labels, what = "targets")
   lag <- as.integer(lag)
-  if (lag == 0L) {
+  if (!is.null(fit$basis)) {
+    Mk <- NULL
+  } else if (lag == 0L) {
     Mk <- mppi_get_M_scaled(fit, k, mode)
   } else {
     stored_mode <- fit$scale %||% "normalized"
@@ -112,7 +110,7 @@ mppi_seedset_slopes <- function(fit, seeds, k, target_idx = NULL,
       .mppi_convert_scale(Mk_lag, fit$sigma, stored_mode, mode)
     }
   }
-  slopes <- .mppi_seedset_slice(Mk, fit, seed_idx, target_idx)
+  slopes <- .mppi_seedset_slice(Mk, fit, seed_idx, target_idx, k = k, mode = mode, lag = lag)
   seed_names <- if (!is.null(labels)) labels[seed_idx] else paste0("seed_", seed_idx)
   target_names <- if (!is.null(labels)) labels[target_idx] else paste0("v", target_idx)
   rownames(slopes) <- seed_names
@@ -133,6 +131,10 @@ mppi_seedset_slopes <- function(fit, seeds, k, target_idx = NULL,
 #' @param seeds Seed specification (as in [mppi_seedset_slopes()]).
 #' @param k Condition/contrast name or index.
 #' @param aggregate Aggregation rule: `"svd"`, `"mean"`, or `"precision"`.
+#'   `"svd"` weights seeds by the first left singular vector of the uncentered
+#'   seeds x targets slope matrix, scaled to unit L2 norm and signed so the
+#'   weights sum positive (equivalently, the map aligns positively with the mean
+#'   map).
 #' @param target_idx Optional target indices (defaults to all locations).
 #' @param mode Scale for the interaction matrix (`"normalized"`, `"amplitude"`, `"raw"`).
 #' @param Theta0 Optional baseline precision matrix (component or voxel space) for
@@ -161,11 +163,12 @@ mppi_seedset_map <- function(fit, seeds, k,
     weights <- rep(1 / nrow(slopes), nrow(slopes))
     map <- drop(colMeans(slopes))
   } else if (aggregate == "svd") {
-    centered <- scale(slopes, center = TRUE, scale = FALSE)
-    sv <- La.svd(centered)
-    weights <- sv$u[, 1L]
-    # Normalize weights to unit L2 norm for stability
+    # uncentered: centering across seeds would leave a sign-arbitrary seed contrast
+    weights <- La.svd(slopes, nu = 1L, nv = 0L)$u[, 1L]
     weights <- weights / sqrt(sum(weights^2))
+    s <- sum(weights)
+    if (abs(s) < 1e-12) s <- weights[which.max(abs(weights))]
+    if (s < 0) weights <- -weights
     map <- drop(weights %*% slopes)
   } else {
     Theta_use <- Theta0

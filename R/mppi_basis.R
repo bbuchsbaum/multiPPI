@@ -162,14 +162,62 @@ mppi_get_M_lag <- function(fit, k, lag = 0L) {
   Mk
 }
 
+.mppi_basis_mode <- function(fit, mode = NULL) {
+  if (!is.null(mode)) return(match.arg(mode, c("raw", "amplitude", "normalized")))
+  if (identical(fit$scale, "cov")) "raw" else "normalized"
+}
+
+# ROI-space block of a basis fit: back-project the component slope with its diagonal,
+# then apply the fit's zero_diag to ROI self-edges and divide by ROI-space residual SDs.
+.mppi_basis_slice <- function(fit, k, rows, cols, mode = "raw", lag = 0L) {
+  idx <- if (is.character(k)) match(k, fit$names) else as.integer(k)
+  if (length(idx) != 1L || is.na(idx) || idx < 1L || idx > length(fit$Delta)) stop("Invalid regressor index", call. = FALSE)
+  if (as.integer(lag) == 0L) {
+    M <- mppi_get_M_scaled(fit, idx, "raw")
+    d <- if (length(fit$covariance_diagonal) >= idx) fit$covariance_diagonal[[idx]]
+  } else {
+    Ml <- mppi_get_M_lag(fit, idx, lag)
+    M <- attr(Ml, "raw")
+    d <- attr(Ml, "diagonal")
+  }
+  if (is.null(M) || is.null(d)) stop("Basis back-projection needs the component-space slope diagonal; refit with mppi_fit().", call. = FALSE)
+  diag(M) <- d
+  V <- fit$basis$V
+  out <- V[rows, , drop = FALSE] %*% M %*% t(V[cols, , drop = FALSE])
+  if (isTRUE(fit$zero_diag) && !all(is.na(out))) out[outer(rows, cols, "==")] <- 0
+  if (mode == "raw") return(out)
+  sigma <- fit$sigma_roi
+  if (is.null(sigma)) {
+    if (is.null(fit$R) || ncol(fit$R) != ncol(V)) stop("ROI-space scaling needs the component working series (fit$R).", call. = FALSE)
+    sigma <- sqrt(rowSums((V %*% stats::cov(fit$R)) * V))
+  }
+  sigma[!is.finite(sigma) | sigma < 1e-12] <- 1e-12
+  out <- sweep(out, 2, sigma[cols], "/")
+  if (mode == "normalized") out <- sweep(out, 1, sigma[rows], "/")
+  out
+}
+
 #' Reconstruct a submatrix of Δ from a basis fit
+#'
+#' For a basis fit the full component-space slope M (diagonal included) is
+#' back-projected as V M Vᵀ; the fit's `zero_diag` is then applied to ROI
+#' self-edges and the amplitude/normalized views divide by ROI-space residual
+#' SDs: those of the voxel/ROI residuals in the BOLD domain, or of the
+#' back-projected working series in the neural/innovations domains (whose
+#' deconvolution or filtering runs on the components). A full-rank orthonormal
+#' basis therefore reproduces the direct ROI fit (in non-BOLD domains when the
+#' deconvolution treats all columns alike, e.g. a fixed lambda). A rank-reduced
+#' basis returns the in-subspace part P ΔΣ P (P = V Vᵀ; in the BOLD domain the
+#' raw ROI fit of the projected data Y P); its BOLD scaled views divide by the
+#' full voxel residual SDs, while non-BOLD SDs omit out-of-subspace variance.
 #' @param fit result of `mppi_fit()`
 #' @param k regressor index or name
 #' @param rows optional subset of row indices in ROI space
 #' @param cols optional subset of column indices in ROI space
-mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL) {
+#' @param mode scale (`"raw"`, `"amplitude"`, `"normalized"`); `NULL` uses the fit's own scale
+mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL, mode = NULL) {
   if (is.null(fit$basis)) {
-    D <- mppi_get_M(fit, k)
+    D <- if (is.null(mode)) mppi_get_M(fit, k) else mppi_get_M_scaled(fit, k, mode)
     if (!is.null(rows) || !is.null(cols)) {
       if (is.null(rows)) rows <- seq_len(nrow(D))
       if (is.null(cols)) cols <- seq_len(ncol(D))
@@ -177,25 +225,19 @@ mppi_reconstruct_delta <- function(fit, k, rows = NULL, cols = NULL) {
     }
     return(D)
   }
-  V <- fit$basis$V
-  M <- mppi_get_M(fit, k)
-  if (is.null(rows)) rows <- seq_len(nrow(V))
-  if (is.null(cols)) cols <- seq_len(nrow(V))
-  V_rows <- V[rows, , drop = FALSE]
-  V_cols <- V[cols, , drop = FALSE]
-  full <- V_rows %*% M %*% t(V_cols)
-  if (length(rows) == length(cols) && all(rows == cols)) diag(full) <- 0
-  full
+  n <- nrow(fit$basis$V)
+  .mppi_basis_slice(fit, k, rows %||% seq_len(n), cols %||% seq_len(n), .mppi_basis_mode(fit, mode))
 }
 
 #' Compute a single edge from a basis fit
+#'
+#' Back-projects as in [mppi_reconstruct_delta()].
 #' @param fit result of `mppi_fit()` with a basis
 #' @param k regressor index or name
 #' @param i ROI row index to evaluate
 #' @param j ROI column index to evaluate
-mppi_edge <- function(fit, k, i, j) {
+#' @param mode scale (`"raw"`, `"amplitude"`, `"normalized"`); `NULL` uses the fit's own scale
+mppi_edge <- function(fit, k, i, j, mode = NULL) {
   if (is.null(fit$basis)) stop("mppi_edge() requires a basis-aware fit.")
-  V <- fit$basis$V
-  M <- mppi_get_M(fit, k)
-  as.numeric(V[i, , drop = FALSE] %*% M %*% t(V[j, , drop = FALSE]))
+  as.numeric(.mppi_basis_slice(fit, k, i, j, .mppi_basis_mode(fit, mode)))
 }

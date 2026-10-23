@@ -10,7 +10,8 @@ mppi_fit_multi_band(
   psych_idx,
   bands,
   zero_diag = TRUE,
-  scale = c("normalized", "cov", "corr")
+  scale = c("normalized", "cov", "corr"),
+  runs = NULL
 )
 }
 \arguments{
@@ -25,7 +26,12 @@ mppi_fit_multi_band(
 \item{zero_diag}{logical; zero the diagonal of ΔΣ for each band}
 
 \item{scale}{summary scale for returned fits (\code{"normalized"}, \code{"cov"}, or \code{"corr"})}
+
+\item{runs}{optional run labels, used for filtering and passed to \code{mppi_fit()}}
 }
 \description{
-Fit ΔΣ per frequency band and optionally combine
+As in \code{mppi_fit()}, \code{Y} is residualized on the full design \code{X} before the
+residuals are band-limited (within runs), so task main effects cannot leak
+into ΔΣ. The band-limited residuals are then fitted with the unfiltered \code{X},
+whose psychological regressors weight them as in the broadband fit.
 }

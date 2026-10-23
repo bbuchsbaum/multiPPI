@@ -260,21 +260,38 @@ mppi_sdppi <- function(fit, fd,
 
 #' Precision gating summary \eqn{\Delta\Theta_k = -\Theta_0 M_k \Theta_0}
 #'
+#' \eqn{M_k} is the full slope (diagonal kept, whatever `zero_diag` was), as in
+#' `fit$partial`. In `"raw"` mode \eqn{\Sigma_0} and \eqn{M_k} are in data units
+#' and, with the default ridge, \eqn{\Delta\Theta_k} equals
+#' `fit$partial[[k]]$DeltaTheta` of a `scale = "cov"` fit. In `"normalized"` mode
+#' both are rescaled to correlation scale by `fit$sigma`
+#' (\eqn{D^{-1} \Sigma_0 D^{-1}}, \eqn{D^{-1} M_k D^{-1}}), so the result is unitless.
+#' `"amplitude"` slopes are not symmetric covariances and are rejected.
+#'
 #' @param fit `mppi_fit` object
-#' @param mode interaction scale (`"normalized"`, `"amplitude"`, or `"raw"`)
-#' @param Theta0 optional baseline precision matrix; defaults to the inverse of `fit$Sigma0`
-#' @param ridge small positive ridge added to the baseline covariance before inversion
+#' @param mode interaction scale (`"normalized"` or `"raw"`; `"amplitude"` errors)
+#' @param Theta0 optional baseline precision matrix on the scale of `mode`;
+#'   defaults to the ridged inverse of `fit$Sigma0` on that scale
+#' @param ridge ridge added to the baseline covariance before inversion; defaults
+#'   to `fit$partial_lambda`, the ridge used for `fit$partial`
 #' @return list with per-condition precision deltas and a summary data frame
 #' @export
 mppi_precision_gate <- function(fit,
                                 mode = c("normalized", "amplitude", "raw"),
                                 Theta0 = NULL,
-                                ridge = 1e-4) {
+                                ridge = NULL) {
   mode <- match.arg(mode)
   if (!inherits(fit, "mppi_fit")) stop("fit must be an mppi_fit object.", call. = FALSE)
+  if (mode == "amplitude") stop("mode = \"amplitude\" has no precision-domain analogue; use \"raw\" or \"normalized\".", call. = FALSE)
   Sigma0 <- fit$Sigma0
   if (is.null(Sigma0)) stop("fit does not store baseline covariance (Sigma0).", call. = FALSE)
+  if (is.null(fit$covariance_diagonal)) stop("fit does not store the slope diagonal (covariance_diagonal); refit with mppi_fit().", call. = FALSE)
+  if (mode == "normalized") {
+    if (is.null(fit$sigma)) stop("fit does not store residual SDs (sigma) for the normalized scale.", call. = FALSE)
+    Sigma0 <- .mppi_scale_matrix(Sigma0, fit$sigma, "normalized")
+  }
   if (is.null(Theta0)) {
+    ridge <- ridge %||% fit$partial_lambda %||% 1e-3
     p <- ncol(Sigma0)
     Theta0 <- solve(Sigma0 + ridge * diag(p))
   }
@@ -283,7 +300,9 @@ mppi_precision_gate <- function(fit,
   summary_rows <- vector("list", length(cond_names))
   names(Delta_list) <- cond_names
   for (ii in seq_along(cond_names)) {
-    Mk <- mppi_get_M_scaled(fit, ii, mode = mode)
+    Mk <- mppi_get_M_scaled(fit, ii, mode = "raw")
+    diag(Mk) <- fit$covariance_diagonal[[ii]]
+    if (mode == "normalized") Mk <- .mppi_scale_matrix(Mk, fit$sigma, "normalized")
     DeltaTheta <- -Theta0 %*% Mk %*% Theta0
     Delta_list[[ii]] <- DeltaTheta
     off <- DeltaTheta

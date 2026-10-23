@@ -118,6 +118,17 @@ mppi_precision_delta <- function(fit, k, lambda = 1e-3) {
 
 #' Short-lag task-gated coupling matrices
 #'
+#' For \eqn{\tau > 0}, `M_lag[[tau]][i, j]` weights node \eqn{i} at \eqn{t}
+#' times node \eqn{j} at \eqn{t + \tau} by \eqn{p_k(t)} (i leads j), and
+#' \eqn{M(-\tau) = M(\tau)^T}. Positive- and negative-lag energies are thus
+#' always equal; direction lives in the asymmetry of each matrix. The routing
+#' index `R` is the directedness of the lead-lag energy
+#' \eqn{E_{ij} = \sum_\tau M(\tau)_{ij}^2} over nonzero lags (negative lags
+#' transposed, diagonal excluded):
+#' \eqn{R = \sum_{i<j} |E_{ij} - E_{ji}| / \sum_{i<j} (E_{ij} + E_{ji})}, in
+#' \eqn{[0, 1]}; 0 when every pair's lagged coupling is symmetric, 1 when every
+#' pair couples in one direction only. Use [mppi_routing_index()] for a signed
+#' index along a hierarchy.
 #' @param x multiPPI fit
 #' @param k condition index
 #' @param lags integer vector of TR lags
@@ -128,18 +139,29 @@ mppi_precision_delta <- function(fit, k, lambda = 1e-3) {
 #' @param TR repetition time for protect = "lowHz"
 #' @param ar_order AR order mode for innovations
 #' @param p maximum AR order
-#' @return list with matrices per lag and routing index R
+#' @return list with matrices per lag (`M_lag`), routing index `R`, the
+#'   `lead_energy` matrix \eqn{E}, `energy_directed` (numerator of `R`) and
+#'   `energy_total` (denominator)
 #' @rdname mppi_lagged
 #' @method mppi_lagged mppi_fit
 #' @export
 mppi_lagged.mppi_fit <- function(x, k, lags = -2:2, mode = c("neural", "innov"),
                                  protect = "lowK", K_keep = 8L, f_cut = 0.03,
                                  TR = NULL, ar_order = "auto", p = 4L, ...) {
-  fit <- x
   mode <- match.arg(mode)
+  inp <- .mppi_adv_lag_input(x, mode, TR, protect, K_keep, f_cut, ar_order, p)
+  pk <- .mppi_adv_pk(x, k)
+  M_by_lag <- .mppi_adv_lag_mats(inp$X, pk, lags, inp$runs, inp$index)
+  E <- .mppi_lead_energy(M_by_lag, lags)
+  list(M_lag = M_by_lag, R = .mppi_directedness(E), lead_energy = E,
+       energy_directed = if (is.null(E)) 0 else sum(abs(E - t(E))) / 2,
+       energy_total = if (is.null(E)) 0 else sum(E),
+       estimand = "directed_signal_lag_covariance", observation_index = inp$index)
+}
+
+.mppi_adv_lag_input <- function(fit, mode, TR, protect, K_keep, f_cut, ar_order, p) {
   X <- .mppi_adv_X(fit)
   if (!is.null(attr(X, "TR"))) TR <- attr(X, "TR")
-  pk <- .mppi_adv_pk(fit, k)
   runs <- fit$runs %||% rep(1L, nrow(X))
   index <- fit$observation_index %||% seq_len(nrow(X))
   if (length(runs) != nrow(X) || length(index) != nrow(X) || anyNA(runs) || anyNA(index)) stop("Invalid run or acquisition indices.")
@@ -150,34 +172,38 @@ mppi_lagged.mppi_fit <- function(x, k, lags = -2:2, mode = c("neural", "innov"),
                           K_keep = K_keep, f_cut = f_cut,
                           ar_order = ar_order, p = p, center = FALSE)
   }
+  list(X = X, runs = runs, index = index)
+}
+
+.mppi_adv_lag_mats <- function(X, pk, lags, runs, index) {
   M_by_lag <- setNames(vector("list", length(lags)), as.character(lags))
-  pos_energy <- 0
-  neg_energy <- 0
   for (ii in seq_along(lags)) {
     lg <- as.integer(lags[ii])
-    if (lg == 0L) Mk <- .mppi_adv_lagged_cross(X, pk, lg) else {
+    M_by_lag[[ii]] <- if (lg == 0L) .mppi_adv_lagged_cross(X, pk, lg) else {
       later <- match(index + abs(lg), index)
       earlier <- which(!is.na(later))
       later <- later[earlier]
       valid <- runs[earlier] == runs[later]
       earlier <- earlier[valid]; later <- later[valid]
       denom <- sum(pk[earlier]^2)
-      Mk <- if (denom < .Machine$double.eps) matrix(NA_real_,ncol(X),ncol(X)) else if (lg > 0L) crossprod(X[earlier,,drop=FALSE],pk[earlier]*X[later,,drop=FALSE])/denom else crossprod(X[later,,drop=FALSE],pk[earlier]*X[earlier,,drop=FALSE])/denom
+      if (denom < .Machine$double.eps) matrix(NA_real_,ncol(X),ncol(X)) else if (lg > 0L) crossprod(X[earlier,,drop=FALSE],pk[earlier]*X[later,,drop=FALSE])/denom else crossprod(X[later,,drop=FALSE],pk[earlier]*X[earlier,,drop=FALSE])/denom
     }
-    M_by_lag[[ii]] <- Mk
-    e <- sqrt(sum(Mk^2, na.rm = TRUE))
-    if (lg > 0) pos_energy <- pos_energy + e
-    if (lg < 0) neg_energy <- neg_energy + e
   }
-  denom <- pos_energy + neg_energy + 1e-12
-  R <- (pos_energy - neg_energy) / denom
-  list(M_lag = M_by_lag, R = R,
-       energy_pos = pos_energy, energy_neg = neg_energy,
-       estimand = "directed_signal_lag_covariance", observation_index = index)
+  M_by_lag
 }
 
 #' Gain vs routing classifier (G/C/I/R indices)
 #'
+#' `G` is the leading-eigenvalue energy share of the contemporaneous slope
+#' matrix, `C` the off-diagonal energy of the precision perturbation, `I` the
+#' innovations-to-neural slope norm ratio (`mode = "innov"` only) and `R` the
+#' lagged directedness from [mppi_lagged()]. P-values come from circular shifts
+#' of the psychological regressor; `pR` tests the directed lagged energy
+#' `lagged$energy_directed` (the numerator of `R`), which unlike the scale-free
+#' ratio is not swamped by its noise floor. `pI` is `NA` in neural mode, where
+#' the innovations criterion is skipped. The label is `"Gain-dominant"` when
+#' `G > 0.5` and `C`, `I`, `R` are not significant (0.05), `"Routing-dominant"`
+#' when `G <= 0.5` and they all are, and `"Mixed/Ambiguous"` otherwise.
 #' @param fit multiPPI fit
 #' @param k condition index
 #' @param templates optional list of template vectors
@@ -208,8 +234,9 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
   I_ratio <- sqrt(sum(Mk_innov^2)) / (sqrt(sum(Mk_neural^2)) + 1e-12)
   set.seed(seed)
   perm <- .mppi_adv_perm_shift(pk, B)
-  G_null <- C_null <- I_null <- R_null <- numeric(B)
+  G_null <- C_null <- I_null <- D_null <- numeric(B)
   TR_attr <- attr(X, "TR") %||% NULL
+  inp <- .mppi_adv_lag_input(fit, mode, NULL, "lowK", 8L, 0.03, "auto", 4L)
   for (b in seq_len(B)) {
     sb <- perm[, b]
     Mb <- crossprod(X, sb * X) / (sum(sb^2) + 1e-12)
@@ -228,25 +255,19 @@ mppi_classify <- function(fit, k, templates = NULL, lambda = 1e-3,
     } else {
       I_null[b] <- 1
     }
-    pos <- neg <- 0
-    for (lg in lags) {
-      Ml <- .mppi_adv_lagged_cross(X, sb, lg)
-      e <- sqrt(sum(Ml^2, na.rm = TRUE))
-      if (lg > 0) pos <- pos + e
-      if (lg < 0) neg <- neg + e
-    }
-    R_null[b] <- (pos - neg) / (pos + neg + 1e-12)
+    E_b <- .mppi_lead_energy(.mppi_adv_lag_mats(inp$X, sb, lags, inp$runs, inp$index), lags)
+    D_null[b] <- if (is.null(E_b)) 0 else sum(abs(E_b - t(E_b))) / 2
   }
   G_obs <- spec$lambda1_share
   C_obs <- prec$offdiag_energy
   R_obs <- lag$R
   pG <- mean(G_null >= G_obs)
   pC <- mean(C_null >= C_obs)
-  pI <- mean(I_null >= I_ratio)
-  pR <- mean(abs(R_null) >= abs(R_obs))
-  label <- if (G_obs > 0.5 && pC > 0.05 && pI > 0.05 && pR > 0.05) {
+  pI <- if (mode == "innov") mean(I_null >= I_ratio) else NA_real_
+  pR <- mean(D_null >= lag$energy_directed)
+  label <- if (G_obs > 0.5 && pC > 0.05 && (is.na(pI) || pI > 0.05) && pR > 0.05) {
     "Gain-dominant"
-  } else if (G_obs <= 0.5 && pC <= 0.05 && pI <= 0.05 && pR <= 0.05) {
+  } else if (G_obs <= 0.5 && pC <= 0.05 && (is.na(pI) || pI <= 0.05) && pR <= 0.05) {
     "Routing-dominant"
   } else {
     "Mixed/Ambiguous"
@@ -497,12 +518,9 @@ mppi_gate_by_theta <- function(fits, k, lambda = 1e-3, controls = NULL) {
 
 # Internal utilities ---------------------------------------------------------
 
-.mppi_adv_X <- function(fit) {
-  if (!is.null(fit$U)) return(fit$U)
-  if (!is.null(fit$Z)) return(fit$Z)
-  if (!is.null(fit$R)) return(fit$R)
-  stop("fit must carry U, Z, or R time-series.")
-}
+# Working series behind fit$Delta: R (innovations for domain = "innovations"),
+# not the pre-innovation U.
+.mppi_adv_X <- function(fit) .mppi_residual_matrix(fit)
 
 .mppi_adv_pk <- function(fit, k) {
   if (is.character(k)) {

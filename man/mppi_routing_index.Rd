@@ -15,7 +15,8 @@ mppi_routing_index(
 )
 }
 \arguments{
-\item{fits_by_lag}{either an \code{mppi_fit} fitted with lagged matrices or a named list of lagged fits}
+\item{fits_by_lag}{either an \code{mppi_fit} fitted with lagged matrices or a named
+list of fits (names coercible to the lag), each storing that lag in \verb{$lagged}}
 
 \item{k}{condition index or name to evaluate}
 
@@ -23,12 +24,25 @@ mppi_routing_index(
 
 \item{space}{coordinate space to evaluate (\code{"auto"}, \code{"basis"}, or \code{"roi"})}
 
-\item{pos}{integer lags treated as positive routing}
+\item{pos}{positive integer lags pooled into the lead-lag energy}
 
-\item{neg}{integer lags treated as negative routing}
+\item{neg}{negative integer lags pooled into the lead-lag energy (transposed)}
 
 \item{eps}{numerical guard to avoid division by zero}
 }
+\value{
+List with \code{routing}, \code{energy_up}, \code{energy_down}, the pairwise
+\code{lead_energy} matrix, \code{pos}, \code{neg} and \code{lag_values}.
+}
 \description{
-Routing asymmetry index using lagged fits and a hierarchy vector
+Measures whether task-modulated lagged coupling flows up or down a
+hierarchy. For signal lags \eqn{\tau > 0}, \eqn{M(\tau)_{ij}} couples node
+\eqn{i} at time \eqn{t} with node \eqn{j} at \eqn{t + \tau} (i leads j), and
+\eqn{M(-\tau) = M(\tau)^T}; negative-lag matrices are therefore transposed
+and pooled with the positive ones into the lead-lag energy
+\eqn{E_{ij} = \sum_\tau M(\tau)_{ij}^2} (diagonal excluded). With hierarchy
+\eqn{u}, upward energy is \eqn{\sum_{ij} E_{ij} (u_j - u_i)_+}, downward energy
+is \eqn{\sum_{ij} E_{ij} (u_i - u_j)_+}, and the index is
+\code{(up - down) / (up + down)}, in \eqn{[-1, 1]}: positive when lagged coupling
+runs from low to high \eqn{u}, zero for symmetric (undirected) coupling.
 }

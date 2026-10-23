@@ -56,7 +56,8 @@ test_that("lagged summaries match manual calculations", {
   expect_equal(lag_neural$M_lag[["0"]], crossprod(U, pk * U) / sum(pk^2))
   expect_equal(lag_neural$M_lag[["1"]][1, 2], 1)
   expect_equal(lag_neural$M_lag[["-1"]][2, 1], 1)
-  expect_equal(lag_neural$R, 0)
+  # M(1) = e1 e2' is one-way coupling (node 1 leads node 2): fully directed
+  expect_equal(lag_neural$R, 1)
 
   lag_innov <- mppi_lagged(fit, 1L, lags = -1:1, mode = "innov",
                            protect = "none", ar_order = "fixed", p = 0L)
@@ -64,17 +65,17 @@ test_that("lagged summaries match manual calculations", {
 })
 
 test_that("mppi_classify captures gain-dominated patterns", {
-  set.seed(2)
-  Tn <- 40L
-  pk <- rep(c(1, 0), length.out = Tn)
-  U <- cbind(pk, rnorm(Tn, sd = 1e-3))
-  fit <- make_fit(U, pk)
+  set.seed(1)
+  Tn <- 400L
+  task <- head(rep(rep(c(1, 0), 30), sample(8:20, 60, replace = TRUE)), Tn)
+  Y <- matrix(rnorm(Tn * 6), Tn, 6) + 1.5 * task * rnorm(Tn)
+  fit <- mppi_fit(Y, cbind(int = 1, task = task), psych_idx = 2, lags = -1:1)
   lab <- mppi_classify(fit, 1L, lambda = 1e-3, lags = -1:1,
                        mode = "neural", B = 30L, seed = 11)
   expect_true(lab$G > 0.8)
-  expect_lt(lab$C, 1e-2)
-  expect_lt(abs(lab$R), 1e-6)
+  expect_gt(lab$pR, 0.05)
   expect_equal(lab$lagged$R, lab$R)
+  expect_equal(lab$label, "Gain-dominant")
 
   lab_innov <- mppi_classify(fit, 1L, lambda = 1e-3, lags = -1:1,
                              mode = "innov", B = 30L, seed = 12)

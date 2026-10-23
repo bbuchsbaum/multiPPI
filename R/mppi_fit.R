@@ -91,7 +91,10 @@
 #' @param X T x q design matrix (intercept + confounds + psychological mains)
 #' @param psych_idx integer indices of psychological columns in X
 #' @param runs optional integer vector the same length as the rows of `Y` indicating run membership
-#' @param zero_diag logical; zero the diagonal of ΔΣ
+#' @param zero_diag logical; zero the diagonal of ΔΣ. With a `basis`, the stored
+#'   r x r matrices are component-space summaries; ROI-space edges come from
+#'   [mppi_reconstruct_delta()], [mppi_edge()] and [mppi_seedset_slopes()], which
+#'   back-project the full component slope and apply `zero_diag` and scaling in ROI space.
 #' @param scale summary scale for returned matrices; choose among `"normalized"`, `"cov"`, or `"corr"`
 #' @param center_by strategy for mean-centering psychological regressors (`"none"` or per-`runs`)
 #' @param na_action how to handle missing trials (`"omit_tr"` to drop them or `"error"` to abort)
@@ -317,6 +320,10 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   }
 
   sigma_unscaled <- matrixStats::colSds(R_work)
+  # ROI-space SDs for back-projected basis slopes: voxel residuals in BOLD; otherwise the
+  # back-projected working series, since deconvolution/filtering runs on components.
+  sigma_roi <- if (is.null(basis_info)) NULL else if (domain == "bold") matrixStats::colSds(R) else
+    sqrt(rowSums((basis_info$V %*% stats::cov(R_work)) * basis_info$V))
 
   out  <- vector("list", n_psych)
   pks  <- vector("list", n_psych)
@@ -436,6 +443,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       } else raw_lag <- .mppi_crossprod_lagged(R_work, pk_vec, lg,
                                         blocklens = lag_blocklens,
                                         backend = backend, chunk_size = chunk_size)
+      lag_diag <- diag(raw_lag)
       if (!all(is.na(raw_lag)) && zero_diag) diag(raw_lag) <- 0
       amp_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "amplitude")
       norm_lag <- if (all(is.na(raw_lag))) raw_lag else .mppi_scale_matrix(raw_lag, sigma_unscaled, "normalized")
@@ -446,6 +454,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
       attr(chosen_lag, "raw") <- raw_lag
       attr(chosen_lag, "amplitude") <- amp_lag
       attr(chosen_lag, "normalized") <- norm_lag
+      attr(chosen_lag, "diagonal") <- lag_diag
       lag_list[[li]] <- chosen_lag
     }
     lag_store[[ii]] <- lag_list
@@ -483,7 +492,7 @@ mppi_fit <- function(Y, X, psych_idx, runs = NULL,
   }
   res <- list(Delta = out, names = pNms, R = R_work, R_raw = R_unscaled,
               Delta_raw = raw_list, Delta_amplitude = amp_list, Delta_normalized = norm_list,
-              sigma = sigma_unscaled, pk = pks,
+              sigma = sigma_unscaled, sigma_roi = sigma_roi, pk = pks,
               scale = scale_choice, dropped = inputs$dropped, center_by = center_by,
               observation_index = setdiff(seq_len(original_n), inputs$dropped_idx),
               covariance_diagonal = covariance_diagonal, zero_diag = zero_diag,

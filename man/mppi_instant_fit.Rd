@@ -22,7 +22,28 @@ mppi_instant_fit(
   ...
 )
 }
+\arguments{
+\item{instant}{list of engine options: \code{method} (\code{"ewm"}, \code{"iphs"} or
+\code{"pwi"}), \code{tau_half} (half-life in scans), \code{offsets} (integer lags, 0 is
+always included), \code{band}, \code{weight}, \code{robust} and \code{fs}.}
+}
 \description{
-Instantaneous mPPI engine
+Prepares data exactly as \code{mppi_fit()}, or \code{mppi_fit_whitened()} when
+\code{prewhiten = TRUE} (run-local deconvolution, rejection of censored scans
+outside the BOLD domain, rank-based evidence), then replaces its
+whole-scan slopes with the estimator chosen by \code{instant$method}.
+}
+\details{
+For \code{method = "ewm"} the matrix at offset \eqn{\tau \ge 0} is the
+exponentially weighted slope
+\deqn{\sum_t w_t p_t R_{t,i} R_{t+\tau,j} / \sum_t w_t p_t^2}
+with \eqn{w_t = 2^{-(T - t)/h}}, \eqn{h} = \code{tau_half} and \eqn{T} the last
+scan, over scans \eqn{t} and \eqn{t+\tau} that are both retained and in the
+same run on the acquisition grid; offset \eqn{-\tau} is its transpose. Units
+and orientation match \code{mppi_fit()}'s \code{Delta} and \code{lagged} (row \eqn{i} leads
+column \eqn{j} for \eqn{\tau > 0}), and as \code{tau_half} grows the estimate
+converges to them. It is end-weighted (runs are concatenated in order): the
+effective window is a few \code{tau_half} scans before the last scan, not the
+whole acquisition. Diagonals are not zeroed.
 }
 \keyword{internal}

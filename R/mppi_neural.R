@@ -250,14 +250,52 @@ mppi_gain <- function(fit, k = 1L, lambda = 1e-3, roi_idx = NULL) {
   }
 }
 
+# Lead-lag energy E[i, j]: squared lagged slopes with i leading j, pooled over
+# nonzero lags. Signal-lag matrices have rows leading at tau > 0 and satisfy
+# M(-tau) = t(M(tau)), so negative lags are transposed before pooling.
+.mppi_lead_energy <- function(mats, lags) {
+  E <- NULL
+  for (ii in seq_along(lags)) {
+    lg <- as.integer(lags[ii]); M <- mats[[ii]]
+    if (lg == 0L || is.null(M)) next
+    M <- matrix(M, nrow(M), ncol(M))
+    if (lg < 0L) M <- t(M)
+    M[!is.finite(M)] <- 0
+    E <- if (is.null(E)) M^2 else E + M^2
+  }
+  if (!is.null(E)) diag(E) <- 0
+  E
+}
+
+# Directedness of lagged coupling in [0, 1]: sum over pairs of |E_ij - E_ji|
+# divided by sum over pairs of (E_ij + E_ji). 0 = every pair symmetric, 1 = one-way.
+.mppi_directedness <- function(E) {
+  if (is.null(E)) return(NA_real_)
+  sum(abs(E - t(E))) / (2 * sum(E) + 1e-12)
+}
+
 #' Routing asymmetry index using lagged fits and a hierarchy vector
-#' @param fits_by_lag either an `mppi_fit` fitted with lagged matrices or a named list of lagged fits
+#'
+#' Measures whether task-modulated lagged coupling flows up or down a
+#' hierarchy. For signal lags \eqn{\tau > 0}, \eqn{M(\tau)_{ij}} couples node
+#' \eqn{i} at time \eqn{t} with node \eqn{j} at \eqn{t + \tau} (i leads j), and
+#' \eqn{M(-\tau) = M(\tau)^T}; negative-lag matrices are therefore transposed
+#' and pooled with the positive ones into the lead-lag energy
+#' \eqn{E_{ij} = \sum_\tau M(\tau)_{ij}^2} (diagonal excluded). With hierarchy
+#' \eqn{u}, upward energy is \eqn{\sum_{ij} E_{ij} (u_j - u_i)_+}, downward energy
+#' is \eqn{\sum_{ij} E_{ij} (u_i - u_j)_+}, and the index is
+#' `(up - down) / (up + down)`, in \eqn{[-1, 1]}: positive when lagged coupling
+#' runs from low to high \eqn{u}, zero for symmetric (undirected) coupling.
+#' @param fits_by_lag either an `mppi_fit` fitted with lagged matrices or a named
+#'   list of fits (names coercible to the lag), each storing that lag in `$lagged`
 #' @param k condition index or name to evaluate
 #' @param hierarchy numeric hierarchy vector (length = number of components/ROIs)
 #' @param space coordinate space to evaluate (`"auto"`, `"basis"`, or `"roi"`)
-#' @param pos integer lags treated as positive routing
-#' @param neg integer lags treated as negative routing
+#' @param pos positive integer lags pooled into the lead-lag energy
+#' @param neg negative integer lags pooled into the lead-lag energy (transposed)
 #' @param eps numerical guard to avoid division by zero
+#' @return List with `routing`, `energy_up`, `energy_down`, the pairwise
+#'   `lead_energy` matrix, `pos`, `neg` and `lag_values`.
 #' @export
 mppi_routing_index <- function(fits_by_lag, k = 1L, hierarchy,
                                space = c("auto", "basis", "roi"),
@@ -294,22 +332,20 @@ mppi_routing_index <- function(fits_by_lag, k = 1L, hierarchy,
       if (is.null(fit)) {
         stop(sprintf("No fit supplied for lag %s", lag), call. = FALSE)
       }
-      mppi_get_M(fit, k)
+      # contemporaneous slopes are symmetric and carry no direction
+      mppi_get_M_lag(fit, k, lag)
     }
   }
   u <- as.numeric(hierarchy)
   if (length(u) != ncol(X0)) stop("Hierarchy vector length must match fit dimension.")
-  Wdir <- tcrossprod(u, u)
-  pos_lags <- intersect(lag_vals, pos)
-  neg_lags <- intersect(lag_vals, neg)
-  proj_energy <- function(lag) {
-    Mk <- fetch_matrix(lag)
-    sum(Mk * Wdir, na.rm = TRUE)
-  }
-  Epos <- if (length(pos_lags)) sum(vapply(pos_lags, proj_energy, numeric(1))) else 0
-  Eneg <- if (length(neg_lags)) sum(vapply(neg_lags, proj_energy, numeric(1))) else 0
-  R <- (Epos - Eneg) / (Epos + Eneg + eps)
-  list(routing = R, energy_pos = Epos, energy_neg = Eneg,
+  use <- c(intersect(lag_vals, pos[pos > 0]), intersect(lag_vals, neg[neg < 0]))
+  E <- .mppi_lead_energy(lapply(use, fetch_matrix), use)
+  if (is.null(E)) E <- matrix(0, length(u), length(u))
+  W <- outer(u, u, function(a, b) b - a)
+  Eup <- sum(E * pmax(W, 0))
+  Edown <- sum(E * pmax(-W, 0))
+  R <- (Eup - Edown) / (Eup + Edown + eps)
+  list(routing = R, energy_up = Eup, energy_down = Edown, lead_energy = E,
        pos = pos, neg = neg, lag_values = lag_vals)
 }
 
@@ -381,7 +417,8 @@ mppi_templates_gradient <- function(u) {
 #' @param fit `mppi_fit` object for the target regressor.
 #' @param k Regressor index or name.
 #' @param hierarchy Optional vector for routing index.
-#' @param lag_fits Optional named list of lagged fits for routing.
+#' @param lag_fits Optional lagged `mppi_fit` (or named list of lagged fits) for
+#'   [mppi_routing_index()].
 #' @param templates Optional list of template matrices for projections.
 #' @param lambda Ridge term for gain computation.
 #' @param roi_idx Optional ROI indices for gain back-projection.

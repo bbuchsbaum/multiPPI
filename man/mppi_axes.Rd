@@ -24,5 +24,8 @@ mppi_axes(
 data.frame with condition name, gain, and routing indices
 }
 \description{
-Summarise conditions along gain and routing axes
+\code{gain} is the alignment of the symmetrised slope matrix with the leading
+baseline covariance mode. \code{routing} is the directedness of the lagged slopes
+in \eqn{[0, 1]} (0 = symmetric lagged coupling, 1 = one-way), defined as in
+\code{\link[=mppi_lagged]{mppi_lagged()}}; it is \code{NA} when no lagged matrices are available.
 }

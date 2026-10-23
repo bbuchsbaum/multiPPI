@@ -2,7 +2,7 @@
 % Please edit documentation in R/mppi_rest.R
 \name{mppi_rest_trait_cv}
 \alias{mppi_rest_trait_cv}
-\title{Simple nested CV ridge for trait prediction}
+\title{Cross-validated ridge regression for trait prediction}
 \usage{
 mppi_rest_trait_cv(
   features,
@@ -16,19 +16,26 @@ mppi_rest_trait_cv(
 \arguments{
 \item{features}{Output from \code{mppi_rest_features(aggregate = "none")}.}
 
-\item{y}{Named numeric trait vector (names correspond to subject indices).}
+\item{y}{Numeric trait vector. When named, names are matched to
+\code{features$subj}; otherwise values follow \code{sort(unique(features$subj))}.}
 
-\item{covariates}{Optional covariate matrix keyed by subject name.}
+\item{covariates}{Optional numeric covariate matrix, matched to subjects by
+row names when present, otherwise by position.}
 
-\item{k}{Number of outer CV folds.}
+\item{k}{Number of CV folds.}
 
 \item{seed}{RNG seed.}
 
-\item{lambda}{Ridge penalty.}
+\item{lambda}{Ridge penalty on the standardized features.}
 }
 \value{
-List with predictions, observed values, and CV R^2.
+List with predictions, observed values (both named by subject), and
+CV R^2.
 }
 \description{
-Simple nested CV ridge for trait prediction
+Single-level k-fold cross-validation with a fixed ridge penalty (\code{lambda} is
+not tuned; there is no inner loop). In each fold, features are centered and
+scaled and the trait is centered (an unpenalized intercept) using
+training-fold statistics only, which are then applied to the held-out
+subjects.
 }

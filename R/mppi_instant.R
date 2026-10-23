@@ -41,16 +41,28 @@
   opts
 }
 
-.mppi_instant_prewhiten <- function(Y, X, runs, ar_method = "ar", ar_order = "auto") {
-  stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
-  qrX <- qr(X)
-  res <- Y - X %*% qr.coef(qrX, Y)
-  plan <- fmriAR::fit_noise(res, runs = runs, method = ar_method, p = ar_order)
-  fmriAR::whiten_apply(plan, X = X, Y = Y, runs = runs)
-}
-
 #' Instantaneous mPPI engine
 #'
+#' Prepares data exactly as `mppi_fit()`, or `mppi_fit_whitened()` when
+#' `prewhiten = TRUE` (run-local deconvolution, rejection of censored scans
+#' outside the BOLD domain, rank-based evidence), then replaces its
+#' whole-scan slopes with the estimator chosen by `instant$method`.
+#'
+#' For `method = "ewm"` the matrix at offset \eqn{\tau \ge 0} is the
+#' exponentially weighted slope
+#' \deqn{\sum_t w_t p_t R_{t,i} R_{t+\tau,j} / \sum_t w_t p_t^2}
+#' with \eqn{w_t = 2^{-(T - t)/h}}, \eqn{h} = `tau_half` and \eqn{T} the last
+#' scan, over scans \eqn{t} and \eqn{t+\tau} that are both retained and in the
+#' same run on the acquisition grid; offset \eqn{-\tau} is its transpose. Units
+#' and orientation match `mppi_fit()`'s `Delta` and `lagged` (row \eqn{i} leads
+#' column \eqn{j} for \eqn{\tau > 0}), and as `tau_half` grows the estimate
+#' converges to them. It is end-weighted (runs are concatenated in order): the
+#' effective window is a few `tau_half` scans before the last scan, not the
+#' whole acquisition. Diagonals are not zeroed.
+#'
+#' @param instant list of engine options: `method` (`"ewm"`, `"iphs"` or
+#'   `"pwi"`), `tau_half` (half-life in scans), `offsets` (integer lags, 0 is
+#'   always included), `band`, `weight`, `robust` and `fs`.
 #' @keywords internal
 mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                              prewhiten = FALSE,
@@ -69,12 +81,7 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
   scale_choice <- match.arg(scale)
   opts <- .mppi_resolve_instant_options(instant, scale_choice)
 
-  if (prewhiten) {
-    if (is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.", call. = FALSE)
-    xyw <- .mppi_instant_prewhiten(Y, X, runs, ar_method = ar_method, ar_order = ar_order)
-    Y <- xyw$Y
-    X <- xyw$X
-  }
+  if (prewhiten && is.null(runs)) stop("'runs' must be supplied when prewhiten = TRUE.", call. = FALSE)
 
   state <- .mppi_engine_state(Y, X, psych_idx, runs = runs,
                               basis = basis,
@@ -83,7 +90,9 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                               center_by = center_by,
                               na_action = na_action_choice,
                               project_backend = "blas",
-                              project_chunk_cols = NULL)
+                              project_chunk_cols = NULL,
+                              prewhiten = prewhiten,
+                              ar_method = ar_method, ar_order = ar_order)
 
   core <- .mppi_instant_core(state, opts, ...)
 
@@ -100,12 +109,11 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
   if (method == "ewm") {
     offsets <- opts$offsets
     if (length(offsets) == 0L) offsets <- 0L
-    blk <- if (is.null(state$runs)) NULL else rle(state$runs)$lengths
     ewm <- ipppi_ewm(state$R_work, pk_mat,
                      tau_half = opts$tau_half,
                      offsets = offsets,
-                     normalized = FALSE,
-                     blocklens = blk)
+                     index = state$index,
+                     segments = state$segments)
     offsets <- ewm$offsets
     zero_idx <- match(0L, offsets)
     if (is.na(zero_idx)) stop("EWM engine requires offsets to include 0.", call. = FALSE)
@@ -136,7 +144,7 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
                 Delta_normalized = Delta_norm,
                 lagged = lagged,
                 offsets = offsets,
-                lag_blocklens = blk))
+                lag_blocklens = state$lag_blocklens))
   }
 
   fs <- opts$fs
@@ -253,6 +261,7 @@ mppi_instant_fit <- function(Y, X, psych_idx, runs = NULL,
     pk = state$pk_list,
     scale = scale_choice,
     dropped = state$dropped,
+    observation_index = state$index,
     center_by = state$center_by,
     runs = state$runs,
     denom = state$denoms,

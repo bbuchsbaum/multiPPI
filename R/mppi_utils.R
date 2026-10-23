@@ -257,10 +257,13 @@
   sqrt(sum(residual^2)) <= 1e-8 * sqrt(nrow(X))
 }
 
-# Prepare a design matrix, ensuring an intercept column and adjusting indices
+# Prepare a design matrix, ensuring an intercept column and adjusting indices.
+# A prewhitened design (attr "mppi_whitened") already carries its whitened intercept.
 .mppi_prepare_design_matrix <- function(X, psych_idx = NULL) {
   stopifnot(is.matrix(X))
-  if (.mppi_has_intercept(X)) {
+  whitened <- isTRUE(attr(X, "mppi_whitened"))
+  attr(X, "mppi_whitened") <- NULL
+  if (whitened || .mppi_has_intercept(X)) {
     return(list(X = X,
                 psych_idx = if (is.null(psych_idx)) psych_idx else sort(unique(as.integer(psych_idx))),
                 intercept_added = FALSE))

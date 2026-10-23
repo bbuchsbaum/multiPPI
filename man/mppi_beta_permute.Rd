@@ -23,7 +23,7 @@ mppi_beta_permute(
 
 \item{Cbeta}{optional nTrials x q trial-level confounds}
 
-\item{run_trial}{optional integer vector identifying runs per trial (overrides \code{runs} for permutations)}
+\item{run_trial}{optional vector of run labels per trial (overrides \code{runs} for permutations)}
 
 \item{blksize}{optional block length (trials) used when \code{run_trial} is absent}
 
@@ -36,5 +36,11 @@ mppi_beta_permute(
 \item{method}{permutation strategy (\code{"auto"}, \code{"block_flip"}, or \code{"permute"})}
 }
 \description{
-Permutation for β-mPPI omnibus per regressor
+Blocks are the runs in \code{run_trial}, else consecutive chunks of \code{blksize}
+trials, else one block of all trials. \code{"permute"} shuffles the raw regressor
+within blocks and re-residualizes it; \code{"block_flip"} flips the sign of the
+residualized regressor blockwise. \code{"auto"} flips continuous regressors when
+at least two blocks carry them, and permutes otherwise. Configurations whose
+null cannot vary (flips with fewer than two such blocks, or permutations of a
+regressor constant within every block) are errors.
 }

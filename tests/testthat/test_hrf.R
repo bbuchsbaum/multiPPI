@@ -4,13 +4,13 @@ test_that("HRF grouping matches expected names", {
   skip_if_not_installed("fmridesign")
   library(fmridesign)
   sframe <- sampling_frame(blocklens = 20, TR = 1)
-  ev <- event_model(onset ~ hrf(cond) + hrfTD(cond),
+  ev <- event_model(onset ~ hrf(cond, basis = "spmg3"),
                     data = data.frame(onset = c(0,5,10,15), cond = factor(c("A","A","B","B"))),
                     block = ~1, sampling_frame = sframe)
   D <- as_mppi_design(ev)
   groups <- mppi_group_hrf_columns(D)
-  expect_true("cond" %in% names(groups))
-  expect_equal(length(groups[["cond"]]), 2L)
+  expect_equal(names(groups), c("cond_cond.A", "cond_cond.B"))
+  expect_equal(unname(groups), list(D$psych_idx[1:3], D$psych_idx[4:6]))
 })
 
 test_that("HRF adaptive weights recover dominant basis", {

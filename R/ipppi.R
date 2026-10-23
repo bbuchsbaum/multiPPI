@@ -1,33 +1,38 @@
 # Instantaneous estimators --------------------------------------------------
 
+# Final state of the exponentially weighted slope filter, in closed form:
+# sum_t w_t p_t U[t, i] U[t + s, j] / sum_t w_t p_t^2 with w_t = 2^((t - t_end) / tau_half),
+# transposed for s < 0 (the closed engine's lag convention). Rows sit at acquisition
+# positions `index`; pairs must be s scans apart there and share a segment.
 ipppi_ewm <- function(U, pk, tau_half, offsets,
-                      normalized = FALSE, blocklens = NULL) {
-  stopifnot(is.matrix(U), is.matrix(pk))
+                      index = seq_len(nrow(U)), segments = rep(1L, nrow(U))) {
+  stopifnot(is.matrix(U), is.matrix(pk), length(index) == nrow(U), length(segments) == nrow(U))
   if (nrow(U) != nrow(pk)) stop("U and pk must share the same number of rows.", call. = FALSE)
-  eta <- log(2) / tau_half
-  if (!is.null(blocklens)) {
-    blocklens <- as.integer(blocklens)
-    if (any(!is.finite(blocklens)) || any(blocklens <= 0L)) {
-      stop("blocklens must contain positive run lengths.", call. = FALSE)
-    }
-  }
-  res <- ewm_gated_cross_rcpp(U, pk, eta, as.integer(offsets), normalized,
-                              if (is.null(blocklens)) integer() else blocklens)
-  K <- attr(res, "K") %||% ncol(pk)
-  L <- attr(res, "L") %||% length(offsets)
-  offsets <- attr(res, "offsets") %||% as.integer(offsets)
-  out <- vector("list", K)
-  for (k in seq_len(K)) {
-    offset_list <- vector("list", L)
-    for (li in seq_len(L)) {
-      idx <- (k - 1L) * L + li
-      offset_list[[li]] <- res[[idx]]
-    }
-    names(offset_list) <- as.character(offsets)
-    out[[k]] <- offset_list
-  }
+  offsets <- as.integer(offsets)
+  w <- 2^((index - max(index)) / tau_half)
+  pos <- integer(max(index)); pos[index] <- seq_along(index)
+  pairs <- lapply(offsets, function(s) {
+    b <- pos[index + abs(s)]
+    a <- which(!is.na(b) & b > 0L)
+    b <- b[a]
+    ok <- segments[a] == segments[b]
+    list(a = a[ok], b = b[ok])
+  })
+  V <- ncol(U)
+  out <- lapply(seq_len(ncol(pk)), function(k) {
+    mats <- Map(function(s, pr) {
+      a <- pr$a; b <- pr$b
+      wp <- w[a] * pk[a, k]
+      denom <- sum(wp * pk[a, k])
+      if (!is.finite(denom) || denom < .Machine$double.eps) return(matrix(NA_real_, V, V))
+      if (s >= 0L) crossprod(U[a, , drop = FALSE], wp * U[b, , drop = FALSE]) / denom
+      else crossprod(U[b, , drop = FALSE], wp * U[a, , drop = FALSE]) / denom
+    }, offsets, pairs)
+    names(mats) <- as.character(offsets)
+    mats
+  })
   names(out) <- colnames(pk)
-  list(mats = out, offsets = as.integer(offsets))
+  list(mats = out, offsets = offsets)
 }
 
 ipppi_bandpass_fft <- function(U, fs, band) {
@@ -115,32 +120,24 @@ ipppi_instfreq <- function(U, fs, band, runs = NULL) {
   U <- as.matrix(U)
   Tn <- nrow(U)
   V <- ncol(U)
-  Ubp <- ipppi_bandpass_fft(U, fs, band)
-  analytic <- matrix(NA_complex_, Tn, V)
-  for (j in seq_len(V)) {
-    analytic[, j] <- ipppi_analytic_signal(Ubp[, j])
-  }
-  amp <- Mod(analytic)
-  phi <- Arg(analytic)
-  if (is.null(runs)) {
-    runs <- rep.int(1L, Tn)
-  } else {
-    if (length(runs) != Tn) stop("runs must have length nrow(U).", call. = FALSE)
-    runs <- as.integer(runs)
-  }
-  omega <- matrix(NA_real_, Tn, V)
-  split_idx <- split(seq_len(Tn), runs)
-  for (idx in split_idx) {
+  if (is.null(runs)) runs <- rep.int(1L, Tn)
+  if (length(runs) != Tn) stop("runs must have length nrow(U).", call. = FALSE)
+  if (!is.atomic(runs) || anyNA(runs)) stop("runs must be non-missing run labels.", call. = FALSE)
+  runs <- as.character(runs)
+  # filtering, Hilbert transform and scaling are run-local
+  seg <- cumsum(c(TRUE, runs[-1L] != runs[-Tn]))
+  phi <- amp <- omega <- matrix(NA_real_, Tn, V)
+  for (idx in split(seq_len(Tn), seg)) {
     if (length(idx) < 2L) {
       next
     }
-    phi_run <- phi[idx, , drop = FALSE]
-    phi_unwrapped <- phi_run
+    Ubp <- ipppi_bandpass_fft(U[idx, , drop = FALSE], fs, band)
     for (j in seq_len(V)) {
-      phi_unwrapped[, j] <- .ipppi_unwrap(phi_run[, j])
+      analytic <- ipppi_analytic_signal(Ubp[, j])
+      amp[idx, j] <- Mod(analytic)
+      phi[idx, j] <- Arg(analytic)
+      omega[idx, j] <- fs * c(NA_real_, diff(.ipppi_unwrap(phi[idx, j])))
     }
-    dphi <- rbind(NA_real_, diff(phi_unwrapped))
-    omega[idx, ] <- fs * dphi
   }
   list(phi = phi, amp = amp, omega = omega)
 }

@@ -17,5 +17,7 @@ mppi_hrf_adapt(deltas_list, pk_norms = NULL, normalize = TRUE)
 list with Delta (combined), weights, Gram matrix M
 }
 \description{
-Combine multiple ΔΣ from an HRF basis using energy-maximizing weights
+Weights are the leading eigenvector of the Gram matrix of the inputs, signed
+so the combined matrix aligns positively with the sum of the inputs (or, if
+that alignment is zero, so the weights sum positive).
 }

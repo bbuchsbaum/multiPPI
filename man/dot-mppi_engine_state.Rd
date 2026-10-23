@@ -15,12 +15,18 @@
   center_by = c("none", "run"),
   na_action = c("omit_tr", "error"),
   project_backend = c("blas", "chunked"),
-  project_chunk_cols = NULL
+  project_chunk_cols = NULL,
+  prewhiten = FALSE,
+  ar_method = "ar",
+  ar_order = "auto"
 )
 }
 \description{
-Mirrors the preprocessing path inside \code{mppi_fit()}, returning the
-intermediate quantities so alternative engines (e.g. instantaneous) can
-operate on the same prepared data without duplicating logic.
+Runs the closed-form engine (\code{mppi_fit()}, or \code{mppi_fit_whitened()} when
+\code{prewhiten = TRUE}) and returns its prepared quantities, so alternative
+engines (e.g. instantaneous) share its run-local deconvolution, censoring
+rules, prewhitening and rank-safe evidence. \code{index} and \code{segments} give
+each retained row's acquisition position and contiguous run segment, for
+lag pairs on the acquisition grid.
 }
 \keyword{internal}

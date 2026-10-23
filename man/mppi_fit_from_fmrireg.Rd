@@ -34,7 +34,10 @@ mppi_fit_from_fmrireg(
 
 \item{scale}{summary scale for returned matrices; choose among \code{"normalized"}, \code{"cov"}, or \code{"corr"}}
 
-\item{zero_diag}{logical; zero the diagonal of ΔΣ}
+\item{zero_diag}{logical; zero the diagonal of ΔΣ. With a \code{basis}, the stored
+r x r matrices are component-space summaries; ROI-space edges come from
+\code{\link[=mppi_reconstruct_delta]{mppi_reconstruct_delta()}}, \code{\link[=mppi_edge]{mppi_edge()}} and \code{\link[=mppi_seedset_slopes]{mppi_seedset_slopes()}}, which
+back-project the full component slope and apply \code{zero_diag} and scaling in ROI space.}
 
 \item{runs}{optional integer vector the same length as the rows of \code{Y} indicating run membership}
 
