@@ -28,7 +28,6 @@ test_that("mppi_rest returns an mppi_fit with attached modulators", {
 })
 
 test_that("mppi_rest_features aggregates by subject", {
-  skip_if_not_installed("fmriAR")
   set.seed(3)
   Y <- matrix(rnorm(600), 100, 6)
   runs <- rep(1:2, each = 50)

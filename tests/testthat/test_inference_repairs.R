@@ -37,7 +37,6 @@ test_that("seed CCA supports descriptive raw seed equivalence and rejects infere
   b <- do.call(seed_ppi_mcca,c(args,list(seed=Y[,1:2,drop=FALSE])))
   expect_equal(a$stat,b$stat,tolerance=1e-10)
   args$prewhiten <- TRUE; args$ar_order <- 1L
-  skip_if_not_installed("fmriAR")
   a <- do.call(seed_ppi_mcca,c(args,list(seed=1:2)))
   b <- do.call(seed_ppi_mcca,c(args,list(seed=Y[,1:2,drop=FALSE])))
   expect_equal(a$stat,b$stat,tolerance=1e-10)

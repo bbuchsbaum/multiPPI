@@ -4,6 +4,7 @@
 ^\.codex$
 ^\.agents$
 ^\.dashboard$
+^\.gitignore$
 ^Rplots\.pdf$
 ^vignettes/.*\.(html|knit\.md)$
 ^vignettes/tmp_.*$

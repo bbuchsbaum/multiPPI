@@ -32,7 +32,6 @@ test_that("simulated rest dataset yields recoverable coupling", {
 })
 
 test_that("trait effect correlates with recovered gain", {
-  skip_if_not_installed("fmriAR")
   set.seed(7)
   cohort <- mppi_sim_rest_cohort(n_subj = 8,
                                  contexts = c("ctx1", "ctx2"),
@@ -58,7 +57,6 @@ test_that("trait effect correlates with recovered gain", {
 })
 
 test_that("gain metric tracks template-directed coupling", {
-  skip_if_not_installed("fmriAR")
   set.seed(2027)
   r <- 6
   v <- matrix(rnorm(r), r, 1)

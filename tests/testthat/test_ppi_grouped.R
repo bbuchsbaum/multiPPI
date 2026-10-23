@@ -1,5 +1,4 @@
 test_that("grouped fits and contrasts match independent per-group fits", {
-  skip_if_not_installed("fmriAR")
   set.seed(31); n <- 90; seed <- rnorm(n)
   p <- cbind(A=sin(seq_len(n)/5), B=cos(seq_len(n)/9))
   d <- ppi_design(seed, psych=p, hrf=c(0,1,.5), microtime=1, run_effects="shared")

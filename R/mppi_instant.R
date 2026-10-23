@@ -42,9 +42,6 @@
 }
 
 .mppi_instant_prewhiten <- function(Y, X, runs, ar_method = "ar", ar_order = "auto") {
-  if (!requireNamespace("fmriAR", quietly = TRUE)) {
-    stop("fmriAR not available. Install via remotes::install_github('bbuchsbaum/fmriAR').")
-  }
   stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
   qrX <- qr(X)
   res <- Y - X %*% qr.coef(qrX, Y)

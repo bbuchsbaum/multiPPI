@@ -39,9 +39,6 @@ mppi_fit_whitened <- function(Y, X, runs, psych_idx,
                               domain = c("bold","neural","innovations"), deconv = NULL,
                               project_backend = c("blas","chunked"), project_chunk_cols = NULL,
                               lags = 0L, lag_blocklens = NULL) {
-  if (!requireNamespace("fmriAR", quietly = TRUE)) {
-    stop("fmriAR not available. Install via remotes::install_github('bbuchsbaum/fmriAR').")
-  }
   stopifnot(length(runs) == nrow(Y), nrow(X) == nrow(Y))
   scale_choice <- match.arg(scale)
   domain <- match.arg(domain)

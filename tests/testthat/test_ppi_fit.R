@@ -50,7 +50,6 @@ test_that("missing observations stay on their original grid under IID fitting", 
 })
 
 test_that("fixed fmriAR operator agrees with independent dense runwise GLS", {
-  skip_if_not_installed("fmriAR")
   set.seed(122)
   n <- 120; rr <- rep(c(1, 2), c(55, 65))
   d <- ppi_design(rnorm(n), psych = cbind(A = rnorm(n), B = rnorm(n)),
@@ -86,4 +85,18 @@ test_that("a changing seed variance alone does not create conventional interacti
   e <- qr.resid(qr(d$X), rnorm(120))
   f <- ppi_fit(matrix(0.7 * seed + e, ncol = 1), d, noise = "iid")
   expect_equal(drop(ppi_contrast(f, c(A = 1))$estimate), 0, tolerance = 1e-10)
+})
+
+test_that("README conventional example runs with the default HRF and noise model", {
+  set.seed(1)
+  n <- 100
+  seed <- rnorm(n)
+  psych <- cbind(A = rep(c(0, 1), 50), B = rep(c(0, 0, 1, 1), 25))
+  design <- ppi_design(seed, psych = psych, TR = 2, run_effects = "shared")
+  expect_equal(design$provenance$hrf, fmrihrf::hrf_spmg1(seq(0, 32, by = 2 / 16)))
+  Y <- matrix(rnorm(n * 2), nrow = n)
+  fit <- ppi_fit(Y, design, noise = "iid")
+  est <- ppi_contrast(fit, c(A = 1, B = -1))$estimate
+  expect_true(all(is.finite(est)))
+  expect_s3_class(ppi_fit(Y, design)$noise_plan, "fmriAR_plan")
 })

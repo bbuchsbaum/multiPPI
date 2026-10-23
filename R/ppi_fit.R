@@ -92,7 +92,6 @@ ppi_fit <- function(Y, design, noise = "fmriAR", noise_control = list(),
   if (length(observed) <= initial$rank) stop("no residual degrees of freedom")
   plan <- NULL
   if (use_ar) {
-    if (!requireNamespace("fmriAR", quietly = TRUE)) stop("fmriAR is required for temporal prewhitening")
     if (fixed) plan <- noise else {
       if (!is.null(noise_control$pooling) && !noise_control$pooling %in% c("global", "run")) stop("only shared global/run noise operators are supported")
       # This is the full-model residual, including interaction columns.

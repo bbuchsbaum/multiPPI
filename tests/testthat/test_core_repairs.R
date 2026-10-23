@@ -30,7 +30,6 @@ test_that("deconvolution preserves HRF timing", {
 })
 
 test_that("whitening dispatch supports bold and rejects unsupported order", {
-  skip_if_not_installed("fmriAR")
   set.seed(15); n <- 80; X <- cbind(1,task=rnorm(n)); Y <- matrix(rnorm(n*3),n); runs <- rep(1:2,each=40)
   fit <- mppi(Y,X,psych_idx=2,runs=runs,prewhiten=TRUE,p=1,domain="bold")
   expect_equal(fit$domain,"whitened_bold")

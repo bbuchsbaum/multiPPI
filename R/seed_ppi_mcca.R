@@ -314,7 +314,6 @@ seed_ppi_mcca <- function(data,
   # Prewhiten Y and Z0=[D,N] together for consistency
   if (isTRUE(prewhiten)) {
     if (is.null(runs)) stop("'runs' must be provided when prewhiten = TRUE.", call. = FALSE)
-    if (!requireNamespace("fmriAR", quietly = TRUE)) stop("fmriAR is required for prewhiten.", call. = FALSE)
     Z0 <- if (is.null(N)) D else cbind(D, N)
     # Fit AR on residuals of Y after projecting Z0 (per standard practice)
     qrZ <- if (ncol(Z0)) qr(Z0) else NULL

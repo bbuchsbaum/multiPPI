@@ -1,6 +1,5 @@
 context("Simulation diagnostics for multiPPI")
 
-testthat::skip_if_not_installed("fmrihrf")
 
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 zscore <- function(x) { sx <- sd(x); if (sx == 0) x*0 else (x - mean(x))/sx }
